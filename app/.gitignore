@@ -1,0 +1,56 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# build output
+dist/
+dist-ssr/
+build/
+*.local
+
+# environment / secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# test / coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# caches
+.cache/
+.temp/
+.vite/
+*.tsbuildinfo
+
+# Kusuo — exported user data must never be committed to the public repo
+*.kusuo.json
+kusuo-export-*.json
+data-backups/
