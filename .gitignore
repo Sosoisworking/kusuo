@@ -49,6 +49,7 @@ playwright/.cache/
 .temp/
 .vite/
 *.tsbuildinfo
+.impeccable/hook.cache.json
 
 # Kusuo — exported user data must never be committed to the public repo
 *.kusuo.json

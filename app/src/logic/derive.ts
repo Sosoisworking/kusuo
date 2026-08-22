@@ -14,7 +14,7 @@ export function isCompleteOnDate(
   let last: HabitEvent | undefined
   for (const e of events) {
     if (e.habitId !== habitId || e.localDate !== localDate) continue
-    if (!last || e.timestamp > last.timestamp) last = e
+    if (!last || e.timestamp >= last.timestamp) last = e
   }
   return last?.action === 'complete'
 }
