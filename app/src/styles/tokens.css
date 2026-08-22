@@ -1,7 +1,10 @@
 /*
-  Design tokens — dark-first (per confirmed brief).
-  Colour values here are placeholders; the accent hue is finalized in
-  /impeccable init (slice 1), not decided ad hoc during scaffolding.
+  Design tokens — dark-first, one-accent restrained palette (slice 1,
+  /impeccable init). Accent: warm clay/terracotta, chosen to match the
+  "warm and encouraging" voice while staying fully distinct from the
+  Duolingo-style bright-green anti-reference. Completion state is a
+  separate muted moss green — functional "done" feedback, not a second
+  decorative accent.
 */
 
 :root {
@@ -12,8 +15,8 @@
   --color-border: #2a2c32;
   --color-text-primary: #f2f2f4;
   --color-text-secondary: #9a9ca4;
-  --color-accent: #7c9885;
-  --color-complete: #6b9d7a;
+  --color-accent: #c99575;
+  --color-complete: #7a9b6e;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -54,8 +57,8 @@
     --color-border: #e4e4e2;
     --color-text-primary: #1a1a1c;
     --color-text-secondary: #6b6d75;
-    --color-accent: #4f7a5c;
-    --color-complete: #4f7a5c;
+    --color-accent: #a06b45;
+    --color-complete: #5c7a52;
   }
 }
 
