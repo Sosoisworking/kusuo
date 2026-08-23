@@ -6,6 +6,7 @@ import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import type { Habit, HabitEvent, Settings } from '../db/schema'
 import { todayLocalDate } from '../lib/date'
 import { completedDatesForHabit } from '../logic/derive'
+import { groupHabitsByCategory } from '../logic/groupByCategory'
 import { dailyStreak, weeklyStreak } from '../logic/streaks'
 
 function streakFor(habit: Habit, completedDates: Set<string>, today: string): number {
@@ -156,6 +157,7 @@ export default function Today() {
     return { habit, isDone: completedDates.has(today), streak: streakFor(habit, completedDates, today) }
   })
   const doneCount = rows.filter((r) => r.isDone).length
+  const groups = groupHabitsByCategory(rows)
 
   return (
     <main className="flex min-h-dvh flex-col gap-6 px-6 pb-28 pt-[max(2.5rem,env(safe-area-inset-top))]">
@@ -191,17 +193,26 @@ export default function Today() {
           )}
         </div>
       ) : (
-        <div className="mx-auto flex w-full max-w-xs flex-col gap-3">
-          {rows.map(({ habit, isDone, streak }) => (
-            <HabitRow
-              key={habit.id}
-              habit={habit}
-              isDone={isDone}
-              streak={streak}
-              readOnly={isReader}
-              onToggle={() => toggle(habit, isDone)}
-              onEdit={() => navigate(`/habits/${habit.id}/edit`)}
-            />
+        <div className="mx-auto flex w-full max-w-xs flex-col gap-5">
+          {groups.map((group) => (
+            <div key={group.category ?? '__uncategorized'} className="flex flex-col gap-3">
+              {groups.length > 1 && (
+                <span className="text-sm font-medium text-[var(--color-text-secondary)]">
+                  {group.category ?? 'Uncategorized'}
+                </span>
+              )}
+              {group.rows.map(({ habit, isDone, streak }) => (
+                <HabitRow
+                  key={habit.id}
+                  habit={habit}
+                  isDone={isDone}
+                  streak={streak}
+                  readOnly={isReader}
+                  onToggle={() => toggle(habit, isDone)}
+                  onEdit={() => navigate(`/habits/${habit.id}/edit`)}
+                />
+              ))}
+            </div>
           ))}
           {!isReader && (
             <button

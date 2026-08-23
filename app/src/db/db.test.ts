@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { appendHabitEvent, eventsForHabit } from './events'
-import { archiveHabit, createHabit, listActiveHabits, listAllHabits, updateHabit } from './habits'
+import { archiveHabit, createHabit, listActiveHabits, listAllHabits, listCategories, updateHabit } from './habits'
 import { db } from './schema'
 import { completedDatesForHabit } from '../logic/derive'
 import { dailyStreak } from '../logic/streaks'
@@ -93,5 +93,28 @@ describe('event log + derived state, through Dexie', () => {
 
     const active = await listActiveHabits()
     expect(active.map((h) => h.id)).toEqual([b.id])
+  })
+})
+
+describe('listCategories', () => {
+  it('returns distinct, non-empty categories sorted alphabetically', async () => {
+    await createHabit({ name: 'Read', category: 'Learning', frequencyType: 'daily', frequencyValue: 1 })
+    await createHabit({ name: 'Run', category: 'Health', frequencyType: 'daily', frequencyValue: 1 })
+    await createHabit({ name: 'Stretch', category: 'Health', frequencyType: 'daily', frequencyValue: 1 })
+    await createHabit({ name: 'Journal', frequencyType: 'daily', frequencyValue: 1 })
+
+    expect(await listCategories()).toEqual(['Health', 'Learning'])
+  })
+
+  it('excludes categories from archived habits', async () => {
+    const habit = await createHabit({ name: 'Read', category: 'Learning', frequencyType: 'daily', frequencyValue: 1 })
+    await archiveHabit(habit.id)
+
+    expect(await listCategories()).toEqual([])
+  })
+
+  it('returns an empty array when no habits have categories', async () => {
+    await createHabit({ name: 'Read', frequencyType: 'daily', frequencyValue: 1 })
+    expect(await listCategories()).toEqual([])
   })
 })

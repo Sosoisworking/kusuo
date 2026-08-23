@@ -6,6 +6,7 @@ import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import type { Habit, HabitEvent, Settings } from '../db/schema'
 import { addDays, todayLocalDate } from '../lib/date'
 import { completedDatesForHabit } from '../logic/derive'
+import { groupHabitsByCategory } from '../logic/groupByCategory'
 import { dailyStreak, weeklyStreak } from '../logic/streaks'
 
 const RECENT_DAYS = 7
@@ -104,6 +105,7 @@ export default function Progress() {
     const completedDates = completedDatesForHabit(events, habit.id)
     return { habit, streak: streakFor(habit, completedDates, today), completedDates }
   })
+  const groups = groupHabitsByCategory(rows)
 
   return (
     <main className="flex min-h-dvh flex-col gap-6 px-6 pb-28 pt-[max(2.5rem,env(safe-area-inset-top))]">
@@ -119,16 +121,25 @@ export default function Progress() {
           <p className="text-sm text-[var(--color-text-secondary)]">No habits yet — add one from Today.</p>
         </div>
       ) : (
-        <div className="mx-auto flex w-full max-w-xs flex-col gap-3">
-          {rows.map(({ habit, streak, completedDates }) => (
-            <ProgressRow
-              key={habit.id}
-              habit={habit}
-              streak={streak}
-              recentDates={recentDates}
-              completedDates={completedDates}
-              onOpen={() => navigate(`/habits/${habit.id}`)}
-            />
+        <div className="mx-auto flex w-full max-w-xs flex-col gap-5">
+          {groups.map((group) => (
+            <div key={group.category ?? '__uncategorized'} className="flex flex-col gap-3">
+              {groups.length > 1 && (
+                <span className="text-sm font-medium text-[var(--color-text-secondary)]">
+                  {group.category ?? 'Uncategorized'}
+                </span>
+              )}
+              {group.rows.map(({ habit, streak, completedDates }) => (
+                <ProgressRow
+                  key={habit.id}
+                  habit={habit}
+                  streak={streak}
+                  recentDates={recentDates}
+                  completedDates={completedDates}
+                  onOpen={() => navigate(`/habits/${habit.id}`)}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}

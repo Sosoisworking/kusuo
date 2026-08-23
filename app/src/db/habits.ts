@@ -49,3 +49,13 @@ export function listAllHabits(): Promise<Habit[]> {
 export function getHabit(id: string): Promise<Habit | undefined> {
   return db.habits.get(id)
 }
+
+/** Distinct, non-empty categories across active habits, sorted alphabetically. */
+export async function listCategories(): Promise<string[]> {
+  const habits = await db.habits.filter((h) => h.isActive).toArray()
+  const categories = new Set<string>()
+  for (const h of habits) {
+    if (h.category) categories.add(h.category)
+  }
+  return Array.from(categories).sort((a, b) => a.localeCompare(b))
+}

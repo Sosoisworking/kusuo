@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { PrimaryButton, SecondaryButton } from '../components/Button'
-import { archiveHabit, createHabit, getHabit, updateHabit } from '../db/habits'
+import { archiveHabit, createHabit, getHabit, listCategories, updateHabit } from '../db/habits'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import type { FrequencyType, Settings } from '../db/schema'
 
@@ -14,6 +14,8 @@ export default function HabitForm() {
   const [settings, setSettings] = useState<Settings | undefined>()
   const [notFound, setNotFound] = useState(false)
   const [name, setName] = useState('')
+  const [category, setCategory] = useState('')
+  const [categories, setCategories] = useState<string[]>([])
   const [frequencyType, setFrequencyType] = useState<FrequencyType>('daily')
   const [frequencyValue, setFrequencyValue] = useState(3)
   const [saving, setSaving] = useState(false)
@@ -24,9 +26,10 @@ export default function HabitForm() {
     let cancelled = false
     async function load() {
       const deviceId = getOrCreateDeviceId()
-      const s = await getSettings(deviceId)
+      const [s, cats] = await Promise.all([getSettings(deviceId), listCategories()])
       if (cancelled) return
       setSettings(s)
+      setCategories(cats)
       if (id) {
         const habit = await getHabit(id)
         if (cancelled) return
@@ -34,6 +37,7 @@ export default function HabitForm() {
           setNotFound(true)
         } else {
           setName(habit.name)
+          setCategory(habit.category ?? '')
           setFrequencyType(habit.frequencyType)
           setFrequencyValue(habit.frequencyValue)
         }
@@ -53,10 +57,11 @@ export default function HabitForm() {
     setError(null)
     try {
       const value = frequencyType === 'daily' ? 1 : frequencyValue
+      const trimmedCategory = category.trim() || undefined
       if (isEdit && id) {
-        await updateHabit(id, { name: trimmed, frequencyType, frequencyValue: value })
+        await updateHabit(id, { name: trimmed, category: trimmedCategory, frequencyType, frequencyValue: value })
       } else {
-        await createHabit({ name: trimmed, frequencyType, frequencyValue: value })
+        await createHabit({ name: trimmed, category: trimmedCategory, frequencyType, frequencyValue: value })
       }
       navigate('/', { replace: true })
     } catch {
@@ -137,6 +142,25 @@ export default function HabitForm() {
             placeholder="Habit name"
             className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
           />
+        </div>
+
+        <div className="flex flex-col gap-2 text-left">
+          <label className="sr-only" htmlFor="habit-category">
+            Category (optional)
+          </label>
+          <input
+            id="habit-category"
+            list="habit-categories"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="Category (optional)"
+            className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          />
+          <datalist id="habit-categories">
+            {categories.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
         </div>
 
         <div className="flex gap-2">

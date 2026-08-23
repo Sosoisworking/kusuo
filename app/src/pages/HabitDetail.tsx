@@ -142,6 +142,7 @@ export default function HabitDetail() {
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">{habit.name}</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">{frequencyText}</p>
+        {habit.category && <p className="text-sm text-[var(--color-text-secondary)]">{habit.category}</p>}
       </div>
 
       <div className="flex w-full max-w-xs gap-3">
