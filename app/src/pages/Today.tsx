@@ -158,7 +158,7 @@ export default function Today() {
   const doneCount = rows.filter((r) => r.isDone).length
 
   return (
-    <main className="flex min-h-dvh flex-col gap-6 px-6 pb-10 pt-[max(2.5rem,env(safe-area-inset-top))]">
+    <main className="flex min-h-dvh flex-col gap-6 px-6 pb-28 pt-[max(2.5rem,env(safe-area-inset-top))]">
       <header className="flex flex-col gap-1 text-center">
         <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">
           {settings.userName ? `Hi, ${settings.userName}` : 'Kusuo'}
