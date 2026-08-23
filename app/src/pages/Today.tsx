@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { allHabitEvents, appendHabitEvent } from '../db/events'
 import { listActiveHabits } from '../db/habits'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
@@ -24,10 +24,11 @@ interface HabitRowProps {
   isDone: boolean
   streak: number
   onToggle: () => void
+  onEdit: () => void
   readOnly: boolean
 }
 
-function HabitRow({ habit, isDone, streak, onToggle, readOnly }: HabitRowProps) {
+function HabitRow({ habit, isDone, streak, onToggle, onEdit, readOnly }: HabitRowProps) {
   const label = streakLabel(habit, streak)
   const content = (
     <>
@@ -61,18 +62,34 @@ function HabitRow({ habit, isDone, streak, onToggle, readOnly }: HabitRowProps) 
   }
 
   return (
-    <button
-      onClick={onToggle}
-      aria-pressed={isDone}
-      className="flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] border px-4 py-3 text-left transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-      style={{ borderColor: isDone ? 'var(--color-complete)' : 'var(--color-border)' }}
-    >
-      {content}
-    </button>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={onToggle}
+        aria-pressed={isDone}
+        className="flex min-h-11 flex-1 items-center gap-3 rounded-[var(--radius-md)] border px-4 py-3 text-left transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        style={{ borderColor: isDone ? 'var(--color-complete)' : 'var(--color-border)' }}
+      >
+        {content}
+      </button>
+      <button
+        onClick={onEdit}
+        aria-label={`Edit ${habit.name}`}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+      >
+        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6}>
+          <path
+            d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5z"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
   )
 }
 
 export default function Today() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState<Settings | undefined>()
   const [habits, setHabits] = useState<Habit[]>([])
@@ -162,7 +179,17 @@ export default function Today() {
       </header>
 
       {habits.length === 0 ? (
-        <p className="text-center text-sm text-[var(--color-text-secondary)]">No habits yet.</p>
+        <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-4 text-center">
+          <p className="text-sm text-[var(--color-text-secondary)]">No habits yet.</p>
+          {!isReader && (
+            <button
+              onClick={() => navigate('/habits/new')}
+              className="min-h-11 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 py-3 text-base font-medium text-[var(--color-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            >
+              Add your first habit
+            </button>
+          )}
+        </div>
       ) : (
         <div className="mx-auto flex w-full max-w-xs flex-col gap-3">
           {rows.map(({ habit, isDone, streak }) => (
@@ -173,8 +200,17 @@ export default function Today() {
               streak={streak}
               readOnly={isReader}
               onToggle={() => toggle(habit, isDone)}
+              onEdit={() => navigate(`/habits/${habit.id}/edit`)}
             />
           ))}
+          {!isReader && (
+            <button
+              onClick={() => navigate('/habits/new')}
+              className="min-h-11 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            >
+              + Add habit
+            </button>
+          )}
         </div>
       )}
     </main>

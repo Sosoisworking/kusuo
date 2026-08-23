@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { PrimaryButton, SecondaryButton } from '../components/Button'
 import { createHabit } from '../db/habits'
 import { completeOnboarding, createSettings, getOrCreateDeviceId, getSettings, updateSettings } from '../db/settings'
 import type { DeviceRole, FrequencyType } from '../db/schema'
@@ -28,26 +29,6 @@ function StepIndicator({ step }: { step: Step }) {
         />
       ))}
     </div>
-  )
-}
-
-function PrimaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { className = '', ...rest } = props
-  return (
-    <button
-      {...rest}
-      className={`rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 py-3 text-base font-medium text-[var(--color-bg)] disabled:opacity-40 ${className}`}
-    />
-  )
-}
-
-function SecondaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { className = '', ...rest } = props
-  return (
-    <button
-      {...rest}
-      className={`rounded-[var(--radius-md)] border border-[var(--color-border)] px-6 py-3 text-base font-medium text-[var(--color-text-primary)] disabled:opacity-40 ${className}`}
-    />
   )
 }
 
