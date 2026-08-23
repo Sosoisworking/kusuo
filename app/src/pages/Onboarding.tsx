@@ -213,7 +213,7 @@ export default function Onboarding() {
 
   // templates
   return (
-    <main className="flex min-h-dvh flex-col items-center gap-6 px-6 py-12 text-center">
+    <main className="flex min-h-dvh flex-col items-center gap-6 px-6 pb-12 pt-[max(3rem,env(safe-area-inset-top))] text-center">
       <StepIndicator step={step} />
       <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">Pick a few habits to start</h1>
       <p className="max-w-xs text-sm text-[var(--color-text-secondary)]">
