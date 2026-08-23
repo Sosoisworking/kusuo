@@ -70,6 +70,8 @@ describe('serializeBackup / parseBackup', () => {
       exportedAt: Date.now(),
       habits: [makeHabit()],
       habitEvents: [makeEvent()],
+      goals: [],
+      reflections: [],
     }
     const json = serializeBackup(payload)
     expect(parseBackup(json)).toEqual(payload)
@@ -121,7 +123,7 @@ describe('serializeBackup / parseBackup', () => {
 
 describe('isReverseImport', () => {
   it('is false when the local DB is empty', async () => {
-    const payload: BackupPayload = { schemaVersion: 1, exportedAt: 1000, habits: [], habitEvents: [] }
+    const payload: BackupPayload = { schemaVersion: 1, exportedAt: 1000, habits: [], habitEvents: [], goals: [], reflections: [] }
     expect(await isReverseImport(payload)).toBe(false)
   })
 
@@ -133,6 +135,8 @@ describe('isReverseImport', () => {
       exportedAt: event.timestamp - 1000,
       habits: [],
       habitEvents: [],
+      goals: [],
+      reflections: [],
     }
     expect(await isReverseImport(payload)).toBe(true)
   })
@@ -145,6 +149,8 @@ describe('isReverseImport', () => {
       exportedAt: event.timestamp + 1000,
       habits: [],
       habitEvents: [],
+      goals: [],
+      reflections: [],
     }
     expect(await isReverseImport(payload)).toBe(false)
   })
@@ -162,6 +168,8 @@ describe('importBackup', () => {
       exportedAt: Date.now(),
       habits: [newHabit],
       habitEvents: [newEvent],
+      goals: [],
+      reflections: [],
     }
 
     await importBackup(payload)
@@ -174,7 +182,7 @@ describe('importBackup', () => {
     const habit = await createHabit({ name: 'Old', frequencyType: 'daily', frequencyValue: 1 })
     await appendHabitEvent(habit.id, '2026-01-01', 'complete', 'dev1')
 
-    const payload: BackupPayload = { schemaVersion: 1, exportedAt: Date.now(), habits: [], habitEvents: [] }
+    const payload: BackupPayload = { schemaVersion: 1, exportedAt: Date.now(), habits: [], habitEvents: [], goals: [], reflections: [] }
     await importBackup(payload)
 
     expect(await db.habits.toArray()).toEqual([])
@@ -188,6 +196,8 @@ describe('importBackup', () => {
       exportedAt: Date.now(),
       habits: [makeHabit()],
       habitEvents: [],
+      goals: [],
+      reflections: [],
     }
 
     await importBackup(payload)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Navigate } from 'react-router'
+import { Link, Navigate } from 'react-router'
 import {
   buildBackup,
   importBackup,
@@ -237,6 +237,22 @@ export default function Settings() {
       <div className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-3 text-left">
         <span className="text-sm font-medium text-[var(--color-text-primary)]">This device</span>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{deviceRoleText(settings.deviceRole)}</p>
+      </div>
+
+      <div className="flex w-full max-w-xs flex-col gap-2 text-left">
+        <span className="text-sm font-medium text-[var(--color-text-primary)]">More</span>
+        <Link
+          to="/reflection"
+          className="min-h-11 flex items-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        >
+          Reflection
+        </Link>
+        <Link
+          to="/goals"
+          className="min-h-11 flex items-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        >
+          Goals
+        </Link>
       </div>
 
       <div className="flex w-full max-w-xs flex-col gap-3 text-left">
