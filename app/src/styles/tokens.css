@@ -62,6 +62,35 @@
   }
 }
 
+/*
+  Explicit device-theme override (Settings > Theme: Dark/Light) beats the
+  prefers-color-scheme default above via attribute-selector specificity.
+  "System" leaves data-theme unset so the media query keeps deciding.
+*/
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #0e0f12;
+  --color-surface: #17181c;
+  --color-border: #2a2c32;
+  --color-text-primary: #f2f2f4;
+  --color-text-secondary: #9a9ca4;
+  --color-accent: #c99575;
+  --color-complete: #7a9b6e;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #fafaf9;
+  --color-surface: #ffffff;
+  --color-border: #e4e4e2;
+  --color-text-primary: #1a1a1c;
+  --color-text-secondary: #6b6d75;
+  --color-accent: #a06b45;
+  --color-complete: #5c7a52;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --duration-fast: 0ms;

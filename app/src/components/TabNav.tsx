@@ -17,9 +17,22 @@ function ProgressIcon({ active }: { active: boolean }) {
   )
 }
 
+function SettingsIcon({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={active ? 1.8 : 1.5}>
+      <circle cx="10" cy="10" r="2.75" />
+      <path
+        d="M10 3.5v1.6M10 14.9v1.6M16.5 10h-1.6M5.1 10H3.5M14.6 5.4l-1.13 1.13M6.53 13.47L5.4 14.6M14.6 14.6l-1.13-1.13M6.53 6.53L5.4 5.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 const TABS = [
   { to: '/', label: 'Today', icon: TodayIcon, end: true },
   { to: '/progress', label: 'Progress', icon: ProgressIcon, end: false },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon, end: false },
 ] as const
 
 export default function TabNav() {
