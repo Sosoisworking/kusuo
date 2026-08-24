@@ -16,6 +16,7 @@ export default function HabitForm() {
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
   const [categories, setCategories] = useState<string[]>([])
+  const [description, setDescription] = useState('')
   const [frequencyType, setFrequencyType] = useState<FrequencyType>('daily')
   const [frequencyValue, setFrequencyValue] = useState(3)
   const [saving, setSaving] = useState(false)
@@ -38,6 +39,7 @@ export default function HabitForm() {
         } else {
           setName(habit.name)
           setCategory(habit.category ?? '')
+          setDescription(habit.description ?? '')
           setFrequencyType(habit.frequencyType)
           setFrequencyValue(habit.frequencyValue)
         }
@@ -58,10 +60,23 @@ export default function HabitForm() {
     try {
       const value = frequencyType === 'daily' ? 1 : frequencyValue
       const trimmedCategory = category.trim() || undefined
+      const trimmedDescription = description.trim() || undefined
       if (isEdit && id) {
-        await updateHabit(id, { name: trimmed, category: trimmedCategory, frequencyType, frequencyValue: value })
+        await updateHabit(id, {
+          name: trimmed,
+          category: trimmedCategory,
+          description: trimmedDescription,
+          frequencyType,
+          frequencyValue: value,
+        })
       } else {
-        await createHabit({ name: trimmed, category: trimmedCategory, frequencyType, frequencyValue: value })
+        await createHabit({
+          name: trimmed,
+          category: trimmedCategory,
+          description: trimmedDescription,
+          frequencyType,
+          frequencyValue: value,
+        })
       }
       navigate('/', { replace: true })
     } catch {
@@ -161,6 +176,20 @@ export default function HabitForm() {
               <option key={c} value={c} />
             ))}
           </datalist>
+        </div>
+
+        <div className="flex flex-col gap-2 text-left">
+          <label className="sr-only" htmlFor="habit-description">
+            Notes
+          </label>
+          <textarea
+            id="habit-description"
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Notes (optional)"
+            className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          />
         </div>
 
         <div className="flex gap-2">

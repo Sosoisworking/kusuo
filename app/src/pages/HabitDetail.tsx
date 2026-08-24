@@ -145,6 +145,12 @@ export default function HabitDetail() {
         {habit.category && <p className="text-sm text-[var(--color-text-secondary)]">{habit.category}</p>}
       </div>
 
+      {habit.description && (
+        <p className="max-w-xs whitespace-pre-wrap text-sm text-[var(--color-text-secondary)]">
+          {habit.description}
+        </p>
+      )}
+
       <div className="flex w-full max-w-xs gap-3">
         <div className="flex flex-1 flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-3 text-left">
           <span className="text-xs text-[var(--color-text-secondary)]">Streak</span>
