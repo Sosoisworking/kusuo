@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
+import { useRegisterSW } from 'virtual:pwa-register/react'
 import {
   buildBackup,
   importBackup,
@@ -44,6 +45,35 @@ export default function Settings() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null)
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW()
+  const needRefreshRef = useRef(needRefresh)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    needRefreshRef.current = needRefresh
+    if (needRefresh) updateServiceWorker(true)
+  }, [needRefresh, updateServiceWorker])
+
+  async function handleCheckForUpdate() {
+    setCheckingUpdate(true)
+    setUpdateStatus(null)
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration()
+      await registration?.update()
+    } catch {
+      setUpdateStatus("Couldn't check — give it another tap.")
+      setCheckingUpdate(false)
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    setCheckingUpdate(false)
+    if (!needRefreshRef.current) setUpdateStatus("You're up to date.")
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -237,6 +267,21 @@ export default function Settings() {
       <div className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-3 text-left">
         <span className="text-sm font-medium text-[var(--color-text-primary)]">This device</span>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{deviceRoleText(settings.deviceRole)}</p>
+      </div>
+
+      <div className="flex w-full max-w-xs flex-col gap-3 text-left">
+        <span className="text-sm font-medium text-[var(--color-text-primary)]">Updates</span>
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Installed to your home screen? New versions wait quietly until you check.
+        </p>
+        <SecondaryButton onClick={handleCheckForUpdate} disabled={checkingUpdate}>
+          {checkingUpdate ? 'Checking…' : 'Check for updates'}
+        </SecondaryButton>
+        {updateStatus && (
+          <p role="status" className="text-xs text-[var(--color-text-secondary)]">
+            {updateStatus}
+          </p>
+        )}
       </div>
 
       <div className="flex w-full max-w-xs flex-col gap-2 text-left">
