@@ -28,6 +28,8 @@ export async function createSettings(input: CreateSettingsInput): Promise<Settin
     deviceRole: input.deviceRole,
     userName: input.userName,
     theme: 'system',
+    units: 'kg',
+    weekStart: 'monday',
     schemaVersion: 1,
     onboardingComplete: false,
   }

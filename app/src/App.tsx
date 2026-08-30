@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Route, Routes } from 'react-router'
 import Layout from './components/Layout'
+import { seedExercises } from './db/exercises'
 import { getOrCreateDeviceId, getSettings } from './db/settings'
 import { applyTheme } from './lib/theme'
 import Goals from './pages/Goals'
@@ -15,7 +16,12 @@ import Today from './pages/Today'
 function App() {
   useEffect(() => {
     getSettings(getOrCreateDeviceId()).then((s) => {
-      if (s) applyTheme(s.theme)
+      if (!s) return
+      applyTheme(s.theme)
+      // Fills in any movements this install is missing, including ones added in
+      // a later app version. Writers only: a reader device gets its directory
+      // from the imported backup, and nothing on the Mac writes to the database.
+      if (s.deviceRole === 'writer') void seedExercises()
     })
   }, [])
 

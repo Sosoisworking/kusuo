@@ -10,7 +10,10 @@ import {
   type BackupPayload,
 } from './backup'
 import { appendHabitEvent } from './events'
+import { seedExercises } from './exercises'
 import { createHabit } from './habits'
+import { finishSession, logSet } from './sessions'
+import { instantiateTemplate } from './splits'
 import { db, type Habit, type HabitEvent } from './schema'
 import { createSettings, getSettings } from './settings'
 
@@ -18,6 +21,10 @@ beforeEach(async () => {
   await db.habits.clear()
   await db.habitEvents.clear()
   await db.settings.clear()
+  await db.exercises.clear()
+  await db.splits.clear()
+  await db.sessionEvents.clear()
+  await db.sessionMarks.clear()
 })
 
 function makeHabit(overrides: Partial<Habit> = {}): Habit {
@@ -72,6 +79,10 @@ describe('serializeBackup / parseBackup', () => {
       habitEvents: [makeEvent()],
       goals: [],
       reflections: [],
+      exercises: [],
+      splits: [],
+      sessionEvents: [],
+      sessionMarks: [],
     }
     const json = serializeBackup(payload)
     expect(parseBackup(json)).toEqual(payload)
@@ -123,7 +134,7 @@ describe('serializeBackup / parseBackup', () => {
 
 describe('isReverseImport', () => {
   it('is false when the local DB is empty', async () => {
-    const payload: BackupPayload = { schemaVersion: 1, exportedAt: 1000, habits: [], habitEvents: [], goals: [], reflections: [] }
+    const payload: BackupPayload = { schemaVersion: 1, exportedAt: 1000, habits: [], habitEvents: [], goals: [], reflections: [], exercises: [], splits: [], sessionEvents: [], sessionMarks: [] }
     expect(await isReverseImport(payload)).toBe(false)
   })
 
@@ -137,6 +148,10 @@ describe('isReverseImport', () => {
       habitEvents: [],
       goals: [],
       reflections: [],
+      exercises: [],
+      splits: [],
+      sessionEvents: [],
+      sessionMarks: [],
     }
     expect(await isReverseImport(payload)).toBe(true)
   })
@@ -151,6 +166,10 @@ describe('isReverseImport', () => {
       habitEvents: [],
       goals: [],
       reflections: [],
+      exercises: [],
+      splits: [],
+      sessionEvents: [],
+      sessionMarks: [],
     }
     expect(await isReverseImport(payload)).toBe(false)
   })
@@ -170,6 +189,10 @@ describe('importBackup', () => {
       habitEvents: [newEvent],
       goals: [],
       reflections: [],
+      exercises: [],
+      splits: [],
+      sessionEvents: [],
+      sessionMarks: [],
     }
 
     await importBackup(payload)
@@ -182,7 +205,7 @@ describe('importBackup', () => {
     const habit = await createHabit({ name: 'Old', frequencyType: 'daily', frequencyValue: 1 })
     await appendHabitEvent(habit.id, '2026-01-01', 'complete', 'dev1')
 
-    const payload: BackupPayload = { schemaVersion: 1, exportedAt: Date.now(), habits: [], habitEvents: [], goals: [], reflections: [] }
+    const payload: BackupPayload = { schemaVersion: 1, exportedAt: Date.now(), habits: [], habitEvents: [], goals: [], reflections: [], exercises: [], splits: [], sessionEvents: [], sessionMarks: [] }
     await importBackup(payload)
 
     expect(await db.habits.toArray()).toEqual([])
@@ -198,6 +221,10 @@ describe('importBackup', () => {
       habitEvents: [],
       goals: [],
       reflections: [],
+      exercises: [],
+      splits: [],
+      sessionEvents: [],
+      sessionMarks: [],
     }
 
     await importBackup(payload)
@@ -216,5 +243,99 @@ describe('recordBackupExported', () => {
     const settings = await getSettings('dev1')
     expect(settings?.lastBackupAt).toBeGreaterThanOrEqual(before)
     expect(settings?.lastBackupAt).toBeLessThanOrEqual(Date.now())
+  })
+})
+
+describe('schema version 2 — training tables', () => {
+  it('imports a version 1 file, treating the absent training tables as empty', () => {
+    const v1 = {
+      schemaVersion: 1,
+      exportedAt: Date.now(),
+      habits: [makeHabit()],
+      habitEvents: [makeEvent()],
+      goals: [],
+      reflections: [],
+    }
+    const parsed = parseBackup(JSON.stringify(v1))
+    expect(parsed.schemaVersion).toBe(1)
+    expect(parsed.habits).toHaveLength(1)
+    expect(parsed.exercises).toEqual([])
+    expect(parsed.splits).toEqual([])
+    expect(parsed.sessionEvents).toEqual([])
+    expect(parsed.sessionMarks).toEqual([])
+  })
+
+  it('round-trips real training data through Dexie', async () => {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    await logSet(
+      { localDate: '2026-01-10', splitDayId: split.days[0].id, exerciseId: 'ex-barbell-bench-press', setIndex: 0 },
+      { weightKg: 80, reps: 5 },
+      'dev1',
+    )
+    await finishSession('2026-01-10', split.days[0].id, 'dev1')
+
+    const payload = await buildBackup()
+    expect(payload.schemaVersion).toBe(2)
+
+    const restored = parseBackup(serializeBackup(payload))
+    expect(restored).toEqual(payload)
+
+    await importBackup(restored)
+    expect(await db.splits.count()).toBe(1)
+    expect(await db.sessionEvents.count()).toBe(1)
+    expect(await db.sessionMarks.count()).toBe(1)
+    expect((await db.splits.get(split.id))?.days[0].entries.length).toBe(
+      split.days[0].entries.length,
+    )
+  })
+
+  it('rejects a file whose session event is malformed rather than half-importing it', async () => {
+    await seedExercises()
+    const payload = await buildBackup()
+    const broken = {
+      ...payload,
+      sessionEvents: [{ id: 'x', localDate: '2026-01-10', splitDayId: 'd', exerciseId: 'e' }],
+    }
+    expect(() => parseBackup(JSON.stringify(broken))).toThrow(InvalidBackupError)
+  })
+
+  it('rejects a split whose days are not the right shape', async () => {
+    const payload = await buildBackup()
+    const broken = {
+      ...payload,
+      splits: [
+        {
+          id: 'split-1',
+          name: 'Bad',
+          days: [{ id: 'd1', label: 'Push', entries: [{ exerciseId: 'e', sets: 'three', reps: 8 }] }],
+          isActive: true,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    }
+    expect(() => parseBackup(JSON.stringify(broken))).toThrow(InvalidBackupError)
+  })
+
+  it('clears the training tables when the payload has none', async () => {
+    await seedExercises()
+    await instantiateTemplate('split-ppl-3')
+
+    await importBackup({
+      schemaVersion: 2,
+      exportedAt: Date.now(),
+      habits: [],
+      habitEvents: [],
+      goals: [],
+      reflections: [],
+      exercises: [],
+      splits: [],
+      sessionEvents: [],
+      sessionMarks: [],
+    })
+
+    expect(await db.exercises.count()).toBe(0)
+    expect(await db.splits.count()).toBe(0)
   })
 })

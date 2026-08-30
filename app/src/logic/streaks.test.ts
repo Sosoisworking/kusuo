@@ -57,4 +57,21 @@ describe('weeklyStreak', () => {
     ])
     expect(weeklyStreak(dates, 3, '2026-01-21')).toBe(1)
   })
+
+  it('follows the Sunday week boundary when the setting says so', () => {
+    // Sun 2026-01-04 through Sat 2026-01-10, then Sun 11th through Sat 17th.
+    const dates = new Set([
+      '2026-01-04', '2026-01-05', '2026-01-06',
+      '2026-01-11', '2026-01-12', '2026-01-13',
+    ])
+    expect(weeklyStreak(dates, 3, '2026-01-13', 'sunday')).toBe(2)
+  })
+
+  it('splits one run of days differently under each week start', () => {
+    // Sat 10th and Sun 11th. Monday weeks hold both, meeting a 2x target;
+    // Sunday weeks put the Sunday into a fresh week, so neither week meets it.
+    const dates = new Set(['2026-01-10', '2026-01-11'])
+    expect(weeklyStreak(dates, 2, '2026-01-11', 'monday')).toBe(1)
+    expect(weeklyStreak(dates, 2, '2026-01-11', 'sunday')).toBe(0)
+  })
 })

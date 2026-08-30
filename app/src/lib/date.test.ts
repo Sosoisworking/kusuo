@@ -28,4 +28,21 @@ describe('startOfWeek', () => {
     expect(startOfWeek('2026-01-11')).toBe('2026-01-05') // Sun
     expect(startOfWeek('2026-01-12')).toBe('2026-01-12') // next Mon
   })
+
+  it('defaults to Monday, matching the stored default setting', () => {
+    expect(startOfWeek('2026-01-08')).toBe(startOfWeek('2026-01-08', 'monday'))
+  })
+
+  it('returns Sunday when the week starts on Sunday', () => {
+    // 2026-01-04 is a Sunday
+    expect(startOfWeek('2026-01-04', 'sunday')).toBe('2026-01-04')
+    expect(startOfWeek('2026-01-05', 'sunday')).toBe('2026-01-04') // Mon
+    expect(startOfWeek('2026-01-10', 'sunday')).toBe('2026-01-04') // Sat
+    expect(startOfWeek('2026-01-11', 'sunday')).toBe('2026-01-11') // next Sun
+  })
+
+  it('puts a Sunday in different weeks under the two settings', () => {
+    expect(startOfWeek('2026-01-11', 'monday')).toBe('2026-01-05')
+    expect(startOfWeek('2026-01-11', 'sunday')).toBe('2026-01-11')
+  })
 })

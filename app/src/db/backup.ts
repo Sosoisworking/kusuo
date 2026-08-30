@@ -1,11 +1,20 @@
 import {
   db,
+  type Exercise,
+  type ExerciseCategory,
   type FrequencyType,
   type Goal,
   type Habit,
   type HabitEvent,
   type HabitEventAction,
   type ReflectionEntry,
+  type SessionEvent,
+  type SessionEventAction,
+  type SessionMark,
+  type SessionMarkAction,
+  type Split,
+  type SplitDay,
+  type SplitEntry,
 } from './schema'
 import { updateSettings } from './settings'
 
@@ -16,18 +25,43 @@ export interface BackupPayload {
   habitEvents: HabitEvent[]
   goals: Goal[]
   reflections: ReflectionEntry[]
+  exercises: Exercise[]
+  splits: Split[]
+  sessionEvents: SessionEvent[]
+  sessionMarks: SessionMark[]
 }
 
-const CURRENT_SCHEMA_VERSION = 1
+/**
+ * 1 — habits, events, goals, reflections.
+ * 2 — adds the training tables. A version 1 file still imports: the training
+ *     arrays are absent, which means empty, not invalid.
+ */
+const CURRENT_SCHEMA_VERSION = 2
 
 export async function buildBackup(): Promise<BackupPayload> {
-  const [habits, habitEvents, goals, reflections] = await Promise.all([
-    db.habits.toArray(),
-    db.habitEvents.toArray(),
-    db.goals.toArray(),
-    db.reflections.toArray(),
-  ])
-  return { schemaVersion: CURRENT_SCHEMA_VERSION, exportedAt: Date.now(), habits, habitEvents, goals, reflections }
+  const [habits, habitEvents, goals, reflections, exercises, splits, sessionEvents, sessionMarks] =
+    await Promise.all([
+      db.habits.toArray(),
+      db.habitEvents.toArray(),
+      db.goals.toArray(),
+      db.reflections.toArray(),
+      db.exercises.toArray(),
+      db.splits.toArray(),
+      db.sessionEvents.toArray(),
+      db.sessionMarks.toArray(),
+    ])
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    exportedAt: Date.now(),
+    habits,
+    habitEvents,
+    goals,
+    reflections,
+    exercises,
+    splits,
+    sessionEvents,
+    sessionMarks,
+  }
 }
 
 export function serializeBackup(payload: BackupPayload): string {
@@ -38,6 +72,9 @@ export class InvalidBackupError extends Error {}
 
 const FREQUENCY_TYPES: FrequencyType[] = ['daily', 'weekly']
 const EVENT_ACTIONS: HabitEventAction[] = ['complete', 'uncomplete']
+const EXERCISE_CATEGORIES: ExerciseCategory[] = ['push', 'pull', 'legs', 'abs']
+const SESSION_EVENT_ACTIONS: SessionEventAction[] = ['log', 'void']
+const SESSION_MARK_ACTIONS: SessionMarkAction[] = ['complete', 'uncomplete']
 
 function isHabit(x: unknown): x is Habit {
   if (typeof x !== 'object' || x === null) return false
@@ -95,6 +132,85 @@ function isReflectionEntry(x: unknown): x is ReflectionEntry {
   )
 }
 
+function isExercise(x: unknown): x is Exercise {
+  if (typeof x !== 'object' || x === null) return false
+  const e = x as Record<string, unknown>
+  return (
+    typeof e.id === 'string' &&
+    typeof e.name === 'string' &&
+    EXERCISE_CATEGORIES.includes(e.category as ExerciseCategory) &&
+    typeof e.muscleGroup === 'string' &&
+    typeof e.equipment === 'string' &&
+    typeof e.isCustom === 'boolean' &&
+    typeof e.createdAt === 'number' &&
+    typeof e.updatedAt === 'number' &&
+    (e.referenceUrl === undefined || typeof e.referenceUrl === 'string')
+  )
+}
+
+function isSplitEntry(x: unknown): x is SplitEntry {
+  if (typeof x !== 'object' || x === null) return false
+  const s = x as Record<string, unknown>
+  return typeof s.exerciseId === 'string' && typeof s.sets === 'number' && typeof s.reps === 'number'
+}
+
+function isSplitDay(x: unknown): x is SplitDay {
+  if (typeof x !== 'object' || x === null) return false
+  const d = x as Record<string, unknown>
+  return (
+    typeof d.id === 'string' &&
+    typeof d.label === 'string' &&
+    Array.isArray(d.entries) &&
+    d.entries.every(isSplitEntry)
+  )
+}
+
+function isSplit(x: unknown): x is Split {
+  if (typeof x !== 'object' || x === null) return false
+  const s = x as Record<string, unknown>
+  return (
+    typeof s.id === 'string' &&
+    typeof s.name === 'string' &&
+    Array.isArray(s.days) &&
+    s.days.every(isSplitDay) &&
+    typeof s.isActive === 'boolean' &&
+    typeof s.createdAt === 'number' &&
+    typeof s.updatedAt === 'number' &&
+    (s.seededFrom === undefined || typeof s.seededFrom === 'string')
+  )
+}
+
+function isSessionEvent(x: unknown): x is SessionEvent {
+  if (typeof x !== 'object' || x === null) return false
+  const e = x as Record<string, unknown>
+  return (
+    typeof e.id === 'string' &&
+    typeof e.localDate === 'string' &&
+    typeof e.splitDayId === 'string' &&
+    typeof e.exerciseId === 'string' &&
+    typeof e.setIndex === 'number' &&
+    typeof e.weightKg === 'number' &&
+    typeof e.reps === 'number' &&
+    SESSION_EVENT_ACTIONS.includes(e.action as SessionEventAction) &&
+    typeof e.timestamp === 'number' &&
+    typeof e.deviceId === 'string' &&
+    (e.rpe === undefined || typeof e.rpe === 'number')
+  )
+}
+
+function isSessionMark(x: unknown): x is SessionMark {
+  if (typeof x !== 'object' || x === null) return false
+  const m = x as Record<string, unknown>
+  return (
+    typeof m.id === 'string' &&
+    typeof m.localDate === 'string' &&
+    typeof m.splitDayId === 'string' &&
+    SESSION_MARK_ACTIONS.includes(m.action as SessionMarkAction) &&
+    typeof m.timestamp === 'number' &&
+    typeof m.deviceId === 'string'
+  )
+}
+
 /** Parses and structurally validates a backup file. Throws InvalidBackupError on any malformed shape. */
 export function parseBackup(json: string): BackupPayload {
   let raw: unknown
@@ -106,11 +222,27 @@ export function parseBackup(json: string): BackupPayload {
   if (typeof raw !== 'object' || raw === null) {
     throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
   }
-  const { schemaVersion, exportedAt, habits, habitEvents, goals, reflections } = raw as Record<string, unknown>
-  // goals/reflections are optional on the wire for backward compatibility with
-  // backups exported before those tables existed; absent means empty, not invalid.
+  const {
+    schemaVersion,
+    exportedAt,
+    habits,
+    habitEvents,
+    goals,
+    reflections,
+    exercises,
+    splits,
+    sessionEvents,
+    sessionMarks,
+  } = raw as Record<string, unknown>
+  // Every table after habits is optional on the wire, for backward
+  // compatibility with backups exported before it existed; absent means empty,
+  // not invalid. Present-but-malformed is still rejected outright.
   const goalsArr = goals === undefined ? [] : goals
   const reflectionsArr = reflections === undefined ? [] : reflections
+  const exercisesArr = exercises === undefined ? [] : exercises
+  const splitsArr = splits === undefined ? [] : splits
+  const sessionEventsArr = sessionEvents === undefined ? [] : sessionEvents
+  const sessionMarksArr = sessionMarks === undefined ? [] : sessionMarks
   if (
     typeof schemaVersion !== 'number' ||
     typeof exportedAt !== 'number' ||
@@ -118,14 +250,33 @@ export function parseBackup(json: string): BackupPayload {
     !Array.isArray(habitEvents) ||
     !Array.isArray(goalsArr) ||
     !Array.isArray(reflectionsArr) ||
+    !Array.isArray(exercisesArr) ||
+    !Array.isArray(splitsArr) ||
+    !Array.isArray(sessionEventsArr) ||
+    !Array.isArray(sessionMarksArr) ||
     !habits.every(isHabit) ||
     !habitEvents.every(isHabitEvent) ||
     !goalsArr.every(isGoal) ||
-    !reflectionsArr.every(isReflectionEntry)
+    !reflectionsArr.every(isReflectionEntry) ||
+    !exercisesArr.every(isExercise) ||
+    !splitsArr.every(isSplit) ||
+    !sessionEventsArr.every(isSessionEvent) ||
+    !sessionMarksArr.every(isSessionMark)
   ) {
     throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
   }
-  return { schemaVersion, exportedAt, habits, habitEvents, goals: goalsArr, reflections: reflectionsArr }
+  return {
+    schemaVersion,
+    exportedAt,
+    habits,
+    habitEvents,
+    goals: goalsArr,
+    reflections: reflectionsArr,
+    exercises: exercisesArr,
+    splits: splitsArr,
+    sessionEvents: sessionEventsArr,
+    sessionMarks: sessionMarksArr,
+  }
 }
 
 /**
@@ -139,18 +290,46 @@ export async function isReverseImport(payload: BackupPayload): Promise<boolean> 
   return latestLocal > payload.exportedAt
 }
 
-/** Wholesale replace of habits + habitEvents + goals + reflections. Settings (incl. deviceId, deviceRole, theme) are never touched. */
+/**
+ * Wholesale replace of every user table. Settings (incl. deviceId, deviceRole,
+ * theme, units) are never touched — they describe this device, not the record.
+ *
+ * Importing a version 1 file empties the exercise table; `seedExercises()` on
+ * next launch refills the directory, so the movements come back even though the
+ * old file never carried them.
+ */
 export async function importBackup(payload: BackupPayload): Promise<void> {
-  await db.transaction('rw', db.habits, db.habitEvents, db.goals, db.reflections, async () => {
-    await db.habits.clear()
-    await db.habitEvents.clear()
-    await db.goals.clear()
-    await db.reflections.clear()
-    if (payload.habits.length > 0) await db.habits.bulkAdd(payload.habits)
-    if (payload.habitEvents.length > 0) await db.habitEvents.bulkAdd(payload.habitEvents)
-    if (payload.goals.length > 0) await db.goals.bulkAdd(payload.goals)
-    if (payload.reflections.length > 0) await db.reflections.bulkAdd(payload.reflections)
-  })
+  await db.transaction(
+    'rw',
+    [
+      db.habits,
+      db.habitEvents,
+      db.goals,
+      db.reflections,
+      db.exercises,
+      db.splits,
+      db.sessionEvents,
+      db.sessionMarks,
+    ],
+    async () => {
+      await db.habits.clear()
+      await db.habitEvents.clear()
+      await db.goals.clear()
+      await db.reflections.clear()
+      await db.exercises.clear()
+      await db.splits.clear()
+      await db.sessionEvents.clear()
+      await db.sessionMarks.clear()
+      if (payload.habits.length > 0) await db.habits.bulkAdd(payload.habits)
+      if (payload.habitEvents.length > 0) await db.habitEvents.bulkAdd(payload.habitEvents)
+      if (payload.goals.length > 0) await db.goals.bulkAdd(payload.goals)
+      if (payload.reflections.length > 0) await db.reflections.bulkAdd(payload.reflections)
+      if (payload.exercises.length > 0) await db.exercises.bulkAdd(payload.exercises)
+      if (payload.splits.length > 0) await db.splits.bulkAdd(payload.splits)
+      if (payload.sessionEvents.length > 0) await db.sessionEvents.bulkAdd(payload.sessionEvents)
+      if (payload.sessionMarks.length > 0) await db.sessionMarks.bulkAdd(payload.sessionMarks)
+    },
+  )
 }
 
 export async function recordBackupExported(deviceId: string): Promise<void> {
