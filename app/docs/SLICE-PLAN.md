@@ -110,7 +110,7 @@ Four steps: welcome → you (name, units, bodyweight, height, experience) → fi
 split. **Every field is skippable.** The existing device-role question stays; it is what makes the
 Mac read-only, and slice A's exercise seeding hangs off it.
 
-## Slice I — the Nocturne palette
+## Slice I — the Nocturne palette ✅ done
 
 **Unblocked 31 August 2026.** The stylesheet was read out of the Claude Design project; its token
 block is in `docs/nocturne-tokens.css`.

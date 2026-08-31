@@ -41,18 +41,32 @@ function subtitleFor(
   return `${done} of ${habit.frequencyValue} this week`
 }
 
-function CheckMark({ isDone }: { isDone: boolean }) {
+/**
+ * Three states, one control. Nocturne carries no green, so completion is not a
+ * different hue — it is the accent arriving: a dim accent fill, a hairline
+ * accent ring, and a bright accent tick. An untouched habit gets a neutral
+ * ring, and the next thing to do gets the accent ring with no fill.
+ */
+function CheckMark({ isDone, isNext }: { isDone: boolean; isNext: boolean }) {
   return (
     <span
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
       style={{
-        borderColor: isDone ? 'var(--color-complete)' : 'var(--color-border)',
-        background: isDone ? 'var(--color-complete)' : 'transparent',
+        background: isDone ? 'var(--color-complete-fill)' : 'transparent',
+        boxShadow: `inset 0 0 0 1px ${
+          isDone || isNext ? 'var(--color-complete-ring)' : 'var(--color-incomplete-ring)'
+        }`,
       }}
       aria-hidden="true"
     >
       {isDone && (
-        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="var(--color-bg)" strokeWidth={2}>
+        <svg
+          viewBox="0 0 16 16"
+          className="h-3.5 w-3.5"
+          fill="none"
+          stroke="var(--color-complete-mark)"
+          strokeWidth={2}
+        >
           <path d="M3 8.5L6.5 12L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       )}
@@ -63,47 +77,58 @@ function CheckMark({ isDone }: { isDone: boolean }) {
 function HabitRow({
   row,
   readOnly,
+  isNext,
   onToggle,
   onOpen,
 }: {
   row: Row
   readOnly: boolean
+  isNext: boolean
   onToggle: () => void
   onOpen: () => void
 }) {
   const { habit, isDone, subtitle } = row
   const body = (
     <>
-      <CheckMark isDone={isDone} />
+      <CheckMark isDone={isDone} isNext={isNext} />
       <span className="flex flex-1 flex-col text-left">
-        <span className="text-base font-medium text-[var(--color-text-primary)]">{habit.name}</span>
+        <span
+          className="text-base font-medium"
+          style={{
+            color: isDone ? 'var(--color-text-done)' : 'var(--color-text-primary)',
+            textDecoration: isDone ? 'line-through' : 'none',
+          }}
+        >
+          {habit.name}
+        </span>
         {subtitle && <span className="text-xs text-[var(--color-text-secondary)]">{subtitle}</span>}
       </span>
     </>
   )
 
+  const rule = { borderBottom: '1px solid var(--color-divider)' }
+
   if (readOnly) {
     return (
-      <div className="flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-3 opacity-75">
+      <div className="flex min-h-11 items-center gap-3 py-2" style={rule}>
         {body}
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" style={rule}>
       <button
         onClick={onToggle}
         aria-pressed={isDone}
-        className="flex min-h-11 flex-1 items-center gap-3 rounded-[var(--radius-md)] border px-4 py-3 text-left transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-        style={{ borderColor: isDone ? 'var(--color-complete)' : 'var(--color-border)' }}
+        className="flex min-h-11 flex-1 items-center gap-3 py-2 text-left transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
       >
         {body}
       </button>
       <button
         onClick={onOpen}
         aria-label={`Edit ${habit.name}`}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6}>
           <path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5z" strokeLinecap="round" strokeLinejoin="round" />
@@ -223,6 +248,9 @@ export default function Today() {
   })
   const doneCount = rows.filter((r) => r.isDone).length
   const remaining = rows.length - doneCount
+  // The accent ring marks the habit with a session waiting — the same row that
+  // reads "Up next · Push". One signal, not two competing ones.
+  const queuedHabitId = trainingDay ? settings.trainingHabitId : undefined
 
   const days = weekDays(today, weekStart)
   const dayCounts = completionsByDate(habits, events, days)
@@ -313,8 +341,8 @@ export default function Today() {
           )}
         </div>
       ) : (
-        <section className="flex flex-col gap-3">
-          <p className="text-sm text-[var(--color-text-secondary)]">
+        <section className="flex flex-col">
+          <p className="pb-2 text-sm text-[var(--color-text-secondary)]">
             {doneCount} of {rows.length} done today
             {remaining > 0 && ` · ${remaining} left`}
           </p>
@@ -323,6 +351,7 @@ export default function Today() {
               key={row.habit.id}
               row={row}
               readOnly={isReader}
+              isNext={row.habit.id === queuedHabitId}
               onToggle={() => toggle(row.habit, row.isDone)}
               onOpen={() => navigate(`/habits/${row.habit.id}/edit`)}
             />
@@ -330,7 +359,7 @@ export default function Today() {
           {!isReader && (
             <button
               onClick={() => navigate('/habits/new')}
-              className="min-h-11 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              className="mt-3 min-h-11 self-start text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
             >
               + Add habit
             </button>

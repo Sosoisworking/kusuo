@@ -64,9 +64,13 @@ export default function Splits() {
       {active ? (
         <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-4">
           <h2 className="text-lg font-medium text-[var(--color-text-primary)]">{active.name}</h2>
-          <ul className="flex flex-col gap-2">
-            {active.days.map((day) => (
-              <li key={day.id} className="flex items-baseline justify-between gap-3">
+          <ul className="flex flex-col">
+            {active.days.map((day, index) => (
+              <li
+                key={day.id}
+                className="flex items-baseline justify-between gap-3 py-2"
+                style={index < active.days.length - 1 ? { borderBottom: '1px solid var(--color-divider)' } : undefined}
+              >
                 <span className="text-sm text-[var(--color-text-primary)]">{day.label}</span>
                 <span className="text-xs text-[var(--color-text-secondary)]">
                   {day.entries.length} exercises · {plannedSetCount(day)} sets

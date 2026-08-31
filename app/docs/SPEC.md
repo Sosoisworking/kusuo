@@ -42,7 +42,11 @@ State is **derived by replaying events**, last-event-wins. Never stored as a fla
 
 **Tests:** 15 files across `db/`, `lib/`, `logic/` — CRUD, v1→v3 migration, backup round-trip, streaks, records, session replay. **No component or route tests.** That is the real gap.
 
-**Palette in the code today:** warm terracotta. `--color-bg #0e0f12`, `--color-surface #17181c`, `--color-accent #c99575`, `--color-complete #7a9b6e`, defined in `src/styles/tokens.css` with a light-mode override.
+**Palette in the code today:** **Nocturne**, shipped in slice I. `--color-bg #161826`, `--color-surface #232532`, `--color-text #e9e9ed`, `--color-accent #9184d9`, plus the neutral and accent ramps, in `src/styles/tokens.css`. The warm terracotta set is gone.
+
+There is **no completion colour**. Nocturne carries no green and no red; a ticked habit is the accent arriving — `--color-complete-fill` (accent-800), `--color-complete-ring` (accent), `--color-complete-mark` (accent-200) — with the name stepped back to `--color-text-done` and struck through. The accent ring with no fill marks the habit that has a session queued.
+
+Light theme is derived from the same OKLCH ramps rather than invented: ground `--color-neutral-100`, ink `--color-neutral-900`, accent `--color-accent-700` (the first step clearing 4.5:1 on a light ground). Its muted step is the **70%** mix, not 55% — the same percentage does not survive both grounds.
 
 ## What is in flight
 

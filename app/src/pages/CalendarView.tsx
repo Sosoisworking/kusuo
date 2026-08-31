@@ -98,7 +98,7 @@ export default function CalendarView() {
                 <span
                   aria-hidden="true"
                   className="h-1 w-1 rounded-full"
-                  style={{ background: 'var(--color-complete)' }}
+                  style={{ background: 'var(--color-complete-ring)' }}
                 />
               )}
             </div>

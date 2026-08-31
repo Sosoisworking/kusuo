@@ -51,8 +51,8 @@ function ProgressRow({ habit, streak, recentDates, completedDates, onOpen }: Pro
             key={d}
             className="h-2 w-2 rounded-full"
             style={{
-              background: completedDates.has(d) ? 'var(--color-complete)' : 'var(--color-surface)',
-              border: `1px solid ${completedDates.has(d) ? 'var(--color-complete)' : 'var(--color-border)'}`,
+              background: completedDates.has(d) ? 'var(--color-complete-fill)' : 'var(--color-surface)',
+              border: `1px solid ${completedDates.has(d) ? 'var(--color-complete-ring)' : 'var(--color-border)'}`,
             }}
           />
         ))}

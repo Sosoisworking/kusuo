@@ -201,7 +201,7 @@ export default function HabitDetail() {
                 title={date ?? undefined}
                 className="flex aspect-square items-center justify-center rounded-[var(--radius-sm)] text-xs"
                 style={{
-                  background: done ? 'var(--color-complete)' : date ? 'var(--color-surface)' : 'transparent',
+                  background: done ? 'var(--color-complete-fill)' : date ? 'var(--color-surface)' : 'transparent',
                   color: done ? 'var(--color-bg)' : 'var(--color-text-secondary)',
                   boxShadow: isToday ? 'inset 0 0 0 1px var(--color-accent)' : undefined,
                 }}

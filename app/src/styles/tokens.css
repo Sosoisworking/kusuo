@@ -1,22 +1,99 @@
 /*
-  Design tokens — dark-first, one-accent restrained palette (slice 1,
-  /impeccable init). Accent: warm clay/terracotta, chosen to match the
-  "warm and encouraging" voice while staying fully distinct from the
-  Duolingo-style bright-green anti-reference. Completion state is a
-  separate muted moss green — functional "done" feedback, not a second
-  decorative accent.
+  Nocturne — Kusuo's design tokens.
+
+  Ported from the design system the redesign canvas renders against; the source
+  :root block is kept verbatim in docs/nocturne-tokens.css. Colour ratios are
+  computed in docs/decisions/2026-08-31-nocturne-contrast-corrected.md.
+
+  Two rules hold this file together:
+
+  1. There is no green, no red, and no third hue. One accent carries meaning —
+     the present moment, the interactive thing, and the completed thing. Absence
+     is shown by a neutral hairline and nothing else, because a missed day is
+     not an error.
+  2. Muted text is a mix of the text colour, never a hand-placed grey. The
+     percentages differ between themes because the grounds differ; each one
+     below is the step that actually clears 4.5:1 on its own ground.
 */
 
 :root {
   color-scheme: dark;
 
-  --color-bg: #0e0f12;
-  --color-surface: #17181c;
-  --color-border: #2a2c32;
-  --color-text-primary: #f2f2f4;
-  --color-text-secondary: #9a9ca4;
-  --color-accent: #c99575;
-  --color-complete: #7a9b6e;
+  /* --- Nocturne source tokens ------------------------------------------- */
+
+  --color-bg: #161826;
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9;
+  --color-accent-2: #a7a1db;
+
+  --color-neutral-100: #f3f5fe;
+  --color-neutral-200: #e4e7f5;
+  --color-neutral-300: #cfd3e5;
+  --color-neutral-400: #b2b6ca;
+  --color-neutral-500: #9397ab;
+  --color-neutral-600: #75798c;
+  --color-neutral-700: #595d6c;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
+
+  --color-accent-100: #f5f4ff;
+  --color-accent-200: #e7e5fe;
+  --color-accent-300: #d2cefd;
+  --color-accent-400: #b5abfc;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #796cbf;
+  --color-accent-700: #5d5294;
+  --color-accent-800: #423a6a;
+  --color-accent-900: #2b2741;
+
+  /* --- Roles the components ask for -------------------------------------- */
+
+  --color-text-primary: var(--color-text); /* 14.54:1 */
+
+  /*
+    55% on this ground is #8a8b93 — 5.19:1. The 45% step the canvas also uses
+    measures 3.91:1 and is valid only for hairlines, icon strokes and text at
+    24px or above. It must never carry a label, a count, or a tab caption.
+  */
+  --color-text-secondary: color-mix(in srgb, var(--color-text) 55%, transparent);
+
+  /* Hairlines, not lines. 12% for containers and controls, 9% for row rules. */
+  --color-border: color-mix(in srgb, var(--color-text) 12%, transparent);
+  --color-divider: color-mix(in srgb, var(--color-text) 9%, transparent);
+
+  /*
+    Completion. The canvas gives it no colour of its own: a ticked habit is a
+    dim accent fill, a hairline accent ring, and a bright accent glyph. Kusuo's
+    old moss green is gone — Nocturne holds no green, and inventing one would
+    have been the only hand-placed hue in the system.
+  */
+  --color-complete-fill: var(--color-accent-800); /* glyph on fill: 8.33:1 */
+  --color-complete-ring: var(--color-accent); /* 5.45:1 on the ground */
+  --color-complete-mark: var(--color-accent-200); /* 14.28:1 */
+  --color-incomplete-ring: var(--color-neutral-700);
+  /* A finished habit's name steps back rather than lighting up. */
+  --color-text-done: color-mix(in srgb, var(--color-text) 65%, transparent);
+
+  /* --- Form ------------------------------------------------------------- */
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  --shadow-sm: 0 0 0 1px var(--color-neutral-800);
+  --shadow-md: 0 0 0 1px var(--color-neutral-700), 0 6px 18px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 0 0 1px var(--color-neutral-500), 0 16px 40px rgba(0, 0, 0, 0.65);
+
+  /*
+    Nocturne sets Inter. It is not bundled and not fetched — a webfont import
+    would fail in airplane mode, and this app has to work there. Inter is used
+    when the device already has it; otherwise the system face, which on iPhone
+    is SF and is a better fallback than any download.
+  */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-body: var(--font-sans);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -27,19 +104,11 @@
   --space-7: 48px;
   --space-8: 64px;
 
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 320ms;
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
@@ -48,47 +117,87 @@
   --font-size-2xl: 2rem;
 }
 
+/*
+  Light theme. Nocturne is a dark system, but its own elevation comment
+  anticipates a light one, and the theme control in Settings is a shipped
+  feature. So light is derived from the same OKLCH ramps rather than invented:
+  the ground is neutral-100, the ink is neutral-900, and the accent drops to
+  accent-700, which is the first step that clears 4.5:1 on a light ground —
+  #9184d9 itself only manages 2.6:1 there.
+
+  The muted step is 70%, not 55%. The same percentage does not survive both
+  grounds, and matching the number would have cost 1.8 stops of contrast.
+*/
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme='dark']) {
     color-scheme: light;
 
-    --color-bg: #fafaf9;
+    --color-bg: var(--color-neutral-100);
     --color-surface: #ffffff;
-    --color-border: #e4e4e2;
-    --color-text-primary: #1a1a1c;
-    --color-text-secondary: #6b6d75;
-    --color-accent: #a06b45;
-    --color-complete: #5c7a52;
+    --color-text: var(--color-neutral-900); /* 13.01:1 */
+    --color-accent: var(--color-accent-700); /* 6.23:1 */
+
+    --color-text-secondary: color-mix(in srgb, var(--color-text) 70%, transparent); /* 5.11:1 */
+    --color-border: color-mix(in srgb, var(--color-text) 14%, transparent);
+    --color-divider: color-mix(in srgb, var(--color-text) 10%, transparent);
+
+    --color-complete-fill: var(--color-accent-200);
+    --color-complete-ring: var(--color-accent-700);
+    --color-complete-mark: var(--color-accent-700); /* 5.50:1 on the fill */
+    --color-incomplete-ring: var(--color-neutral-500);
+    --color-text-done: color-mix(in srgb, var(--color-text) 70%, transparent);
+
+    --shadow-sm: 0 0 0 1px var(--color-neutral-300);
+    --shadow-md: 0 0 0 1px var(--color-neutral-300), 0 6px 18px rgba(41, 43, 49, 0.12);
+    --shadow-lg: 0 0 0 1px var(--color-neutral-400), 0 16px 40px rgba(41, 43, 49, 0.18);
   }
 }
 
-/*
-  Explicit device-theme override (Settings > Theme: Dark/Light) beats the
-  prefers-color-scheme default above via attribute-selector specificity.
-  "System" leaves data-theme unset so the media query keeps deciding.
-*/
-:root[data-theme='dark'] {
-  color-scheme: dark;
-
-  --color-bg: #0e0f12;
-  --color-surface: #17181c;
-  --color-border: #2a2c32;
-  --color-text-primary: #f2f2f4;
-  --color-text-secondary: #9a9ca4;
-  --color-accent: #c99575;
-  --color-complete: #7a9b6e;
-}
-
+/* Settings > Theme: an explicit choice beats the media query on specificity. */
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --color-bg: #fafaf9;
+  --color-bg: var(--color-neutral-100);
   --color-surface: #ffffff;
-  --color-border: #e4e4e2;
-  --color-text-primary: #1a1a1c;
-  --color-text-secondary: #6b6d75;
-  --color-accent: #a06b45;
-  --color-complete: #5c7a52;
+  --color-text: var(--color-neutral-900);
+  --color-accent: var(--color-accent-700);
+
+  --color-text-secondary: color-mix(in srgb, var(--color-text) 70%, transparent);
+  --color-border: color-mix(in srgb, var(--color-text) 14%, transparent);
+  --color-divider: color-mix(in srgb, var(--color-text) 10%, transparent);
+
+  --color-complete-fill: var(--color-accent-200);
+  --color-complete-ring: var(--color-accent-700);
+  --color-complete-mark: var(--color-accent-700);
+  --color-incomplete-ring: var(--color-neutral-500);
+  --color-text-done: color-mix(in srgb, var(--color-text) 70%, transparent);
+
+  --shadow-sm: 0 0 0 1px var(--color-neutral-300);
+  --shadow-md: 0 0 0 1px var(--color-neutral-300), 0 6px 18px rgba(41, 43, 49, 0.12);
+  --shadow-lg: 0 0 0 1px var(--color-neutral-400), 0 16px 40px rgba(41, 43, 49, 0.18);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #161826;
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9;
+
+  --color-text-secondary: color-mix(in srgb, var(--color-text) 55%, transparent);
+  --color-border: color-mix(in srgb, var(--color-text) 12%, transparent);
+  --color-divider: color-mix(in srgb, var(--color-text) 9%, transparent);
+
+  --color-complete-fill: var(--color-accent-800);
+  --color-complete-ring: var(--color-accent);
+  --color-complete-mark: var(--color-accent-200);
+  --color-incomplete-ring: var(--color-neutral-700);
+  --color-text-done: color-mix(in srgb, var(--color-text) 65%, transparent);
+
+  --shadow-sm: 0 0 0 1px var(--color-neutral-800);
+  --shadow-md: 0 0 0 1px var(--color-neutral-700), 0 6px 18px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 0 0 1px var(--color-neutral-500), 0 16px 40px rgba(0, 0, 0, 0.65);
 }
 
 @media (prefers-reduced-motion: reduce) {

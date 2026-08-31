@@ -58,11 +58,17 @@ export default function Train() {
             </span>
           </div>
 
-          <ul className="flex flex-col gap-2">
+          {/*
+            A plain list of things reads as rules, the way Today's habits do; a
+            card is reserved for something you act on. Boxing every row made a
+            five-item list look like five separate objects.
+          */}
+          <ul className="flex flex-col">
             {day.entries.map((entry, index) => (
               <li
                 key={`${entry.exerciseId}-${index}`}
-                className="flex items-baseline justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-3"
+                className="flex min-h-11 items-baseline justify-between gap-3 py-2.5"
+                style={{ borderBottom: '1px solid var(--color-divider)' }}
               >
                 <span className="text-base text-[var(--color-text-primary)]">
                   {byId.get(entry.exerciseId)?.name ?? 'Unknown movement'}
