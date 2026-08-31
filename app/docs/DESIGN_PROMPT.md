@@ -1,4 +1,65 @@
+# Kusuo — Master Design & Build Prompt (for Claude Code, on Opus)
 
+> ## ⚠️ PARTIALLY SUPERSEDED — read this first
+>
+> This file was written before the design interview and before Kusuo became a **two-person app**. It is still the authority on working method, quality bar, iOS PWA constraints, deployment, and plugin usage.
+>
+> It is **no longer the authority on product or data architecture**. Where this file and `PRODUCT.md` / `DESIGN.md` / `PLAN.md` disagree, **those three win**.
+>
+> Specifically superseded:
+>
+> - **§2A** — the "iPhone writes, Mac reads, no backend, no accounts" model. Kusuo now has a second human user and a Supabase layer for near-live partner view. Your own data is still local-first in IndexedDB; only explicitly shared habits reach a server. See `PLAN.md`.
+> - **§3** — the interview. It has been run. The answers are in `PRODUCT.md`. Do not re-run it.
+> - **§12** — "no backend, no account" is now wrong for the sharing layer. Everything else in that section stands, especially: no AI, no notifications in v1, no composite scores ever.
+>
+> Everything else in this file is current.
+
+## How to use this file — setup steps for Soso
+
+Folder structure is already built. The repo root is `~/Documents/Claude Projects/Kusuo/app`, this file lives at `docs/DESIGN_PROMPT.md`, and the legacy planning docs are in `docs/legacy/`. The GitHub repo exists at `https://github.com/Sosoisworking/kusuo` but has nothing pushed to it yet.
+
+Everything in this section is for you to run yourself, in Terminal. It is not part of the prompt you paste.
+
+### Step 1 — connect the folder to GitHub
+
+Open Terminal and paste this whole block:
+
+```bash
+cd ~/Documents/Claude\ Projects/Kusuo/app
+
+git init
+git branch -M main
+git add .
+git commit -m "docs: add design brief and legacy planning docs"
+git remote add origin https://github.com/Sosoisworking/kusuo.git
+git push -u origin main
+```
+
+If GitHub asks for a password it will reject your account password — it wants a personal access token. The simplest fix is the GitHub CLI:
+
+```bash
+brew install gh
+gh auth login
+```
+
+Choose HTTPS, authenticate in the browser, then run `git push -u origin main` again.
+
+### Step 2 — turn on GitHub Pages
+
+In the repo on github.com: **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+
+Nothing deploys yet, but leaving this on the default causes a confusing failure later when the deploy workflow is added.
+
+### Step 3 — verify
+
+Refresh `https://github.com/Sosoisworking/kusuo`. You should see `README.md` and a `docs/` folder. If you don't, the push didn't land — fix that before continuing.
+
+### Step 4 — start Claude Code
+
+```bash
+cd ~/Documents/Claude\ Projects/Kusuo/app
+claude
+```
 
 Press **Shift+Tab twice**. Plan mode is indicated at the bottom of the terminal. Then paste everything below the line.
 
