@@ -11,6 +11,16 @@ export function formatLongDate(localDate: string): string {
 }
 
 /**
+ * "12 Aug" — the meta line on the active split. A timestamp, not a localDate,
+ * because `Split.updatedAt` is an instant rather than a calendar day.
+ */
+export function formatShortDate(timestamp: number): string {
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(
+    new Date(timestamp),
+  )
+}
+
+/**
  * Time-of-day greeting. States the time of day and the name; it does not
  * cheer, congratulate, or comment on the record.
  */

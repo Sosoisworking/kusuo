@@ -5,6 +5,7 @@ import { seedExercises } from './db/exercises'
 import { getOrCreateDeviceId, getSettings } from './db/settings'
 import { applyTheme } from './lib/theme'
 import CalendarView from './pages/CalendarView'
+import Directory from './pages/Directory'
 import Goals from './pages/Goals'
 import HabitDetail from './pages/HabitDetail'
 import HabitForm from './pages/HabitForm'
@@ -13,6 +14,7 @@ import Progress from './pages/Progress'
 import Records from './pages/Records'
 import Reflection from './pages/Reflection'
 import Settings from './pages/Settings'
+import SplitEditor from './pages/SplitEditor'
 import Splits from './pages/Splits'
 import Today from './pages/Today'
 import Train from './pages/Train'
@@ -34,6 +36,11 @@ function App() {
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/habits/new" element={<HabitForm />} />
       <Route path="/habits/:id/edit" element={<HabitForm />} />
+      {/* The editor and the directory are full screens with their own way
+          back, the way the habit form is. The tab bar would only offer a way
+          to leave a half-finished edit by the wrong door. */}
+      <Route path="/splits/:splitId/edit" element={<SplitEditor />} />
+      <Route path="/exercises" element={<Directory />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Today />} />
         <Route path="/train" element={<Train />} />
