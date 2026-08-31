@@ -13,6 +13,12 @@ export interface SetValues {
   weightKg: number
   reps: number
   rpe?: number
+  /**
+   * Cardio is logged by time, not load. `SessionEvent` has always carried this
+   * field; the session flow is the first caller with a value to put in it, so
+   * it joins the payload here rather than being written around.
+   */
+  durationSec?: number
 }
 
 /**

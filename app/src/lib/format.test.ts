@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatLongDate, greeting, initials } from './format'
+import { formatLongDate, formatRelativeDay, formatShortDate, greeting, initials } from './format'
 
 describe('formatLongDate', () => {
   it('reads as weekday, day, month', () => {
@@ -42,5 +42,32 @@ describe('initials', () => {
   it('is empty when there is no name', () => {
     expect(initials(undefined)).toBe('')
     expect(initials('   ')).toBe('')
+  })
+})
+
+describe('formatShortDate', () => {
+  it('reads as day and short month', () => {
+    expect(formatShortDate('2026-08-25')).toBe('25 Aug')
+  })
+})
+
+describe('formatRelativeDay', () => {
+  const today = '2026-08-31'
+
+  it('names today and yesterday', () => {
+    expect(formatRelativeDay(today, today)).toBe('today')
+    expect(formatRelativeDay('2026-08-30', today)).toBe('yesterday')
+  })
+
+  it('names the weekday inside the last week', () => {
+    expect(formatRelativeDay('2026-08-27', today)).toBe('Thursday')
+  })
+
+  it('falls back to the date beyond a week', () => {
+    expect(formatRelativeDay('2026-08-18', today)).toBe('18 Aug')
+  })
+
+  it('crosses a month boundary without special-casing it', () => {
+    expect(formatRelativeDay('2026-09-01', '2026-09-02')).toBe('yesterday')
   })
 })

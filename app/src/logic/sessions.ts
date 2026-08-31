@@ -9,6 +9,8 @@ export interface LoggedSet {
   weightKg: number
   reps: number
   rpe?: number
+  /** Set only for cardio, which is logged by time rather than by load. */
+  durationSec?: number
   timestamp: number
 }
 
@@ -41,6 +43,7 @@ export function liveSets(events: SessionEvent[]): LoggedSet[] {
       weightKg: e.weightKg,
       reps: e.reps,
       rpe: e.rpe,
+      durationSec: e.durationSec,
       timestamp: e.timestamp,
     })
   }

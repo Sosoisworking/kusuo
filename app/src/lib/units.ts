@@ -21,6 +21,15 @@ export function toKg(value: number, units: Units): number {
 }
 
 /**
+ * The number on its own, in the unit the user reads in. The session table puts
+ * the unit in the column heading and the history line puts it after a space, so
+ * a value that carries its own suffix is the wrong shape for both.
+ */
+export function weightValue(kg: number, units: Units): string {
+  return String(Math.round(fromKg(kg, units) * 10) / 10)
+}
+
+/**
  * Display string for a weight. Trailing zeros are dropped so 60kg reads "60",
  * not "60.0", while 2.5kg plate maths still survives.
  */

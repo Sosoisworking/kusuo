@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatWeight, fromKg, toKg } from './units'
+import { formatWeight, fromKg, toKg, weightValue } from './units'
 
 describe('unit conversion', () => {
   it('leaves kg alone in both directions', () => {
@@ -28,5 +28,19 @@ describe('formatWeight', () => {
 
   it('rounds the converted value to one decimal', () => {
     expect(formatWeight(100, 'lb')).toBe('220.5lb')
+  })
+})
+
+describe('weightValue', () => {
+  it('gives the number without a unit attached', () => {
+    expect(weightValue(92.5, 'kg')).toBe('92.5')
+  })
+
+  it('drops a trailing zero', () => {
+    expect(weightValue(60, 'kg')).toBe('60')
+  })
+
+  it('converts and rounds for pounds', () => {
+    expect(weightValue(100, 'lb')).toBe('220.5')
   })
 })
