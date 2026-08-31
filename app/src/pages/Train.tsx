@@ -203,7 +203,7 @@ export default function Train() {
                   <button
                     onClick={() => markRested(day.id)}
                     disabled={busy}
-                    className="flex min-h-12 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent-200)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                    className="flex min-h-12 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
                   >
                     Mark the rest day done
                   </button>
@@ -211,7 +211,7 @@ export default function Train() {
               ) : (
                 <button
                   onClick={() => navigate(`/train/session/${day.id}`)}
-                  className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent-200)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                  className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
                 >
                   <Play size={15} weight="fill" aria-hidden="true" />
                   {loggedToday.length > 0 ? 'Continue session' : 'Start session'}

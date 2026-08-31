@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router'
+import { Navigate } from 'react-router'
 import BackLink from '../components/BackLink'
 import { PrimaryButton } from '../components/Button'
 import { allReflections, appendReflection } from '../db/reflections'
@@ -81,15 +81,6 @@ export default function Reflection() {
   return (
     <main className="flex min-h-dvh flex-col items-center gap-6 px-6 pb-28 pt-[max(3rem,env(safe-area-inset-top))] text-center">
       <div className="w-full max-w-xs self-start"><BackLink /></div>
-      <Link
-        to="/settings"
-        aria-label="Back to Settings"
-        className="flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-      >
-        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-          <path d="M12.5 4.5L6 11l6.5 6.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </Link>
 
       <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">
         {isWriter ? 'Reflection' : 'Reflections'}

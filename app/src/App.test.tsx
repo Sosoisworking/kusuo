@@ -8,6 +8,7 @@ import { appendHabitEvent } from './db/events'
 import { createHabit } from './db/habits'
 import { db } from './db/schema'
 import { createSettings } from './db/settings'
+import { finishSession } from './db/sessions'
 import { instantiateTemplate } from './db/splits'
 import { todayLocalDate } from './lib/date'
 
@@ -230,5 +231,29 @@ describe('Splits', () => {
       expect((await db.splits.get(first.id))?.isActive).toBe(true)
     })
     expect(await db.splits.count()).toBe(2)
+  })
+})
+
+describe('Calendar', () => {
+  it('marks a day you trained, not only a day you ticked habits', async () => {
+    await onboard()
+    const today = todayLocalDate()
+    const habit = await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
+    await appendHabitEvent(habit.id, today, 'complete', DEVICE_ID)
+    await finishSession(today, 'day-1', DEVICE_ID)
+
+    renderAt('/calendar')
+
+    const cell = await screen.findByLabelText(new RegExp(`^${today}:`))
+    expect(cell.getAttribute('aria-label')).toMatch(/1 of 1 done, trained$/)
+  })
+
+  it('says nothing about training on a day with none', async () => {
+    await onboard()
+    const today = todayLocalDate()
+    renderAt('/calendar')
+
+    const cell = await screen.findByLabelText(new RegExp(`^${today}:`))
+    expect(cell.getAttribute('aria-label')).not.toMatch(/trained/)
   })
 })

@@ -165,10 +165,47 @@ describe('the session flow', () => {
     view.unmount()
 
     renderAt(path)
-    expect(await screen.findByRole('button', { name: 'Correct set 1' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Set 1 logged — remove it' })).toBeInTheDocument()
     const sets = liveSets(await allSessionEvents())
     expect(sets).toHaveLength(1)
     expect(sets[0]).toMatchObject({ weightKg: 80, reps: 6, setIndex: 0 })
+  })
+
+  it('lets any row be typed into, not only the next one due', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    // Set 1 is the row due, but set 3 is the one being filled in.
+    const weight3 = await screen.findByRole('textbox', { name: /Weight for set 3/ })
+    const reps3 = screen.getByRole('textbox', { name: /Reps for set 3/ })
+    await userEvent.clear(weight3)
+    await userEvent.type(weight3, '90')
+    await userEvent.clear(reps3)
+    await userEvent.type(reps3, '5')
+    await userEvent.click(screen.getByRole('button', { name: 'Log set 3' }))
+
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
+    const sets = liveSets(await allSessionEvents())
+    expect(sets[0]).toMatchObject({ setIndex: 2, weightKg: 90, reps: 5 })
+  })
+
+  it('corrects an earlier row while a later one is due', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await typeSet('80', '6')
+    await userEvent.click(await screen.findByRole('button', { name: 'Log set 1' }))
+    await screen.findByRole('button', { name: 'Set 1 logged — remove it' })
+
+    const weight1 = screen.getByRole('textbox', { name: /Weight for set 1/ })
+    await userEvent.clear(weight1)
+    await userEvent.type(weight1, '85')
+    await userEvent.click(await screen.findByRole('button', { name: 'Save set 1' }))
+
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(2))
+    const sets = liveSets(await allSessionEvents())
+    expect(sets).toHaveLength(1)
+    expect(sets[0].weightKg).toBe(85)
   })
 
   it('advances to the next set once a set is logged', async () => {
@@ -188,9 +225,11 @@ describe('the session flow', () => {
 
     await typeSet('80', '6')
     await userEvent.click(await screen.findByRole('button', { name: 'Log set 1' }))
-    await userEvent.click(await screen.findByRole('button', { name: 'Correct set 1' }))
+    // No "correct" step: the row is still an input, so typing over it is the
+    // correction and its own control becomes Save.
+    await screen.findByRole('button', { name: 'Set 1 logged — remove it' })
     await typeSet('82.5', '6')
-    await userEvent.click(screen.getByRole('button', { name: 'Save set 1' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Save set 1' }))
 
     await waitFor(async () => expect(await db.sessionEvents.count()).toBe(2))
     const sets = liveSets(await allSessionEvents())
@@ -204,8 +243,7 @@ describe('the session flow', () => {
 
     await typeSet('80', '6')
     await userEvent.click(await screen.findByRole('button', { name: 'Log set 1' }))
-    await userEvent.click(await screen.findByRole('button', { name: 'Correct set 1' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Set 1 logged — remove it' }))
 
     await waitFor(async () => expect(await db.sessionEvents.count()).toBe(2))
     const events = await allSessionEvents()

@@ -88,7 +88,7 @@ export default function Session() {
 
   const [exerciseIndex, setExerciseIndex] = useState(0)
   const [chosenIndex, setChosenIndex] = useState<number | null>(null)
-  const [draft, setDraft] = useState<Draft | null>(null)
+  const [drafts, setDrafts] = useState<Record<number, Draft>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -172,7 +172,6 @@ export default function Session() {
   const activeIndex = chosenIndex ?? firstUnlogged
   const rowCount = Math.max(entry.sets, highestLogged + 1, (activeIndex ?? -1) + 1)
   const rows = Array.from({ length: rowCount }, (_, i) => i)
-  const editingLogged = activeIndex !== null && loggedByIndex.has(activeIndex)
 
   const previous = lastSessionSets(setsForExercise(events, entry.exerciseId), today)
   const repTarget =
@@ -200,24 +199,42 @@ export default function Session() {
     }
   }
 
-  const defaults = activeIndex === null ? EMPTY_DRAFT : defaultsFor(activeIndex)
-  const value: Draft = draft ?? defaults
+  /**
+   * Every row is editable, always. A set table you can only type into one row
+   * at a time is a form pretending to be a table — you cannot fix set 2 while
+   * standing on set 4, which is exactly when you notice set 2 was wrong.
+   */
+  function valueFor(row: number): Draft {
+    return drafts[row] ?? defaultsFor(row)
+  }
+
+  function setRow(row: number, next: Draft) {
+    setDrafts((current) => ({ ...current, [row]: next }))
+  }
+
+  /** True once a row's fields differ from what is stored for it. */
+  function isDirty(row: number): boolean {
+    const held = drafts[row]
+    if (!held) return false
+    const stored = defaultsFor(row)
+    return held.weight !== stored.weight || held.reps !== stored.reps || held.rpe !== stored.rpe
+  }
 
   function moveTo(target: number | null, advance = false) {
     setChosenIndex(target)
-    setDraft(null)
     advanceRef.current = advance
   }
 
   function openExercise(next: number) {
     setExerciseIndex(next)
     setChosenIndex(null)
-    setDraft(null)
+    setDrafts({})
     setError(null)
   }
 
-  async function log() {
-    if (activeIndex === null || busy) return
+  async function log(row: number) {
+    if (busy) return
+    const value = valueFor(row)
     const reps = parse(value.reps)
     if (reps === undefined || reps <= 0) {
       setError(isCardio ? 'Give it a time in minutes.' : 'Give it a rep count.')
@@ -232,16 +249,20 @@ export default function Session() {
     setBusy(true)
     try {
       await logSet(
-        { localDate: today, splitDayId: day.id, exerciseId: entry.exerciseId, setIndex: activeIndex },
+        { localDate: today, splitDayId: day.id, exerciseId: entry.exerciseId, setIndex: row },
         isCardio
           ? { weightKg: 0, reps: 0, durationSec: Math.round(reps * 60) }
           : { weightKg: toKg(typed ?? 0, units), reps, rpe: parse(value.rpe) },
         deviceId,
       )
       setData(await loadSession(dayId))
-      // Clearing the choice hands the active row back to "the first set not yet
-      // logged", which is the next set after a log and the gap after a
-      // correction — never a march past sets already done.
+      // The row's draft is dropped so it falls back to what is now stored, and
+      // the choice is cleared so focus lands on the first set still to do.
+      setDrafts((current) => {
+        const next = { ...current }
+        delete next[row]
+        return next
+      })
       moveTo(null, true)
     } catch {
       setError("Couldn't save that set — try again.")
@@ -410,135 +431,89 @@ export default function Session() {
               <span
                 className="text-[13px]"
                 style={{
-                  color: isActive ? 'var(--color-accent-200)' : 'var(--color-text-secondary)',
+                  color: isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                 }}
               >
                 {row + 1}
               </span>
 
-              {isActive ? (
-                <>
-                  {!isCardio && (
-                    <input
-                      ref={firstFieldRef}
-                      inputMode="decimal"
-                      aria-label={`Weight for set ${row + 1} in ${units}`}
-                      value={value.weight}
-                      onChange={(e) => setDraft({ ...value, weight: e.target.value })}
-                      className={inputClass}
-                    />
-                  )}
-                  <input
-                    ref={isCardio ? firstFieldRef : undefined}
-                    inputMode="numeric"
-                    aria-label={isCardio ? `Minutes for set ${row + 1}` : `Reps for set ${row + 1}`}
-                    value={value.reps}
-                    onChange={(e) => setDraft({ ...value, reps: e.target.value })}
-                    className={inputClass}
-                  />
-                  {!isCardio && (
-                    <input
-                      inputMode="decimal"
-                      aria-label={`RPE for set ${row + 1}, optional`}
-                      value={value.rpe}
-                      onChange={(e) => setDraft({ ...value, rpe: e.target.value })}
-                      className={`${inputClass} border-[var(--color-border)] text-[13px]`}
-                    />
-                  )}
-                  <span />
-                </>
-              ) : done ? (
-                <>
-                  {!isCardio && (
-                    <span className="text-[15px] text-[var(--color-text-done)]">
-                      {weightValue(done.weightKg, units)}
-                    </span>
-                  )}
-                  <span className="text-[15px] text-[var(--color-text-done)]">
-                    {isCardio ? Math.round((done.durationSec ?? 0) / 60) : done.reps}
-                  </span>
-                  {!isCardio && (
-                    <span className="text-[13px] text-[var(--color-text-secondary)]">
-                      {done.rpe ?? '—'}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => moveTo(row)}
-                    aria-label={`Correct set ${row + 1}`}
-                    className="flex h-5 w-5 items-center justify-center justify-self-end rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-                    style={{
-                      background: 'var(--color-complete-fill)',
-                      boxShadow: 'inset 0 0 0 1px var(--color-complete-ring)',
-                    }}
-                  >
-                    <Check size={11} color="var(--color-complete-mark)" aria-hidden="true" />
-                  </button>
-                </>
+              {/* Fields, on every row. A logged row shows what it holds and
+                  can be corrected in place; an unlogged one carries the values
+                  it would most likely take. */}
+              {!isCardio && (
+                <input
+                  ref={isActive ? firstFieldRef : undefined}
+                  inputMode="decimal"
+                  aria-label={`Weight for set ${row + 1} in ${units}`}
+                  value={valueFor(row).weight}
+                  onFocus={() => setChosenIndex(row)}
+                  onChange={(e) => setRow(row, { ...valueFor(row), weight: e.target.value })}
+                  className={inputClass}
+                />
+              )}
+              <input
+                ref={isCardio && isActive ? firstFieldRef : undefined}
+                inputMode="numeric"
+                aria-label={isCardio ? `Minutes for set ${row + 1}` : `Reps for set ${row + 1}`}
+                placeholder={isCardio ? 'min' : repTarget}
+                value={valueFor(row).reps}
+                onFocus={() => setChosenIndex(row)}
+                onChange={(e) => setRow(row, { ...valueFor(row), reps: e.target.value })}
+                className={inputClass}
+              />
+              {!isCardio && (
+                <input
+                  inputMode="decimal"
+                  aria-label={`RPE for set ${row + 1}, optional`}
+                  value={valueFor(row).rpe}
+                  onFocus={() => setChosenIndex(row)}
+                  onChange={(e) => setRow(row, { ...valueFor(row), rpe: e.target.value })}
+                  className={`${inputClass} border-[var(--color-border)] text-[13px]`}
+                />
+              )}
+
+              {/* One control per row: log it, save a correction, or take it back. */}
+              {done && !isDirty(row) ? (
+                <button
+                  onClick={() => remove(row)}
+                  disabled={busy}
+                  aria-label={`Set ${row + 1} logged — remove it`}
+                  className="flex h-6 w-6 items-center justify-center justify-self-end rounded-full disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                  style={{
+                    background: 'var(--color-complete-fill)',
+                    boxShadow: 'inset 0 0 0 1px var(--color-complete-ring)',
+                  }}
+                >
+                  <Check size={12} color="var(--color-complete-mark)" aria-hidden="true" />
+                </button>
               ) : (
-                <>
-                  {/* Not yet done: the rep target is stated, the load is not.
-                      Suggesting a weight would be programming the session. */}
-                  {!isCardio && (
-                    <span className="text-[15px] text-[var(--color-text-secondary)]">—</span>
-                  )}
-                  <span className="text-[15px] text-[var(--color-text-secondary)]">
-                    {isCardio ? '—' : repTarget}
-                  </span>
-                  {!isCardio && (
-                    <span className="text-[13px] text-[var(--color-text-secondary)]">—</span>
-                  )}
-                  <span />
-                </>
+                <button
+                  onClick={() => log(row)}
+                  disabled={busy}
+                  aria-label={done ? `Save set ${row + 1}` : `Log set ${row + 1}`}
+                  className="flex h-6 w-6 items-center justify-center justify-self-end rounded-full text-[var(--color-accent)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                  style={{ boxShadow: 'inset 0 0 0 1px var(--color-accent)' }}
+                >
+                  <Check size={12} aria-hidden="true" />
+                </button>
               )}
             </div>
           )
         })}
       </div>
 
-      {activeIndex === null ? (
-        <button
-          onClick={() => moveTo(Math.max(entry.sets, highestLogged + 1))}
-          className="flex min-h-12 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] px-5 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-        >
-          Add a set
-        </button>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <button
-              onClick={log}
-              disabled={busy}
-              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent-200)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-            >
-              <Check size={16} aria-hidden="true" />
-              {editingLogged ? `Save set ${activeIndex + 1}` : `Log set ${activeIndex + 1}`}
-            </button>
-            {editingLogged ? (
-              <button
-                onClick={() => remove(activeIndex)}
-                disabled={busy}
-                className="flex min-h-12 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 text-sm text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-              >
-                Remove
-              </button>
-            ) : (
-              <button
-                onClick={() => moveTo(Math.max(entry.sets, highestLogged + 1, activeIndex + 1))}
-                aria-label="Add a set"
-                className="flex min-h-12 w-12 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] text-lg text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-              >
-                +
-              </button>
-            )}
-          </div>
-          <p className="text-center text-[11px] text-[var(--color-text-secondary)]">
-            {editingLogged
-              ? 'Saving replaces that set. Nothing is overwritten in the log.'
-              : `Logging advances to set ${activeIndex + 2}. No timer — rest as long as you like.`}
-          </p>
-        </div>
-      )}
+      {/* Rows carry their own log, save and remove now, so the only thing
+          left for the bar is making a row that is not prescribed. */}
+      <button
+        onClick={() => moveTo(Math.max(entry.sets, highestLogged + 1, (activeIndex ?? -1) + 1))}
+        className="flex min-h-12 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] px-5 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+      >
+        Add a set
+      </button>
 
+      <p className="text-xs text-[var(--color-text-secondary)]">
+        No timer — rest as long as you like.
+      </p>
       <section className="flex flex-col gap-2">
         <SectionHeading>Rest of the session</SectionHeading>
         <ul className="flex flex-col">

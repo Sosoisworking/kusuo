@@ -413,7 +413,7 @@ export default function SplitEditor() {
                           className="truncate text-[11px]"
                           style={{
                             color: isDragging
-                              ? 'var(--color-accent-400)'
+                              ? 'var(--color-accent)'
                               : 'var(--color-text-secondary)',
                           }}
                         >

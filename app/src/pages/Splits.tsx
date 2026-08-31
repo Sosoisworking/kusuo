@@ -194,7 +194,7 @@ export default function Splits() {
                   <span
                     className="text-[10px]"
                     style={{
-                      color: isNext ? 'var(--color-accent-300)' : 'var(--color-text-secondary)',
+                      color: isNext ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                     }}
                   >
                     {day.kind === 'rest' ? 'rest' : `${plannedSetCount(day)} sets`}

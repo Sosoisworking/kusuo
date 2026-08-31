@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import Screen from '../components/Screen'
 import { allHabitEvents } from '../db/events'
 import { listAllHabits } from '../db/habits'
-import type { Habit, HabitEvent, Settings } from '../db/schema'
+import type { Habit, HabitEvent, SessionMark, Settings } from '../db/schema'
+import { allSessionMarks } from '../db/sessions'
+import { trainingDates } from '../logic/sessions'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { addMonths, monthDays, monthLabel, todayLocalDate, weekdayIndex } from '../lib/date'
 import { WEEKDAY_INITIALS } from '../lib/format'
@@ -13,19 +15,24 @@ export default function CalendarView() {
   const [settings, setSettings] = useState<Settings | undefined>()
   const [habits, setHabits] = useState<Habit[]>([])
   const [events, setEvents] = useState<HabitEvent[]>([])
+  const [marks, setMarks] = useState<SessionMark[]>([])
   const [cursor, setCursor] = useState(todayLocalDate)
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([getSettings(getOrCreateDeviceId()), listAllHabits(), allHabitEvents()]).then(
-      ([s, h, e]) => {
-        if (cancelled) return
-        setSettings(s)
-        setHabits(h)
-        setEvents(e)
-        setLoading(false)
-      },
-    )
+    Promise.all([
+      getSettings(getOrCreateDeviceId()),
+      listAllHabits(),
+      allHabitEvents(),
+      allSessionMarks(),
+    ]).then(([s, h, e, m]) => {
+      if (cancelled) return
+      setSettings(s)
+      setHabits(h)
+      setEvents(e)
+      setMarks(m)
+      setLoading(false)
+    })
     return () => {
       cancelled = true
     }
@@ -37,6 +44,7 @@ export default function CalendarView() {
     () => completionsByDate(habits, events, days),
     [habits, events, days],
   )
+  const trained = useMemo(() => trainingDates(marks), [marks])
 
   if (loading) return <Screen title="Calendar">{null}</Screen>
 
@@ -79,12 +87,13 @@ export default function CalendarView() {
         ))}
         {days.map((date) => {
           const done = counts.get(date) ?? 0
+          const didTrain = trained.has(date)
           const isToday = date === today
           return (
             <div
               key={date}
               role="gridcell"
-              aria-label={`${date}: ${done} of ${activeHabitCount} done`}
+              aria-label={`${date}: ${done} of ${activeHabitCount} done${didTrain ? ', trained' : ''}`}
               className="flex aspect-square flex-col items-center justify-center gap-1 rounded-[var(--radius-sm)] border"
               style={{
                 borderColor: isToday ? 'var(--color-accent)' : 'transparent',
@@ -107,7 +116,7 @@ export default function CalendarView() {
       </div>
 
       <p className="text-xs text-[var(--color-text-secondary)]">
-        A dot marks a day with at least one habit done. Training sessions join this view next.
+        A dot marks a day with at least one habit done; a second marks a day you trained.
       </p>
     </Screen>
   )
