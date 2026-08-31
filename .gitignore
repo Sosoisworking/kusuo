@@ -55,3 +55,6 @@ playwright/.cache/
 *.kusuo.json
 kusuo-export-*.json
 data-backups/
+
+# Agent worktrees — local scratch, never part of the repo
+.claude/worktrees/
