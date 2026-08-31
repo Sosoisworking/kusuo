@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { PrimaryButton, SecondaryButton } from '../components/Button'
 import { createHabit } from '../db/habits'
+import { seedExercises } from '../db/exercises'
 import { completeOnboarding, createSettings, getOrCreateDeviceId, getSettings, updateSettings } from '../db/settings'
 import type { DeviceRole, FrequencyType } from '../db/schema'
 import { STARTER_TEMPLATES } from '../lib/templates'
@@ -67,6 +68,11 @@ export default function Onboarding() {
       return
     }
     await createSettings({ deviceId, deviceRole: role })
+    // Becoming a writer is what earns the movement directory. App.tsx seeds on
+    // launch too, but that runs before settings exist on a first run, so
+    // without this a new install has no exercises until its second launch.
+    // seedExercises is idempotent, so both triggers are safe.
+    void seedExercises()
     setStep('name')
   }
 
@@ -115,7 +121,14 @@ export default function Onboarding() {
     setSaving(true)
     const chosen = STARTER_TEMPLATES.filter((t) => selectedTemplateIds.has(t.id))
     for (const t of chosen) {
-      await createHabit({ name: t.name, frequencyType: t.frequencyType, frequencyValue: t.frequencyValue })
+      const habit = await createHabit({
+        name: t.name,
+        frequencyType: t.frequencyType,
+        frequencyValue: t.frequencyValue,
+      })
+      // Point training at its habit. Nothing else assigns trainingHabitId, so
+      // without this a finished session has no habit to tick.
+      if (t.isTraining) await updateSettings(deviceId, { trainingHabitId: habit.id })
     }
     for (const c of customHabits) {
       await createHabit({ name: c.name, frequencyType: c.frequencyType, frequencyValue: c.frequencyValue })
