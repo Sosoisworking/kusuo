@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
+import BackLink from '../components/BackLink'
 import { allHabitEvents } from '../db/events'
 import { listActiveHabits } from '../db/habits'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
@@ -109,6 +110,7 @@ export default function Progress() {
 
   return (
     <main className="flex min-h-dvh flex-col gap-6 px-6 pb-28 pt-[max(2.5rem,env(safe-area-inset-top))]">
+      <div className="w-full max-w-xs self-start"><BackLink /></div>
       <header className="flex flex-col gap-1 text-center">
         <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">Progress</h1>
         {habits.length > 0 && (

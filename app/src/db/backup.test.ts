@@ -246,7 +246,7 @@ describe('recordBackupExported', () => {
   })
 })
 
-describe('schema version 2 — training tables', () => {
+describe('backup across schema versions', () => {
   it('imports a version 1 file, treating the absent training tables as empty', () => {
     const v1 = {
       schemaVersion: 1,
@@ -276,7 +276,7 @@ describe('schema version 2 — training tables', () => {
     await finishSession('2026-01-10', split.days[0].id, 'dev1')
 
     const payload = await buildBackup()
-    expect(payload.schemaVersion).toBe(2)
+    expect(payload.schemaVersion).toBe(3)
 
     const restored = parseBackup(serializeBackup(payload))
     expect(restored).toEqual(payload)
@@ -323,7 +323,7 @@ describe('schema version 2 — training tables', () => {
     await instantiateTemplate('split-ppl-3')
 
     await importBackup({
-      schemaVersion: 2,
+      schemaVersion: 3,
       exportedAt: Date.now(),
       habits: [],
       habitEvents: [],
@@ -337,5 +337,59 @@ describe('schema version 2 — training tables', () => {
 
     expect(await db.exercises.count()).toBe(0)
     expect(await db.splits.count()).toBe(0)
+  })
+})
+
+describe('importing a schema 2 export', () => {
+  it('turns a fixed rep target into a range and marks every day a training day', () => {
+    const v2 = {
+      schemaVersion: 2,
+      exportedAt: Date.now(),
+      habits: [],
+      habitEvents: [],
+      goals: [],
+      reflections: [],
+      exercises: [],
+      sessionEvents: [],
+      sessionMarks: [],
+      splits: [
+        {
+          id: 'split-legacy',
+          name: 'Push / Pull / Legs',
+          days: [
+            { id: 'day-1', label: 'Push', entries: [{ exerciseId: 'ex-a', sets: 3, reps: 8 }] },
+          ],
+          isActive: true,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    }
+
+    const parsed = parseBackup(JSON.stringify(v2))
+    const day = parsed.splits[0].days[0]
+    expect(day.kind).toBe('training')
+    expect(day.entries[0]).toEqual({ exerciseId: 'ex-a', sets: 3, repsMin: 8, repsMax: 8 })
+    expect('reps' in day.entries[0]).toBe(false)
+  })
+
+  it('still refuses a split whose entry has neither reps nor a range', () => {
+    const broken = {
+      schemaVersion: 2,
+      exportedAt: Date.now(),
+      habits: [],
+      habitEvents: [],
+      splits: [
+        {
+          id: 's',
+          name: 'Bad',
+          days: [{ id: 'd', label: 'Push', entries: [{ exerciseId: 'ex-a', sets: 3 }] }],
+          isActive: true,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    }
+    expect(() => parseBackup(JSON.stringify(broken))).toThrow(InvalidBackupError)
   })
 })

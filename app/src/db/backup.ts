@@ -14,6 +14,7 @@ import {
   type SessionMarkAction,
   type Split,
   type SplitDay,
+  type SplitDayKind,
   type SplitEntry,
 } from './schema'
 import { updateSettings } from './settings'
@@ -35,8 +36,11 @@ export interface BackupPayload {
  * 1 — habits, events, goals, reflections.
  * 2 — adds the training tables. A version 1 file still imports: the training
  *     arrays are absent, which means empty, not invalid.
+ * 3 — split entries carry a rep range and days carry a kind. A version 2 file
+ *     still imports: a fixed `reps` becomes a range of itself and every day is
+ *     a training day, the same conversion the Dexie v4 upgrade performs.
  */
-const CURRENT_SCHEMA_VERSION = 2
+const CURRENT_SCHEMA_VERSION = 3
 
 export async function buildBackup(): Promise<BackupPayload> {
   const [habits, habitEvents, goals, reflections, exercises, splits, sessionEvents, sessionMarks] =
@@ -72,7 +76,7 @@ export class InvalidBackupError extends Error {}
 
 const FREQUENCY_TYPES: FrequencyType[] = ['daily', 'weekly']
 const EVENT_ACTIONS: HabitEventAction[] = ['complete', 'uncomplete']
-const EXERCISE_CATEGORIES: ExerciseCategory[] = ['push', 'pull', 'legs', 'abs']
+const EXERCISE_CATEGORIES: ExerciseCategory[] = ['push', 'pull', 'legs', 'abs', 'cardio']
 const SESSION_EVENT_ACTIONS: SessionEventAction[] = ['log', 'void']
 const SESSION_MARK_ACTIONS: SessionMarkAction[] = ['complete', 'uncomplete']
 
@@ -148,21 +152,50 @@ function isExercise(x: unknown): x is Exercise {
   )
 }
 
-function isSplitEntry(x: unknown): x is SplitEntry {
+/** Accepts both shapes: schema 3's rep range, and schema 2's fixed `reps`. */
+function isSplitEntry(x: unknown): boolean {
   if (typeof x !== 'object' || x === null) return false
   const s = x as Record<string, unknown>
-  return typeof s.exerciseId === 'string' && typeof s.sets === 'number' && typeof s.reps === 'number'
+  if (typeof s.exerciseId !== 'string' || typeof s.sets !== 'number') return false
+  const ranged = typeof s.repsMin === 'number' && typeof s.repsMax === 'number'
+  return ranged || typeof s.reps === 'number'
 }
 
-function isSplitDay(x: unknown): x is SplitDay {
+function isSplitDay(x: unknown): boolean {
   if (typeof x !== 'object' || x === null) return false
   const d = x as Record<string, unknown>
   return (
     typeof d.id === 'string' &&
     typeof d.label === 'string' &&
+    (d.kind === undefined || d.kind === 'training' || d.kind === 'rest') &&
     Array.isArray(d.entries) &&
     d.entries.every(isSplitEntry)
   )
+}
+
+/**
+ * Brings a validated split up to the current shape. Done at parse time so the
+ * rest of the app never sees a legacy row, and so an old export and a fresh one
+ * import to exactly the same thing.
+ */
+function normaliseSplit(raw: unknown): Split {
+  const s = raw as Split & { days: (SplitDay & { kind?: SplitDayKind })[] }
+  return {
+    ...s,
+    days: s.days.map((day) => ({
+      ...day,
+      kind: day.kind ?? 'training',
+      entries: day.entries.map((entry) => {
+        const legacy = entry as SplitEntry & { reps?: number }
+        return {
+          exerciseId: legacy.exerciseId,
+          sets: legacy.sets,
+          repsMin: legacy.repsMin ?? legacy.reps ?? 0,
+          repsMax: legacy.repsMax ?? legacy.reps ?? 0,
+        }
+      }),
+    })),
+  }
 }
 
 function isSplit(x: unknown): x is Split {
@@ -273,7 +306,7 @@ export function parseBackup(json: string): BackupPayload {
     goals: goalsArr,
     reflections: reflectionsArr,
     exercises: exercisesArr,
-    splits: splitsArr,
+    splits: splitsArr.map(normaliseSplit),
     sessionEvents: sessionEventsArr,
     sessionMarks: sessionMarksArr,
   }

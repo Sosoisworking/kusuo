@@ -4,8 +4,12 @@ import Screen, { EmptyState } from '../components/Screen'
 import { listExercises } from '../db/exercises'
 import type { Exercise, SessionMark, Split, SplitDay } from '../db/schema'
 import { allSessionMarks } from '../db/sessions'
-import { getActiveSplit } from '../db/splits'
-import { nextSplitDay, plannedSetCount } from '../logic/nextSession'
+import { getActiveSplit, listSplits, setActiveSplit } from '../db/splits'
+import { formatPrescription, nextSplitDay, plannedSetCount } from '../logic/nextSession'
+import { instantiateTemplate } from '../db/splits'
+import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
+import { getOrCreateDeviceId, getSettings } from '../db/settings'
+import { SecondaryButton } from '../components/Button'
 import { trainingDates } from '../logic/sessions'
 
 export default function Train() {
@@ -13,20 +17,48 @@ export default function Train() {
   const [split, setSplit] = useState<Split | undefined>()
   const [marks, setMarks] = useState<SessionMark[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
+  const [splits, setSplits] = useState<Split[]>([])
+  const [isReader, setIsReader] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([getActiveSplit(), allSessionMarks(), listExercises()]).then(([sp, m, ex]) => {
-      if (cancelled) return
-      setSplit(sp)
-      setMarks(m)
-      setExercises(ex)
-      setLoading(false)
+    load().then(() => {
+      if (!cancelled) setLoading(false)
     })
     return () => {
       cancelled = true
     }
   }, [])
+
+  async function load() {
+    const [sp, m, ex, all, settings] = await Promise.all([
+      getActiveSplit(),
+      allSessionMarks(),
+      listExercises(),
+      listSplits(),
+      getSettings(getOrCreateDeviceId()),
+    ])
+    setSplit(sp)
+    setMarks(m)
+    setExercises(ex)
+    setSplits(all)
+    setIsReader(settings?.deviceRole === 'reader')
+  }
+
+  async function switchTo(templateId: string) {
+    setSwitching(true)
+    try {
+      const existing = splits.find((s) => s.seededFrom === templateId)
+      if (existing) await setActiveSplit(existing.id)
+      else await instantiateTemplate(templateId)
+      await load()
+      setPickerOpen(false)
+    } finally {
+      setSwitching(false)
+    }
+  }
 
   if (loading) return <Screen title="Train">{null}</Screen>
 
@@ -36,17 +68,56 @@ export default function Train() {
 
   return (
     <Screen title="Train" eyebrow={split?.name}>
+      {!isReader && (
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setPickerOpen((open) => !open)}
+            aria-expanded={pickerOpen}
+            className="min-h-11 self-start text-sm text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          >
+            {pickerOpen ? 'Close' : split ? 'Switch split' : 'Choose a split'}
+          </button>
+          {pickerOpen && (
+            <ul className="flex flex-col">
+              {SPLIT_TEMPLATES.map((template) => {
+                const isActive = split?.seededFrom === template.id
+                return (
+                  <li
+                    key={template.id}
+                    className="flex min-h-11 items-center justify-between gap-3 py-2"
+                    style={{ borderBottom: '1px solid var(--color-divider)' }}
+                  >
+                    <span className="flex flex-col">
+                      <span className="text-sm text-[var(--color-text-primary)]">{template.name}</span>
+                      <span className="text-xs text-[var(--color-text-secondary)]">
+                        {template.days.length} days
+                      </span>
+                    </span>
+                    {isActive ? (
+                      <span className="text-xs text-[var(--color-accent)]">Active</span>
+                    ) : (
+                      <SecondaryButton
+                        onClick={() => switchTo(template.id)}
+                        disabled={switching}
+                        className="px-4 py-2 text-sm"
+                      >
+                        Use this
+                      </SecondaryButton>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
       {!split || !day ? (
         <EmptyState>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            No split chosen yet, so there is no session waiting.
+            No split chosen yet, so there is no session waiting. Pick one above, or build your own
+            in <Link to="/splits" className="text-[var(--color-accent)] underline">Splits</Link>.
           </p>
-          <Link
-            to="/splits"
-            className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] px-5 py-3 text-sm text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-          >
-            Choose a split
-          </Link>
         </EmptyState>
       ) : (
         <section className="flex flex-col gap-4">
@@ -54,7 +125,9 @@ export default function Train() {
             <span className="text-xs text-[var(--color-text-secondary)]">Next up</span>
             <h2 className="text-xl font-medium text-[var(--color-text-primary)]">{day.label}</h2>
             <span className="text-xs text-[var(--color-text-secondary)]">
-              {day.entries.length} exercises · {plannedSetCount(day)} sets
+              {day.kind === 'rest'
+                ? 'A day in the split, not a gap in it.'
+                : `${day.entries.length} exercises · ${plannedSetCount(day)} sets`}
             </span>
           </div>
 
@@ -74,7 +147,7 @@ export default function Train() {
                   {byId.get(entry.exerciseId)?.name ?? 'Unknown movement'}
                 </span>
                 <span className="text-xs text-[var(--color-text-secondary)]">
-                  {entry.sets} × {entry.reps}
+                  {formatPrescription(entry, byId.get(entry.exerciseId)?.category)}
                 </span>
               </li>
             ))}

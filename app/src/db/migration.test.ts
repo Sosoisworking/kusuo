@@ -52,14 +52,14 @@ async function seedVersion2(name: string): Promise<void> {
   old.close()
 }
 
-describe('schema version 2 to 3 upgrade', () => {
+describe('schema upgrade from version 2', () => {
   it('backfills the new settings fields without touching user data', async () => {
     const name = `kusuo-migration-${crypto.randomUUID()}`
     await seedVersion2(name)
 
     const upgraded = new KusuoDB(name)
     await upgraded.open()
-    expect(upgraded.verno).toBe(3)
+    expect(upgraded.verno).toBe(4)
 
     const settings = await upgraded.settings.get('dev1')
     expect(settings?.units).toBe('kg')

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router'
+import BackLink from '../components/BackLink'
 import { PrimaryButton, SecondaryButton } from '../components/Button'
 import { archiveHabit, createHabit, getHabit, listCategories, updateHabit } from '../db/habits'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
@@ -129,6 +130,7 @@ export default function HabitForm() {
 
   return (
     <main className="flex min-h-dvh flex-col items-center gap-6 px-6 pb-12 pt-[max(3rem,env(safe-area-inset-top))] text-center">
+      <div className="w-full max-w-xs self-start"><BackLink /></div>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">
           {isEdit ? `Edit ${name || 'habit'}` : 'New habit'}

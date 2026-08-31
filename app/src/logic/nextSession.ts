@@ -1,4 +1,4 @@
-import type { SessionMark, Split, SplitDay } from '../db/schema'
+import type { ExerciseCategory, SessionMark, Split, SplitDay, SplitEntry } from '../db/schema'
 
 /**
  * Which day of the split comes next.
@@ -39,4 +39,14 @@ export function nextSplitDay(split: Split, marks: SessionMark[]): SplitDay | und
 /** Total sets a split day prescribes, for the "6 exercises · 21 sets" line. */
 export function plannedSetCount(day: SplitDay): number {
   return day.entries.reduce((total, entry) => total + entry.sets, 0)
+}
+
+/**
+ * How a prescribed entry reads. Cardio has no sets or reps to state, so it
+ * shows nothing rather than "1 × 0"; a fixed target collapses to one number.
+ */
+export function formatPrescription(entry: SplitEntry, category?: ExerciseCategory): string {
+  if (category === 'cardio') return ''
+  const reps = entry.repsMin === entry.repsMax ? `${entry.repsMin}` : `${entry.repsMin}-${entry.repsMax}`
+  return `${entry.sets} × ${reps}`
 }

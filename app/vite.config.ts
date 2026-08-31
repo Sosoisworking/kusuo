@@ -3,7 +3,13 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// A short, sortable stamp of when this bundle was built. Shown in Settings so
+// "Check for updates" can be trusted — an update button you cannot verify is
+// worse than none.
+const BUILD_ID = new Date().toISOString().slice(0, 16).replace('T', ' ')
+
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   base: '/kusuo/',
   plugins: [
     react(),

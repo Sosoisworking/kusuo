@@ -9,7 +9,11 @@ function split(dayCount = 3): Split {
     days: Array.from({ length: dayCount }, (_, i) => ({
       id: `day-${i}`,
       label: ['Push', 'Pull', 'Legs'][i] ?? `Day ${i}`,
-      entries: [{ exerciseId: 'ex-a', sets: 4, reps: 6 }, { exerciseId: 'ex-b', sets: 3, reps: 10 }],
+      kind: 'training' as const,
+      entries: [
+        { exerciseId: 'ex-a', sets: 4, repsMin: 6, repsMax: 8 },
+        { exerciseId: 'ex-b', sets: 3, repsMin: 10, repsMax: 10 },
+      ],
     })),
     isActive: true,
     createdAt: 0,
@@ -62,6 +66,6 @@ describe('plannedSetCount', () => {
   })
 
   it('is zero for an empty day', () => {
-    expect(plannedSetCount({ id: 'd', label: 'Empty', entries: [] })).toBe(0)
+    expect(plannedSetCount({ id: 'd', label: 'Empty', kind: 'training', entries: [] })).toBe(0)
   })
 })

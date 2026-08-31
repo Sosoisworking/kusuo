@@ -12,7 +12,7 @@ import {
   type BackupPayload,
 } from '../db/backup'
 import { getOrCreateDeviceId, getSettings, updateSettings } from '../db/settings'
-import type { Settings as SettingsType, Theme } from '../db/schema'
+import { db, type Settings as SettingsType, type Theme } from '../db/schema'
 import { todayLocalDate } from '../lib/date'
 import { applyTheme } from '../lib/theme'
 import { PrimaryButton, SecondaryButton } from '../components/Button'
@@ -38,6 +38,9 @@ export default function Settings() {
   const [settings, setSettings] = useState<SettingsType | undefined>()
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [resetOpen, setResetOpen] = useState(false)
+  const [resetTyped, setResetTyped] = useState('')
+  const [resetting, setResetting] = useState(false)
 
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -116,6 +119,41 @@ export default function Settings() {
       setSettings((s) => (s ? { ...s, userName: trimmed || undefined } : s))
     } catch {
       setError("Couldn't save that — give it another tap.")
+    }
+  }
+
+  /**
+   * The honest equivalent of a log out in an app with no account: clear this
+   * device and go back to the first-run questions. Settings goes too, so the
+   * device role is asked again rather than silently inherited. The deviceId in
+   * localStorage is deliberately kept — it identifies the hardware, not the
+   * record, and reusing it keeps event authorship consistent.
+   */
+  async function handleReset() {
+    setResetting(true)
+    setError(null)
+    try {
+      await db.transaction(
+        'rw',
+        [db.habits, db.habitEvents, db.goals, db.reflections, db.exercises, db.splits, db.sessionEvents, db.sessionMarks, db.settings],
+        async () => {
+          await Promise.all([
+            db.habits.clear(),
+            db.habitEvents.clear(),
+            db.goals.clear(),
+            db.reflections.clear(),
+            db.exercises.clear(),
+            db.splits.clear(),
+            db.sessionEvents.clear(),
+            db.sessionMarks.clear(),
+            db.settings.clear(),
+          ])
+        },
+      )
+      window.location.replace(`${import.meta.env.BASE_URL}onboarding`)
+    } catch {
+      setResetting(false)
+      setError("Couldn't erase everything — nothing was removed.")
     }
   }
 
@@ -218,6 +256,54 @@ export default function Settings() {
     )
   }
 
+  if (resetOpen) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-5 px-6 pb-28 pt-[max(3rem,env(safe-area-inset-top))] text-center">
+        <svg
+          viewBox="0 0 24 24"
+          className="h-7 w-7 text-[var(--color-accent)]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.6}
+          aria-hidden="true"
+        >
+          <path d="M12 3.5 1.8 20.5h20.4L12 3.5Z" strokeLinejoin="round" />
+          <path d="M12 10v4.5M12 17.4v.1" strokeLinecap="round" />
+        </svg>
+        <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">Erase everything?</h1>
+        <p className="max-w-xs text-sm text-[var(--color-text-secondary)]">
+          Every habit, completion, reflection, goal and training session on this device goes. Kusuo
+          keeps no copy anywhere else, so there is nothing to restore from unless you export first.
+        </p>
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          <SecondaryButton onClick={handleExport}>Export first</SecondaryButton>
+          <label className="flex flex-col gap-1 text-left text-sm text-[var(--color-text-secondary)]">
+            Type RESET to confirm
+            <input
+              value={resetTyped}
+              onChange={(event) => setResetTyped(event.target.value)}
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-base text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            />
+          </label>
+          <SecondaryButton onClick={handleReset} disabled={resetTyped.trim() !== 'RESET' || resetting}>
+            {resetting ? 'Erasing…' : 'Erase everything'}
+          </SecondaryButton>
+          <SecondaryButton
+            onClick={() => {
+              setResetOpen(false)
+              setResetTyped('')
+            }}
+          >
+            Keep my data
+          </SecondaryButton>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="flex min-h-dvh flex-col items-center gap-6 px-6 pb-28 pt-[max(3rem,env(safe-area-inset-top))] text-center">
       <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">Settings</h1>
@@ -282,6 +368,18 @@ export default function Settings() {
             {updateStatus}
           </p>
         )}
+        {/* Naming the running build is what makes the button above checkable. */}
+        <p className="text-xs text-[var(--color-text-secondary)]">Build {__BUILD_ID__}</p>
+      </div>
+
+      <div className="flex w-full max-w-xs flex-col gap-3 text-left">
+        <span className="text-sm font-medium text-[var(--color-text-primary)]">Start over</span>
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Erases every habit, completion, reflection, goal and session on this device, and returns
+          to the first-run questions. There is no account and no copy on a server, so this cannot be
+          undone — export first if you want to keep any of it.
+        </p>
+        <SecondaryButton onClick={() => setResetOpen(true)}>Start over on this device</SecondaryButton>
       </div>
 
       <div className="flex w-full max-w-xs flex-col gap-2 text-left">

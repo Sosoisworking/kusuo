@@ -17,6 +17,7 @@ export async function instantiateTemplate(templateId: string, makeActive = true)
   const days: SplitDay[] = template.days.map((d) => ({
     id: crypto.randomUUID(),
     label: d.label,
+    kind: d.kind ?? 'training',
     entries: d.entries.map((entry) => ({ ...entry })),
   }))
   const split: Split = {

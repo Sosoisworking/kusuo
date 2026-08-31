@@ -73,6 +73,35 @@ export const EXERCISE_SEED: ExerciseSeed[] = [
   { id: 'ex-ab-wheel-rollout', name: 'Ab wheel rollout', category: 'abs', muscleGroup: 'Abs', equipment: 'Other' },
   { id: 'ex-russian-twist', name: 'Russian twist', category: 'abs', muscleGroup: 'Obliques', equipment: 'Other' },
   { id: 'ex-side-plank', name: 'Side plank', category: 'abs', muscleGroup: 'Obliques', equipment: 'Bodyweight' },
+  // Added for the Batman split. Named as Soso writes them, so the split reads
+  // back the way it was given.
+  { id: 'ex-machine-incline-chest-press', name: 'Machine incline chest press', category: 'push', muscleGroup: 'Chest', equipment: 'Machine' },
+  { id: 'ex-pec-deck', name: 'Machine pec deck', category: 'push', muscleGroup: 'Chest', equipment: 'Machine' },
+  { id: 'ex-machine-lateral-raise', name: 'Machine lateral raise', category: 'push', muscleGroup: 'Shoulders', equipment: 'Machine' },
+  { id: 'ex-plate-loaded-shoulder-press', name: 'Plate-loaded shoulder press', category: 'push', muscleGroup: 'Shoulders', equipment: 'Machine' },
+  { id: 'ex-front-raise', name: 'Front delt raise', category: 'push', muscleGroup: 'Shoulders', equipment: 'Dumbbell' },
+  { id: 'ex-cable-front-raise', name: 'Cable front delt raise', category: 'push', muscleGroup: 'Shoulders', equipment: 'Cable' },
+  { id: 'ex-archer-pull', name: 'Archer pull', category: 'pull', muscleGroup: 'Rear delts', equipment: 'Cable' },
+  { id: 'ex-hibah-cris-cross', name: "Hibah's cris cross", category: 'pull', muscleGroup: 'Rear delts', equipment: 'Cable' },
+  { id: 'ex-bayesian-curl', name: 'Bayesian curl', category: 'pull', muscleGroup: 'Biceps', equipment: 'Cable' },
+  { id: 'ex-cable-bar-curl', name: 'Cable bar curl', category: 'pull', muscleGroup: 'Biceps', equipment: 'Cable' },
+  { id: 'ex-cable-hammer-curl', name: 'Cable hammer curl', category: 'pull', muscleGroup: 'Biceps', equipment: 'Cable' },
+  { id: 'ex-close-grip-cable-row', name: 'Close-grip cable row', category: 'pull', muscleGroup: 'Back', equipment: 'Cable' },
+  { id: 'ex-single-arm-lat-pulldown', name: 'Single-arm lat pulldown', category: 'pull', muscleGroup: 'Back', equipment: 'Cable' },
+  { id: 'ex-t-bar-row', name: 'Chest-supported T-bar row', category: 'pull', muscleGroup: 'Back', equipment: 'Barbell' },
+  { id: 'ex-cable-pullover', name: 'Cable pullover', category: 'pull', muscleGroup: 'Back', equipment: 'Cable' },
+  { id: 'ex-weighted-pull-up', name: 'Weighted pull-up', category: 'pull', muscleGroup: 'Back', equipment: 'Bodyweight' },
+  { id: 'ex-plate-loaded-row', name: 'Plate-loaded upper back row', category: 'pull', muscleGroup: 'Back', equipment: 'Machine' },
+  { id: 'ex-kneeling-cable-pulldown', name: 'Kneeling cable pulldown', category: 'pull', muscleGroup: 'Back', equipment: 'Cable' },
+  { id: 'ex-triceps-extension', name: 'Triceps extension', category: 'push', muscleGroup: 'Triceps', equipment: 'Cable' },
+  { id: 'ex-single-arm-pushdown', name: 'Single-arm triceps pushdown', category: 'push', muscleGroup: 'Triceps', equipment: 'Cable' },
+  { id: 'ex-hip-abduction', name: 'Hip abduction', category: 'legs', muscleGroup: 'Glutes', equipment: 'Machine' },
+  { id: 'ex-hip-adduction', name: 'Hip adduction', category: 'legs', muscleGroup: 'Adductors', equipment: 'Machine' },
+
+  // Cardio
+  { id: 'ex-stair-master', name: 'Stair master', category: 'cardio', muscleGroup: 'Conditioning', equipment: 'Machine' },
+  { id: 'ex-treadmill', name: 'Treadmill', category: 'cardio', muscleGroup: 'Conditioning', equipment: 'Machine' },
+  { id: 'ex-bike', name: 'Bike', category: 'cardio', muscleGroup: 'Conditioning', equipment: 'Machine' },
 ]
 
 export const EXERCISE_ATTRIBUTION =

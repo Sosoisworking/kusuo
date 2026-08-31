@@ -102,9 +102,25 @@ describe('split templates', () => {
     }
   })
 
-  it('ships the six templates the brief names', () => {
-    expect(SPLIT_TEMPLATES).toHaveLength(6)
-    expect(SPLIT_TEMPLATES.map((t) => t.days.length)).toEqual([3, 4, 5, 4, 3, 5])
+  it('ships the six templates the brief names, plus the Batman split', () => {
+    expect(SPLIT_TEMPLATES).toHaveLength(7)
+    expect(SPLIT_TEMPLATES.map((t) => t.days.length)).toEqual([3, 4, 5, 4, 3, 5, 7])
+  })
+
+  it('gives the Batman split two rest days in the right places', () => {
+    const batman = SPLIT_TEMPLATES.find((t) => t.id === 'split-batman-7')
+    expect(batman?.days.map((d) => d.kind ?? 'training')).toEqual([
+      'training', 'training', 'rest', 'training', 'training', 'training', 'rest',
+    ])
+    expect(batman?.days.filter((d) => d.kind === 'rest').every((d) => d.entries.length === 0)).toBe(true)
+  })
+
+  it('keeps the rep ranges the Batman split was written with', () => {
+    const day = SPLIT_TEMPLATES.find((t) => t.id === 'split-batman-7')?.days[0]
+    const incline = day?.entries[0]
+    expect(incline).toMatchObject({ sets: 3, repsMin: 6, repsMax: 8 })
+    const preacher = day?.entries.at(-2)
+    expect(preacher).toMatchObject({ sets: 3, repsMin: 8, repsMax: 12 })
   })
 
   it('instantiates a template as the user copy with fresh ids', async () => {

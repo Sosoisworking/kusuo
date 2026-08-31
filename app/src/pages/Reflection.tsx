@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router'
+import BackLink from '../components/BackLink'
 import { PrimaryButton } from '../components/Button'
 import { allReflections, appendReflection } from '../db/reflections'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
@@ -79,6 +80,7 @@ export default function Reflection() {
 
   return (
     <main className="flex min-h-dvh flex-col items-center gap-6 px-6 pb-28 pt-[max(3rem,env(safe-area-inset-top))] text-center">
+      <div className="w-full max-w-xs self-start"><BackLink /></div>
       <Link
         to="/settings"
         aria-label="Back to Settings"

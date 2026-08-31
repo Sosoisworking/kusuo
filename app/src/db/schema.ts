@@ -47,7 +47,7 @@ export interface ReflectionEntry {
   deviceId: string
 }
 
-export type ExerciseCategory = 'push' | 'pull' | 'legs' | 'abs'
+export type ExerciseCategory = 'push' | 'pull' | 'legs' | 'abs' | 'cardio'
 
 export interface Exercise {
   id: string
@@ -65,12 +65,26 @@ export interface Exercise {
 export interface SplitEntry {
   exerciseId: string
   sets: number
-  reps: number
+  /**
+   * Rep target as a range. A fixed target is the same number twice — real
+   * programmes are written "3 × 6-8", and flattening that to a single number
+   * throws away the part that tells you when to add weight.
+   */
+  repsMin: number
+  repsMax: number
 }
+
+/**
+ * A rest day is a day in the cycle, not a gap between days. Keeping it means
+ * "next up" can say you are resting instead of naming a session you are not
+ * due to do.
+ */
+export type SplitDayKind = 'training' | 'rest'
 
 export interface SplitDay {
   id: string
   label: string
+  kind: SplitDayKind
   entries: SplitEntry[]
 }
 
@@ -100,10 +114,12 @@ export interface SessionEvent {
   splitDayId: string
   exerciseId: string
   setIndex: number
-  /** Always kilograms. Display converts; storage does not. */
+  /** Always kilograms. Display converts; storage does not. Zero for cardio. */
   weightKg: number
   reps: number
   rpe?: number
+  /** Cardio is logged by time; lifts leave this unset. */
+  durationSec?: number
   action: SessionEventAction
   timestamp: number
   deviceId: string
@@ -184,6 +200,25 @@ export class KusuoDB extends Dexie {
             s.weekStart ??= 'monday'
           }),
       )
+    this.version(4).upgrade((tx) =>
+      // Splits hold their days and entries inline, so the migration rewrites
+      // the rows rather than adding an index. A fixed rep target becomes a
+      // range of itself, and every existing day is a training day — nothing
+      // is dropped and nothing needs the user's attention.
+      tx
+        .table<Split, string>('splits')
+        .toCollection()
+        .modify((split) => {
+          for (const day of split.days) {
+            day.kind ??= 'training'
+            for (const entry of day.entries as (SplitEntry & { reps?: number })[]) {
+              if (entry.repsMin === undefined) entry.repsMin = entry.reps ?? 0
+              if (entry.repsMax === undefined) entry.repsMax = entry.reps ?? 0
+              delete entry.reps
+            }
+          }
+        }),
+    )
   }
 }
 
