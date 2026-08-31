@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, startOfWeek, todayLocalDate } from './date'
+import {
+  addDays,
+  addMonths,
+  daysInMonth,
+  monthDays,
+  monthLabel,
+  startOfMonth,
+  startOfWeek,
+  todayLocalDate,
+  weekdayIndex,
+} from './date'
 
 describe('todayLocalDate', () => {
   it('formats device-local date, no early-morning special case', () => {
@@ -44,5 +54,42 @@ describe('startOfWeek', () => {
   it('puts a Sunday in different weeks under the two settings', () => {
     expect(startOfWeek('2026-01-11', 'monday')).toBe('2026-01-05')
     expect(startOfWeek('2026-01-11', 'sunday')).toBe('2026-01-11')
+  })
+})
+
+describe('month helpers', () => {
+  it('finds the first of the month', () => {
+    expect(startOfMonth('2026-08-31')).toBe('2026-08-01')
+  })
+
+  it('counts days including a leap February', () => {
+    expect(daysInMonth('2026-02-10')).toBe(28)
+    expect(daysInMonth('2024-02-10')).toBe(29)
+    expect(daysInMonth('2026-08-01')).toBe(31)
+  })
+
+  it('steps months and clamps to the first', () => {
+    expect(addMonths('2026-01-31', 1)).toBe('2026-02-01')
+    expect(addMonths('2026-01-15', -1)).toBe('2025-12-01')
+    expect(addMonths('2026-12-15', 1)).toBe('2027-01-01')
+  })
+
+  it('lists every day of the month in order', () => {
+    const days = monthDays('2026-02-05')
+    expect(days).toHaveLength(28)
+    expect(days[0]).toBe('2026-02-01')
+    expect(days[27]).toBe('2026-02-28')
+  })
+
+  it('labels the month', () => {
+    expect(monthLabel('2026-08-31')).toBe('August 2026')
+  })
+
+  it('places a day in the right grid column under each week start', () => {
+    // 2026-01-05 is a Monday, 2026-01-04 a Sunday.
+    expect(weekdayIndex('2026-01-05', 'monday')).toBe(0)
+    expect(weekdayIndex('2026-01-04', 'monday')).toBe(6)
+    expect(weekdayIndex('2026-01-04', 'sunday')).toBe(0)
+    expect(weekdayIndex('2026-01-05', 'sunday')).toBe(1)
   })
 })

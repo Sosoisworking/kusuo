@@ -1,5 +1,6 @@
 import type { WeekStart } from '../db/schema'
 import { addDays, startOfWeek } from '../lib/date'
+import { countInWeek } from './week'
 
 /**
  * Daily habit streak: consecutive localDates ending at today, or at
@@ -14,16 +15,6 @@ export function dailyStreak(completedDates: Set<string>, today: string): number 
     cursor = addDays(cursor, -1)
   }
   return streak
-}
-
-function countInWeek(completedDates: Set<string>, firstDay: string): number {
-  let count = 0
-  let cursor = firstDay
-  for (let i = 0; i < 7; i++) {
-    if (completedDates.has(cursor)) count += 1
-    cursor = addDays(cursor, 1)
-  }
-  return count
 }
 
 /**

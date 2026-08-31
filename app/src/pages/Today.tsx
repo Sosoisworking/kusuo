@@ -1,55 +1,83 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useNavigate } from 'react-router'
 import { allHabitEvents, appendHabitEvent } from '../db/events'
 import { listActiveHabits } from '../db/habits'
+import type { Habit, HabitEvent, SessionMark, Settings, Split, SplitDay } from '../db/schema'
+import { allSessionMarks } from '../db/sessions'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
-import type { Habit, HabitEvent, Settings } from '../db/schema'
+import { getActiveSplit } from '../db/splits'
+import { WEEKDAY_INITIALS, formatLongDate, greeting, initials } from '../lib/format'
 import { todayLocalDate } from '../lib/date'
 import { completedDatesForHabit } from '../logic/derive'
-import { groupHabitsByCategory } from '../logic/groupByCategory'
-import { dailyStreak, weeklyStreak } from '../logic/streaks'
+import { nextSplitDay, plannedSetCount } from '../logic/nextSession'
+import { countInWeekOf, completionsByDate, weekDays } from '../logic/week'
+import { dailyStreak } from '../logic/streaks'
 
-function streakFor(habit: Habit, completedDates: Set<string>, today: string): number {
-  return habit.frequencyType === 'daily'
-    ? dailyStreak(completedDates, today)
-    : weeklyStreak(completedDates, habit.frequencyValue, today)
-}
-
-function streakLabel(habit: Habit, streak: number): string | null {
-  if (streak === 0) return null
-  return habit.frequencyType === 'daily' ? `${streak}-day streak` : `${streak}-week streak`
-}
-
-interface HabitRowProps {
+interface Row {
   habit: Habit
   isDone: boolean
-  streak: number
-  onToggle: () => void
-  onEdit: () => void
-  readOnly: boolean
+  subtitle: string | null
 }
 
-function HabitRow({ habit, isDone, streak, onToggle, onEdit, readOnly }: HabitRowProps) {
-  const label = streakLabel(habit, streak)
-  const content = (
+/**
+ * The line under a habit's name. Daily habits show the run they are on, N-per-week
+ * habits show progress against this week's target, and the training habit says
+ * which session is next instead — a plain fact in each case, never a nudge.
+ */
+function subtitleFor(
+  habit: Habit,
+  completedDates: Set<string>,
+  today: string,
+  weekStart: Settings['weekStart'],
+  trainingDay: SplitDay | undefined,
+  isTrainingHabit: boolean,
+): string | null {
+  if (isTrainingHabit && trainingDay) return `Up next · ${trainingDay.label}`
+  if (habit.frequencyType === 'daily') {
+    const streak = dailyStreak(completedDates, today)
+    return streak > 0 ? `${streak}d` : null
+  }
+  const done = countInWeekOf(completedDates, today, weekStart)
+  return `${done} of ${habit.frequencyValue} this week`
+}
+
+function CheckMark({ isDone }: { isDone: boolean }) {
+  return (
+    <span
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border"
+      style={{
+        borderColor: isDone ? 'var(--color-complete)' : 'var(--color-border)',
+        background: isDone ? 'var(--color-complete)' : 'transparent',
+      }}
+      aria-hidden="true"
+    >
+      {isDone && (
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="var(--color-bg)" strokeWidth={2}>
+          <path d="M3 8.5L6.5 12L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
+  )
+}
+
+function HabitRow({
+  row,
+  readOnly,
+  onToggle,
+  onOpen,
+}: {
+  row: Row
+  readOnly: boolean
+  onToggle: () => void
+  onOpen: () => void
+}) {
+  const { habit, isDone, subtitle } = row
+  const body = (
     <>
-      <span
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border"
-        style={{
-          borderColor: isDone ? 'var(--color-complete)' : 'var(--color-border)',
-          background: isDone ? 'var(--color-complete)' : 'transparent',
-        }}
-        aria-hidden="true"
-      >
-        {isDone && (
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="var(--color-bg)" strokeWidth={2}>
-            <path d="M3 8.5L6.5 12L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </span>
+      <CheckMark isDone={isDone} />
       <span className="flex flex-1 flex-col text-left">
         <span className="text-base font-medium text-[var(--color-text-primary)]">{habit.name}</span>
-        {label && <span className="text-xs text-[var(--color-text-secondary)]">{label}</span>}
+        {subtitle && <span className="text-xs text-[var(--color-text-secondary)]">{subtitle}</span>}
       </span>
     </>
   )
@@ -57,7 +85,7 @@ function HabitRow({ habit, isDone, streak, onToggle, onEdit, readOnly }: HabitRo
   if (readOnly) {
     return (
       <div className="flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-3 opacity-75">
-        {content}
+        {body}
       </div>
     )
   }
@@ -70,22 +98,36 @@ function HabitRow({ habit, isDone, streak, onToggle, onEdit, readOnly }: HabitRo
         className="flex min-h-11 flex-1 items-center gap-3 rounded-[var(--radius-md)] border px-4 py-3 text-left transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
         style={{ borderColor: isDone ? 'var(--color-complete)' : 'var(--color-border)' }}
       >
-        {content}
+        {body}
       </button>
       <button
-        onClick={onEdit}
+        onClick={onOpen}
         aria-label={`Edit ${habit.name}`}
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
       >
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6}>
-          <path
-            d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5z"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5z" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
     </div>
+  )
+}
+
+/** Bottom-of-Today card standing in for a screen that used to have a tab. */
+function FoldedCard({ to, title, summary }: { to: string; title: string; summary: string }) {
+  return (
+    <Link
+      to={to}
+      className="flex min-h-11 items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+    >
+      <span className="flex flex-col">
+        <span className="text-base text-[var(--color-text-primary)]">{title}</span>
+        <span className="text-xs text-[var(--color-text-secondary)]">{summary}</span>
+      </span>
+      <span aria-hidden="true" className="text-[var(--color-text-secondary)]">
+        ›
+      </span>
+    </Link>
   )
 }
 
@@ -95,6 +137,8 @@ export default function Today() {
   const [settings, setSettings] = useState<Settings | undefined>()
   const [habits, setHabits] = useState<Habit[]>([])
   const [events, setEvents] = useState<HabitEvent[]>([])
+  const [split, setSplit] = useState<Split | undefined>()
+  const [marks, setMarks] = useState<SessionMark[]>([])
   const [today, setToday] = useState(todayLocalDate)
   const [error, setError] = useState<string | null>(null)
 
@@ -123,10 +167,18 @@ export default function Today() {
 
   async function load() {
     const deviceId = getOrCreateDeviceId()
-    const [s, h, e] = await Promise.all([getSettings(deviceId), listActiveHabits(), allHabitEvents()])
+    const [s, h, e, sp, m] = await Promise.all([
+      getSettings(deviceId),
+      listActiveHabits(),
+      allHabitEvents(),
+      getActiveSplit(),
+      allSessionMarks(),
+    ])
     setSettings(s)
     setHabits(h)
     setEvents(e)
+    setSplit(sp)
+    setMarks(m)
   }
 
   async function toggle(habit: Habit, isDone: boolean) {
@@ -134,8 +186,7 @@ export default function Today() {
     setError(null)
     try {
       await appendHabitEvent(habit.id, today, isDone ? 'uncomplete' : 'complete', settings.deviceId)
-      const fresh = await allHabitEvents()
-      setEvents(fresh)
+      setEvents(await allHabitEvents())
     } catch {
       setError("Couldn't save that — give it another tap.")
     }
@@ -152,36 +203,105 @@ export default function Today() {
   if (!settings || !settings.onboardingComplete) return <Navigate to="/onboarding" replace />
 
   const isReader = settings.deviceRole === 'reader'
-  const rows = habits.map((habit) => {
+  const weekStart = settings.weekStart
+  const trainingDay = split ? nextSplitDay(split, marks) : undefined
+
+  const rows: Row[] = habits.map((habit) => {
     const completedDates = completedDatesForHabit(events, habit.id)
-    return { habit, isDone: completedDates.has(today), streak: streakFor(habit, completedDates, today) }
+    return {
+      habit,
+      isDone: completedDates.has(today),
+      subtitle: subtitleFor(
+        habit,
+        completedDates,
+        today,
+        weekStart,
+        trainingDay,
+        habit.id === settings.trainingHabitId,
+      ),
+    }
   })
   const doneCount = rows.filter((r) => r.isDone).length
-  const groups = groupHabitsByCategory(rows)
+  const remaining = rows.length - doneCount
+
+  const days = weekDays(today, weekStart)
+  const dayCounts = completionsByDate(habits, events, days)
+  const reflectionSummary = 'Open tonight’s note'
+  const goalsSummary = 'Track what the habits are for'
 
   return (
-    <main className="flex min-h-dvh flex-col gap-6 px-6 pb-28 pt-[max(2.5rem,env(safe-area-inset-top))]">
-      <header className="flex flex-col gap-1 text-center">
-        <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">
-          {settings.userName ? `Hi, ${settings.userName}` : 'Kusuo'}
-        </h1>
-        {habits.length > 0 && (
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            {doneCount} of {habits.length} done today
-          </p>
-        )}
-        {isReader && (
-          <p className="text-xs text-[var(--color-text-secondary)]">Viewing only — log on your iPhone.</p>
-        )}
-        {error && (
-          <p role="alert" className="text-xs text-[var(--color-text-secondary)]">
-            {error}
-          </p>
-        )}
+    <main className="flex min-h-dvh flex-col gap-6 px-5 pb-28 pt-[max(2.5rem,env(safe-area-inset-top))]">
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-[var(--color-text-secondary)]">{formatLongDate(today)}</span>
+          <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">
+            {settings.userName
+              ? `${greeting(new Date().getHours())}, ${settings.userName}`
+              : greeting(new Date().getHours())}
+          </h1>
+        </div>
+        <Link
+          to="/settings"
+          aria-label="Settings and your data"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        >
+          {initials(settings.userName) || '·'}
+        </Link>
       </header>
 
-      {habits.length === 0 ? (
-        <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-4 text-center">
+      {error && (
+        <p role="alert" className="text-xs text-[var(--color-text-secondary)]">
+          {error}
+        </p>
+      )}
+
+      <section aria-label="This week" className="grid grid-cols-7 gap-1">
+        {days.map((date, index) => {
+          const count = dayCounts.get(date) ?? 0
+          const isToday = date === today
+          return (
+            <div
+              key={date}
+              className="flex flex-col items-center gap-1 rounded-[var(--radius-sm)] py-1.5"
+              style={{ background: isToday ? 'var(--color-surface)' : 'transparent' }}
+            >
+              <span
+                className="text-sm"
+                style={{
+                  color: count > 0 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                }}
+              >
+                {count > 0 ? count : '·'}
+              </span>
+              <span className="text-[10px] text-[var(--color-text-secondary)]">
+                {WEEKDAY_INITIALS[weekStart][index]}
+              </span>
+            </div>
+          )
+        })}
+      </section>
+
+      {trainingDay && (
+        <section className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-4">
+          <span className="text-xs text-[var(--color-text-secondary)]">Next up</span>
+          <h2 className="text-lg font-medium text-[var(--color-text-primary)]">
+            {split?.name} · {trainingDay.label}
+          </h2>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            {trainingDay.entries.length} exercises · {plannedSetCount(trainingDay)} sets
+            {settings.trainingHabitId ? ' · logging it ticks the habit' : ''}
+          </p>
+          <Link
+            to="/train"
+            className="mt-1 flex min-h-11 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 py-3 text-sm text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          >
+            Open the session
+          </Link>
+        </section>
+      )}
+
+      {rows.length === 0 ? (
+        <div className="flex flex-col items-start gap-4 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-5">
           <p className="text-sm text-[var(--color-text-secondary)]">No habits yet.</p>
           {!isReader && (
             <button
@@ -193,26 +313,19 @@ export default function Today() {
           )}
         </div>
       ) : (
-        <div className="mx-auto flex w-full max-w-xs flex-col gap-5">
-          {groups.map((group) => (
-            <div key={group.category ?? '__uncategorized'} className="flex flex-col gap-3">
-              {groups.length > 1 && (
-                <span className="text-sm font-medium text-[var(--color-text-secondary)]">
-                  {group.category ?? 'Uncategorized'}
-                </span>
-              )}
-              {group.rows.map(({ habit, isDone, streak }) => (
-                <HabitRow
-                  key={habit.id}
-                  habit={habit}
-                  isDone={isDone}
-                  streak={streak}
-                  readOnly={isReader}
-                  onToggle={() => toggle(habit, isDone)}
-                  onEdit={() => navigate(`/habits/${habit.id}/edit`)}
-                />
-              ))}
-            </div>
+        <section className="flex flex-col gap-3">
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            {doneCount} of {rows.length} done today
+            {remaining > 0 && ` · ${remaining} left`}
+          </p>
+          {rows.map((row) => (
+            <HabitRow
+              key={row.habit.id}
+              row={row}
+              readOnly={isReader}
+              onToggle={() => toggle(row.habit, row.isDone)}
+              onOpen={() => navigate(`/habits/${row.habit.id}/edit`)}
+            />
           ))}
           {!isReader && (
             <button
@@ -222,8 +335,13 @@ export default function Today() {
               + Add habit
             </button>
           )}
-        </div>
+        </section>
       )}
+
+      <section className="flex flex-col gap-2">
+        <FoldedCard to="/reflection" title="Reflect" summary={reflectionSummary} />
+        <FoldedCard to="/goals" title="Goals" summary={goalsSummary} />
+      </section>
     </main>
   )
 }

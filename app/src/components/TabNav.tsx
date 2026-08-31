@@ -1,39 +1,29 @@
+import {
+  Barbell,
+  CalendarBlank,
+  Cards,
+  Gear,
+  ListNumbers,
+  SunHorizon,
+  type Icon,
+} from '@phosphor-icons/react'
 import { NavLink } from 'react-router'
 
-function TodayIcon({ active }: { active: boolean }) {
-  return (
-    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={active ? 1.8 : 1.5}>
-      <rect x="3" y="4" width="14" height="13" rx="2" />
-      <path d="M3 8h14M7 2.5v3M13 2.5v3" strokeLinecap="round" />
-    </svg>
-  )
+interface Tab {
+  to: string
+  label: string
+  icon: Icon
+  end: boolean
 }
 
-function ProgressIcon({ active }: { active: boolean }) {
-  return (
-    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={active ? 1.8 : 1.5}>
-      <path d="M4 16V10M10 16V4M16 16v-7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function SettingsIcon({ active }: { active: boolean }) {
-  return (
-    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={active ? 1.8 : 1.5}>
-      <circle cx="10" cy="10" r="2.75" />
-      <path
-        d="M10 3.5v1.6M10 14.9v1.6M16.5 10h-1.6M5.1 10H3.5M14.6 5.4l-1.13 1.13M6.53 13.47L5.4 14.6M14.6 14.6l-1.13-1.13M6.53 6.53L5.4 5.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-const TABS = [
-  { to: '/', label: 'Today', icon: TodayIcon, end: true },
-  { to: '/progress', label: 'Progress', icon: ProgressIcon, end: false },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon, end: false },
-] as const
+const TABS: Tab[] = [
+  { to: '/', label: 'Today', icon: SunHorizon, end: true },
+  { to: '/train', label: 'Train', icon: Barbell, end: false },
+  { to: '/splits', label: 'Splits', icon: Cards, end: false },
+  { to: '/calendar', label: 'Calendar', icon: CalendarBlank, end: false },
+  { to: '/records', label: 'Records', icon: ListNumbers, end: false },
+  { to: '/settings', label: 'Settings', icon: Gear, end: false },
+]
 
 export default function TabNav() {
   return (
@@ -41,20 +31,25 @@ export default function TabNav() {
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-10 flex border-t border-[var(--color-border)] bg-[var(--color-bg)] pb-[env(safe-area-inset-bottom)]"
     >
-      {TABS.map(({ to, label, icon: Icon, end }) => (
+      {TABS.map(({ to, label, icon: TabIcon, end }) => (
         <NavLink
           key={to}
           to={to}
           end={end}
-          className="flex min-h-11 flex-1 flex-col items-center gap-1 px-4 py-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          // Six tabs have to fit at 402px, so the horizontal padding goes and
+          // the 44pt target is held by min-height plus flex-1 width.
+          className="flex min-h-11 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
         >
           {({ isActive }) => (
             <>
-              <span style={{ color: isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
-                <Icon active={isActive} />
-              </span>
+              <TabIcon
+                size={19}
+                weight={isActive ? 'fill' : 'regular'}
+                color={isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)'}
+                aria-hidden="true"
+              />
               <span
-                className="text-xs"
+                className="text-[9px] leading-none"
                 style={{
                   color: isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                   fontWeight: isActive ? 500 : 400,
