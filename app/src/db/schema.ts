@@ -50,7 +50,14 @@ export interface ReflectionEntry {
   id: string
   /** 'YYYY-MM-DD', device-local calendar date. Editing appends a new entry for the same date; last event wins. */
   localDate: string
+  /** The free note. Kept as the first field so entries written before the
+   *  prompts existed still read back whole. */
   text: string
+  /** 1–5. Absent means not answered — which is different from a low score. */
+  energy?: number
+  mood?: number
+  wentWell?: string
+  gotInTheWay?: string
   timestamp: number
   deviceId: string
 }
@@ -231,6 +238,9 @@ export class KusuoDB extends Dexie {
     // goals keep every field they had, and an unfinished goal simply has no
     // completedAt.
     this.version(5).stores({ goals: 'id, isActive, archivedAt, completedAt' })
+    // Reflections gain prompts. Additive and unindexed: an entry written before
+    // them simply has none, and its free note still reads back whole.
+    this.version(6)
   }
 }
 

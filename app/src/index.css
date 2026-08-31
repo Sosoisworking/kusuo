@@ -12,3 +12,19 @@ body {
 #root {
   min-height: 100dvh;
 }
+
+/*
+  The token block zeroes the duration variables, but Tailwind's own keyframe
+  utilities (animate-pulse on every loading skeleton) run independently of
+  them. A skeleton that keeps breathing is exactly what reduced motion is asked
+  to stop.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -7,7 +7,7 @@ import { allSessionMarks } from '../db/sessions'
 import { allReflections } from '../db/reflections'
 import { listActiveGoals } from '../db/goals'
 import type { Goal, ReflectionEntry } from '../db/schema'
-import { latestReflectionForDate } from '../logic/reflection'
+import { latestReflectionForDate, reflectionSummary } from '../logic/reflection'
 import { trainingDates } from '../logic/sessions'
 import { formatLongDate } from '../lib/format'
 import { Link } from 'react-router'
@@ -168,7 +168,7 @@ export default function CalendarView() {
             </p>
             {selectedReflection ? (
               <p className="whitespace-pre-wrap text-sm text-[var(--color-text-primary)]">
-                {selectedReflection.text}
+                {reflectionSummary(selectedReflection)}
               </p>
             ) : (
               <p className="text-sm text-[var(--color-text-secondary)]">

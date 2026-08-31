@@ -1,4 +1,5 @@
-import { CaretLeft, Check } from '@phosphor-icons/react'
+import { CaretLeft,
+  CaretRight, Check } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import SectionHeading from '../components/SectionHeading'
@@ -107,7 +108,7 @@ export default function Session() {
     }
   }, [dayId])
 
-  const { settings, found, exercises, events, marks, readAt } = data
+  const { settings, found, exercises, events, marks } = data
 
   // Focus lands on the next set only after a set is logged. Grabbing it on
   // arrival would open the keyboard over the table before you asked.
@@ -316,16 +317,11 @@ export default function Session() {
     }
   }
 
-  const startedAt = daySets.reduce<number | null>(
-    (first, s) => (first === null || s.timestamp < first ? s.timestamp : first),
-    null,
-  )
-  const elapsedMin = startedAt === null ? 0 : Math.floor((readAt - startedAt) / 60_000)
 
-  const columns = isCardio ? '34px 1fr 30px' : '34px 1fr 1fr 46px 30px'
+  const columns = isCardio ? '34px 1fr 44px' : '34px 1fr 1fr 46px 44px'
   const cell = 'bg-[var(--color-bg)] px-3 py-2.5 grid items-center gap-2'
   const inputClass =
-    'min-h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-accent-700)] bg-[var(--color-bg)] px-2 text-[15px] text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]'
+    'min-h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-accent-700)] bg-[var(--color-bg)] px-2 text-base text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]'
 
   return (
     <main className="flex min-h-dvh flex-col gap-4 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(3.5rem,env(safe-area-inset-top))]">
@@ -342,11 +338,6 @@ export default function Session() {
             <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
               {day.label} · exercise {index + 1} of {day.entries.length}
             </span>
-            {elapsedMin > 0 && (
-              <span className="text-[11px] text-[var(--color-text-secondary)]">
-                {elapsedMin} min
-              </span>
-            )}
           </div>
           <div
             role="progressbar"
@@ -468,7 +459,7 @@ export default function Session() {
                   value={valueFor(row).rpe}
                   onFocus={() => setChosenIndex(row)}
                   onChange={(e) => setRow(row, { ...valueFor(row), rpe: e.target.value })}
-                  className={`${inputClass} border-[var(--color-border)] text-[13px]`}
+                  className={`${inputClass} border-[var(--color-border)]`}
                 />
               )}
 
@@ -478,23 +469,33 @@ export default function Session() {
                   onClick={() => remove(row)}
                   disabled={busy}
                   aria-label={`Set ${row + 1} logged — remove it`}
-                  className="flex h-6 w-6 items-center justify-center justify-self-end rounded-full disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-                  style={{
-                    background: 'var(--color-complete-fill)',
-                    boxShadow: 'inset 0 0 0 1px var(--color-complete-ring)',
-                  }}
+                  className="flex h-11 w-11 items-center justify-center justify-self-end rounded-full disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                 >
-                  <Check size={12} color="var(--color-complete-mark)" aria-hidden="true" />
+                  <span
+                    aria-hidden="true"
+                    className="flex h-6 w-6 items-center justify-center rounded-full"
+                    style={{
+                      background: 'var(--color-complete-fill)',
+                      boxShadow: 'inset 0 0 0 1px var(--color-complete-ring)',
+                    }}
+                  >
+                    <Check size={12} color="var(--color-complete-mark)" />
+                  </span>
                 </button>
               ) : (
                 <button
                   onClick={() => log(row)}
                   disabled={busy}
                   aria-label={done ? `Save set ${row + 1}` : `Log set ${row + 1}`}
-                  className="flex h-6 w-6 items-center justify-center justify-self-end rounded-full text-[var(--color-accent)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-                  style={{ boxShadow: 'inset 0 0 0 1px var(--color-accent)' }}
+                  className="flex h-11 w-11 items-center justify-center justify-self-end rounded-full text-[var(--color-accent)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                 >
-                  <Check size={12} aria-hidden="true" />
+                  <span
+                    aria-hidden="true"
+                    className="flex h-6 w-6 items-center justify-center rounded-full"
+                    style={{ boxShadow: 'inset 0 0 0 1px var(--color-accent)' }}
+                  >
+                    <Check size={12} />
+                  </span>
                 </button>
               )}
             </div>
@@ -510,6 +511,18 @@ export default function Session() {
       >
         Add a set
       </button>
+
+      {/* Where your thumb already is when the last set goes in. Without it the
+          only way on was scrolling to a list at the bottom of the screen. */}
+      {index < day.entries.length - 1 ? (
+        <button
+          onClick={() => openExercise(index + 1)}
+          className="flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        >
+          Next movement
+          <CaretRight size={15} aria-hidden="true" />
+        </button>
+      ) : null}
 
       <p className="text-xs text-[var(--color-text-secondary)]">
         No timer — rest as long as you like.

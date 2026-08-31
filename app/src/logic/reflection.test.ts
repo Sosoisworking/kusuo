@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReflectionEntry } from '../db/schema'
-import { latestReflectionForDate, latestReflectionsByDate } from './reflection'
+import { isBlank, latestReflectionForDate, latestReflectionsByDate, reflectionSummary } from './reflection'
 
 function entry(partial: Partial<ReflectionEntry> & Pick<ReflectionEntry, 'localDate' | 'text' | 'timestamp'>): ReflectionEntry {
   return { id: crypto.randomUUID(), deviceId: 'd1', ...partial }
@@ -75,5 +75,47 @@ describe('latestReflectionsByDate', () => {
     ]
     const byDate = latestReflectionsByDate(entries)
     expect(Array.from(byDate.keys()).sort()).toEqual(['2026-01-05', '2026-01-06', '2026-01-07'])
+  })
+})
+
+describe('reflectionSummary', () => {
+  const base = { id: 'r1', localDate: '2026-08-31', text: '', timestamp: 1, deviceId: 'dev1' }
+
+  it('states the scores it has and omits the one it does not', () => {
+    expect(reflectionSummary({ ...base, energy: 4 })).toBe('energy 4/5')
+    expect(reflectionSummary({ ...base, energy: 4, mood: 2 })).toBe('energy 4/5 · mood 2/5')
+  })
+
+  it('labels the prompts and keeps the free note unlabelled', () => {
+    const out = reflectionSummary({
+      ...base,
+      energy: 3,
+      wentWell: 'Trained early',
+      gotInTheWay: 'Slept badly',
+      text: 'Quiet day otherwise.',
+    })
+    expect(out).toBe(
+      'energy 3/5\nWent well: Trained early\nGot in the way: Slept badly\nQuiet day otherwise.',
+    )
+  })
+
+  it('omits a prompt left blank rather than showing an empty label', () => {
+    expect(reflectionSummary({ ...base, wentWell: '   ', text: 'Just this.' })).toBe('Just this.')
+  })
+
+  it('reads back an entry written before the prompts existed', () => {
+    expect(reflectionSummary({ ...base, text: 'An old note.' })).toBe('An old note.')
+  })
+})
+
+describe('isBlank', () => {
+  it('is true when nothing was answered', () => {
+    expect(isBlank({ text: '', energy: undefined, mood: undefined })).toBe(true)
+    expect(isBlank({ text: '   ' })).toBe(true)
+  })
+
+  it('is false once any one prompt is answered', () => {
+    expect(isBlank({ text: '', energy: 1 })).toBe(false)
+    expect(isBlank({ text: '', wentWell: 'x' })).toBe(false)
   })
 })

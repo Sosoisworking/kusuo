@@ -6,7 +6,7 @@ import { listAllHabits } from '../db/habits'
 import { allReflections } from '../db/reflections'
 import type { Goal, Habit, HabitEvent, ReflectionEntry, Settings } from '../db/schema'
 import { formatLongDate } from '../lib/format'
-import { latestReflectionsByDate } from '../logic/reflection'
+import { latestReflectionsByDate, reflectionSummary } from '../logic/reflection'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { monthLabel, todayLocalDate } from '../lib/date'
 
@@ -169,7 +169,7 @@ export default function Records() {
                   {formatLongDate(date)}
                 </span>
                 <span className="whitespace-pre-wrap text-sm text-[var(--color-text-primary)]">
-                  {entry.text}
+                  {reflectionSummary(entry)}
                 </span>
               </li>
             ))}

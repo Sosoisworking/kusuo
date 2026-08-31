@@ -12,7 +12,7 @@ import { archiveGoal, completeGoal, createGoal } from './db/goals'
 import { appendReflection } from './db/reflections'
 import { finishSession } from './db/sessions'
 import { instantiateTemplate } from './db/splits'
-import { todayLocalDate } from './lib/date'
+import { addDays, todayLocalDate } from './lib/date'
 
 const DEVICE_ID = 'test-device'
 
@@ -315,5 +315,48 @@ describe('Goals and reflections have somewhere to live', () => {
 
     renderAt('/records')
     expect(await screen.findByText('A quiet week.')).toBeInTheDocument()
+  })
+})
+
+describe('Reflection', () => {
+  it('shows today in the history, so a saved entry does not look lost', async () => {
+    await onboard()
+    renderAt('/reflection')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Energy: 4 of 5' }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'What went well?' }), 'Trained early')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    const past = await screen.findByText(/· today$/)
+    expect(past).toBeInTheDocument()
+    expect(await screen.findByText(/Went well: Trained early/)).toBeInTheDocument()
+  })
+
+  it('does not carry yesterday into today', async () => {
+    await onboard()
+    await appendReflection(addDays(todayLocalDate(), -1), { text: 'Yesterday.' }, DEVICE_ID)
+    renderAt('/reflection')
+
+    const note = await screen.findByRole('textbox', { name: 'Anything else' })
+    expect(note).toHaveValue('')
+    // Yesterday is still readable, just not loaded into today's form.
+    expect(screen.getByText('Yesterday.')).toBeInTheDocument()
+  })
+
+  it('continues today rather than starting a second entry', async () => {
+    await onboard()
+    await appendReflection(todayLocalDate(), { text: 'First pass.' }, DEVICE_ID)
+    renderAt('/reflection')
+
+    const note = await screen.findByRole('textbox', { name: 'Anything else' })
+    expect(note).toHaveValue('First pass.')
+    expect(screen.getByRole('button', { name: 'Update today' })).toBeInTheDocument()
+  })
+
+  it('refuses to save nothing', async () => {
+    await onboard()
+    renderAt('/reflection')
+
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeDisabled()
   })
 })

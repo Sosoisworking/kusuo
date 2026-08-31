@@ -134,7 +134,11 @@ function isReflectionEntry(x: unknown): x is ReflectionEntry {
     typeof r.localDate === 'string' &&
     typeof r.text === 'string' &&
     typeof r.timestamp === 'number' &&
-    typeof r.deviceId === 'string'
+    typeof r.deviceId === 'string' &&
+    (r.energy === undefined || typeof r.energy === 'number') &&
+    (r.mood === undefined || typeof r.mood === 'number') &&
+    (r.wentWell === undefined || typeof r.wentWell === 'string') &&
+    (r.gotInTheWay === undefined || typeof r.gotInTheWay === 'string')
   )
 }
 

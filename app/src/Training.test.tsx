@@ -463,3 +463,41 @@ describe('Train with no split', () => {
     expect(screen.queryByRole('button', { name: 'Choose a split' })).toBeNull()
   })
 })
+
+describe('moving through a session', () => {
+  it('offers a next-movement control and advances with it', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    expect(await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 }))
+      .toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+
+    expect(await screen.findByRole('heading', { level: 1 })).not.toHaveTextContent(
+      'Barbell bench press',
+    )
+  })
+
+  it('offers no next movement on the last one', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    const last = (await screen.findAllByRole('listitem')).length
+    expect(last).toBeGreaterThan(0)
+    // Walk to the end of the day.
+    for (let i = 0; i < 10; i++) {
+      const next = screen.queryByRole('button', { name: /Next movement/ })
+      if (!next) break
+      await userEvent.click(next)
+    }
+    expect(screen.queryByRole('button', { name: /Next movement/ })).toBeNull()
+  })
+
+  it('shows no elapsed clock — a running number is a rest timer by another name', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    expect(screen.queryByText(/\d+ min$/)).toBeNull()
+  })
+})
