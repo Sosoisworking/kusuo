@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { seedExercises } from './db/exercises'
 import { eventsForHabit } from './db/events'
@@ -118,10 +118,7 @@ describe('Train', () => {
     await onboard()
     renderAt('/train')
 
-    expect(await screen.findByRole('link', { name: 'Pick one in Splits' })).toHaveAttribute(
-      'href',
-      '/splits',
-    )
+    expect(await screen.findByRole('link', { name: 'Splits' })).toHaveAttribute('href', '/splits')
     expect(screen.queryByRole('button', { name: /Start session/ })).toBeNull()
   })
 
@@ -130,23 +127,45 @@ describe('Train', () => {
     await seedExercises()
     const habit = await createHabit({ name: 'Training', frequencyType: 'daily', frequencyValue: 1 })
     await updateSettings(DEVICE_ID, { trainingHabitId: habit.id })
-    const split = await instantiateTemplate('split-batman-7')
-    // The Batman split's third day is a rest day; walk the cycle up to it.
-    await finishSession('2026-01-01', split.days[0].id, DEVICE_ID)
-    await finishSession('2026-01-02', split.days[1].id, DEVICE_ID)
-    renderAt('/train')
+    await instantiateTemplate('split-batman-7')
 
-    expect(await screen.findByText('A day in the split, not a gap in it.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Start session/ })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Mark the rest day done' }))
+    // The split is a weekly schedule, so a rest day is reached by being on the
+    // day it falls on. 2026-01-07 is a Wednesday — the Batman split's third
+    // day, which is a rest day.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date(2026, 0, 7, 9))
+    try {
+      renderAt('/train')
 
-    // Marking it advances the cycle to the next day, and it is the split's own
-    // day — the training habit is not ticked for a day spent resting.
-    await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'Legs / Core', level: 2 })).toBeInTheDocument(),
-    )
-    expect(await eventsForHabit(habit.id)).toHaveLength(0)
-    expect(await db.sessionMarks.count()).toBe(3)
+      expect(await screen.findByText('A day in the split, not a gap in it.')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Start session/ })).toBeNull()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Mark the rest day done' }))
+
+      // Resting is recorded, but it is not training: the habit stays untouched.
+      await waitFor(async () => expect(await db.sessionMarks.count()).toBe(1))
+      expect(await eventsForHabit(habit.id)).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows the day the date calls for, not the day after the last one done', async () => {
+    await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-batman-7')
+
+    // Nothing has been done at all, and Thursday still shows Thursday's work.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date(2026, 0, 8, 9))
+    try {
+      renderAt('/train')
+      expect(
+        await screen.findByRole('heading', { name: 'Legs / Core', level: 2 }),
+      ).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -418,5 +437,29 @@ describe('the Mac read-only build', () => {
     expect(await db.sessionEvents.count()).toBe(eventsBefore)
     expect(await db.sessionMarks.count()).toBe(marksBefore)
     expect(await db.habitEvents.count()).toBe(0)
+  })
+})
+
+describe('Train with no split', () => {
+  it('offers the picker on the screen that is asking for it', async () => {
+    await onboard()
+    await seedExercises()
+    renderAt('/train')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose a split' }))
+    const batman = (await screen.findAllByRole('listitem')).find((li) =>
+      li.textContent?.includes('Batman split'),
+    )
+    await userEvent.click(within(batman as HTMLElement).getByRole('button', { name: 'Use this' }))
+
+    await waitFor(async () => expect(await db.splits.count()).toBe(1))
+  })
+
+  it('gives a reader no way to choose one', async () => {
+    await onboard('reader')
+    renderAt('/train')
+
+    await screen.findByRole('heading', { name: 'Train', level: 1 })
+    expect(screen.queryByRole('button', { name: 'Choose a split' })).toBeNull()
   })
 })

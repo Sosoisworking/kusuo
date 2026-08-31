@@ -31,7 +31,15 @@ export interface HabitEvent {
 export interface Goal {
   id: string
   title: string
+  description?: string
+  /** 'YYYY-MM-DD'. What you are aiming at, not a deadline the app enforces. */
   targetDate?: string
+  /**
+   * When it was reached. Distinct from archivedAt, which means put away —
+   * a goal you abandoned and a goal you finished are not the same fact, and
+   * only the finished one belongs in Records.
+   */
+  completedAt?: number
   isActive: boolean
   createdAt: number
   archivedAt?: number
@@ -219,6 +227,10 @@ export class KusuoDB extends Dexie {
           }
         }),
     )
+    // Goals gain a description and a completion date. Additive: existing
+    // goals keep every field they had, and an unfinished goal simply has no
+    // completedAt.
+    this.version(5).stores({ goals: 'id, isActive, archivedAt, completedAt' })
   }
 }
 

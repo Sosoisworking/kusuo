@@ -32,7 +32,7 @@ function Tag({ children, accent = false }: { children: React.ReactNode; accent?:
       className="rounded-[var(--radius-sm)] px-2 py-1 text-[11px]"
       style={
         accent
-          ? { background: 'var(--color-accent-900)', color: 'var(--color-accent-200)' }
+          ? { background: 'var(--color-surface)', color: 'var(--color-accent)', boxShadow: 'inset 0 0 0 1px var(--color-accent)' }
           : {
               boxShadow: 'inset 0 0 0 1px var(--color-border)',
               color: 'var(--color-text-secondary)',

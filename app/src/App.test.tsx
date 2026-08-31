@@ -8,6 +8,8 @@ import { appendHabitEvent } from './db/events'
 import { createHabit } from './db/habits'
 import { db } from './db/schema'
 import { createSettings } from './db/settings'
+import { archiveGoal, completeGoal, createGoal } from './db/goals'
+import { appendReflection } from './db/reflections'
 import { finishSession } from './db/sessions'
 import { instantiateTemplate } from './db/splits'
 import { todayLocalDate } from './lib/date'
@@ -255,5 +257,63 @@ describe('Calendar', () => {
 
     const cell = await screen.findByLabelText(new RegExp(`^${today}:`))
     expect(cell.getAttribute('aria-label')).not.toMatch(/trained/)
+  })
+})
+
+describe('Goals and reflections have somewhere to live', () => {
+  it('reads back the reflection written on the day you pick', async () => {
+    await onboard()
+    const today = todayLocalDate()
+    await appendReflection(today, 'Slept badly, trained anyway.', DEVICE_ID)
+
+    renderAt('/calendar')
+    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+
+    expect(await screen.findByText('Slept badly, trained anyway.')).toBeInTheDocument()
+  })
+
+  it('says plainly when nothing was written that day', async () => {
+    await onboard()
+    const today = todayLocalDate()
+
+    renderAt('/calendar')
+    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+
+    expect(await screen.findByText('Nothing written that day.')).toBeInTheDocument()
+  })
+
+  it('keeps goals on the calendar behind a bar that expands', async () => {
+    await onboard()
+    await createGoal({ title: 'Read 24 books', description: 'Two a month', targetDate: '2026-12-31' })
+
+    renderAt('/calendar')
+    const bar = await screen.findByRole('button', { name: /Goals/ })
+    expect(bar).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Read 24 books')).toBeNull()
+
+    await userEvent.click(bar)
+    expect(await screen.findByText('Read 24 books')).toBeInTheDocument()
+    expect(screen.getByText('Two a month')).toBeInTheDocument()
+  })
+
+  it('moves a reached goal into Records, and leaves an abandoned one out', async () => {
+    await onboard()
+    const reached = await createGoal({ title: 'Bench bodyweight' })
+    const abandoned = await createGoal({ title: 'Run a marathon' })
+    await completeGoal(reached.id)
+    await archiveGoal(abandoned.id)
+
+    renderAt('/records')
+
+    expect(await screen.findByText('Bench bodyweight')).toBeInTheDocument()
+    expect(screen.queryByText('Run a marathon')).toBeNull()
+  })
+
+  it('lists what was written in Records too', async () => {
+    await onboard()
+    await appendReflection(todayLocalDate(), 'A quiet week.', DEVICE_ID)
+
+    renderAt('/records')
+    expect(await screen.findByText('A quiet week.')).toBeInTheDocument()
   })
 })

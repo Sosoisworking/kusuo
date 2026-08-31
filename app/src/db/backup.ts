@@ -120,7 +120,9 @@ function isGoal(x: unknown): x is Goal {
     typeof g.createdAt === 'number' &&
     typeof g.updatedAt === 'number' &&
     (g.archivedAt === undefined || typeof g.archivedAt === 'number') &&
-    (g.targetDate === undefined || typeof g.targetDate === 'string')
+    (g.targetDate === undefined || typeof g.targetDate === 'string') &&
+    (g.description === undefined || typeof g.description === 'string') &&
+    (g.completedAt === undefined || typeof g.completedAt === 'number')
   )
 }
 

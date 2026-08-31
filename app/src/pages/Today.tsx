@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { allHabitEvents, appendHabitEvent } from '../db/events'
 import { listActiveHabits } from '../db/habits'
-import type { Habit, HabitEvent, SessionMark, Settings, Split, SplitDay } from '../db/schema'
-import { allSessionMarks } from '../db/sessions'
+import type { Habit, HabitEvent, Settings, Split, SplitDay } from '../db/schema'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { getActiveSplit } from '../db/splits'
 import { WEEKDAY_INITIALS, formatLongDate, greeting, initials } from '../lib/format'
 import { todayLocalDate } from '../lib/date'
 import { completedDatesForHabit } from '../logic/derive'
-import { nextSplitDay, plannedSetCount } from '../logic/nextSession'
+import { dayForDate, plannedSetCount } from '../logic/nextSession'
 import { countInWeekOf, completionsByDate, weekDays } from '../logic/week'
 import { dailyStreak } from '../logic/streaks'
 
@@ -163,7 +162,6 @@ export default function Today() {
   const [habits, setHabits] = useState<Habit[]>([])
   const [events, setEvents] = useState<HabitEvent[]>([])
   const [split, setSplit] = useState<Split | undefined>()
-  const [marks, setMarks] = useState<SessionMark[]>([])
   const [today, setToday] = useState(todayLocalDate)
   const [error, setError] = useState<string | null>(null)
 
@@ -192,18 +190,16 @@ export default function Today() {
 
   async function load() {
     const deviceId = getOrCreateDeviceId()
-    const [s, h, e, sp, m] = await Promise.all([
+    const [s, h, e, sp] = await Promise.all([
       getSettings(deviceId),
       listActiveHabits(),
       allHabitEvents(),
       getActiveSplit(),
-      allSessionMarks(),
     ])
     setSettings(s)
     setHabits(h)
     setEvents(e)
     setSplit(sp)
-    setMarks(m)
   }
 
   async function toggle(habit: Habit, isDone: boolean) {
@@ -229,7 +225,7 @@ export default function Today() {
 
   const isReader = settings.deviceRole === 'reader'
   const weekStart = settings.weekStart
-  const trainingDay = split ? nextSplitDay(split, marks) : undefined
+  const trainingDay = split ? dayForDate(split, today, weekStart) : undefined
 
   const rows: Row[] = habits.map((habit) => {
     const completedDates = completedDatesForHabit(events, habit.id)

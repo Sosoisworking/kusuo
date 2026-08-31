@@ -13,7 +13,7 @@ import { todayLocalDate } from '../lib/date'
 import { formatRelativeDay, initials } from '../lib/format'
 import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
 import { weightValue } from '../lib/units'
-import { formatPrescription, nextSplitDay, plannedSetCount } from '../logic/nextSession'
+import { formatPrescription, dayForDate, plannedSetCount } from '../logic/nextSession'
 import { isSessionComplete, setsForExercise, setsOnDate, volume } from '../logic/sessions'
 import { lastCompletedDate, lastSessionSets, recentSessions } from '../logic/trainingHistory'
 
@@ -120,8 +120,9 @@ export default function Train() {
 
   const isReader = settings?.deviceRole === 'reader'
   const units = settings?.units ?? 'kg'
+  const weekStart = settings?.weekStart ?? 'monday'
   const today = todayLocalDate()
-  const day: SplitDay | undefined = split ? nextSplitDay(split, marks) : undefined
+  const day: SplitDay | undefined = split ? dayForDate(split, today, weekStart) : undefined
   const dayNumber = split && day ? split.days.findIndex((d) => d.id === day.id) + 1 : 0
   const byId = new Map(exercises.map((e) => [e.id, e]))
   const dayById = new Map(splits.flatMap((s) => s.days.map((d) => [d.id, d] as const)))
@@ -163,12 +164,23 @@ export default function Train() {
       {!split || !day ? (
         <EmptyState>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            No split chosen yet, so there is no session waiting.{' '}
+            No split chosen yet, so there is no session waiting. Pick one here, or build your own in{' '}
             <Link to="/splits" className="text-[var(--color-accent)] underline">
-              Pick one in Splits
-            </Link>{' '}
-            and it becomes yours to edit.
+              Splits
+            </Link>
+            .
           </p>
+          {/* The picker belongs on this screen too. Sending someone to another
+              tab to do the one thing this screen is asking for is a dead end. */}
+          {!isReader && (
+            <button
+              onClick={() => setPickerOpen((open) => !open)}
+              aria-expanded={pickerOpen}
+              className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 py-3 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            >
+              {pickerOpen ? 'Close' : 'Choose a split'}
+            </button>
+          )}
         </EmptyState>
       ) : (
         <section

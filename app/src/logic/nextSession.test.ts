@@ -1,19 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionMark, Split } from '../db/schema'
-import { nextSplitDay, plannedSetCount } from './nextSession'
+import type { Split } from '../db/schema'
+import { dayForDate, formatPrescription, plannedSetCount } from './nextSession'
 
-function split(dayCount = 3): Split {
+function split(labels: string[]): Split {
   return {
     id: 'split-1',
-    name: 'Push / Pull / Legs',
-    days: Array.from({ length: dayCount }, (_, i) => ({
+    name: 'Test split',
+    days: labels.map((label, i) => ({
       id: `day-${i}`,
-      label: ['Push', 'Pull', 'Legs'][i] ?? `Day ${i}`,
-      kind: 'training' as const,
-      entries: [
-        { exerciseId: 'ex-a', sets: 4, repsMin: 6, repsMax: 8 },
-        { exerciseId: 'ex-b', sets: 3, repsMin: 10, repsMax: 10 },
-      ],
+      label,
+      kind: label === 'Rest' ? ('rest' as const) : ('training' as const),
+      entries:
+        label === 'Rest'
+          ? []
+          : [
+              { exerciseId: 'ex-a', sets: 4, repsMin: 6, repsMax: 8 },
+              { exerciseId: 'ex-b', sets: 3, repsMin: 10, repsMax: 10 },
+            ],
     })),
     isActive: true,
     createdAt: 0,
@@ -21,51 +24,77 @@ function split(dayCount = 3): Split {
   }
 }
 
-let clock = 1000
-function mark(splitDayId: string, localDate: string, action: SessionMark['action'] = 'complete'): SessionMark {
-  return { id: crypto.randomUUID(), localDate, splitDayId, action, timestamp: clock++, deviceId: 'dev1' }
-}
+// 2026-01-05 is a Monday, so that week runs Mon 5th through Sun 11th.
+const MON = '2026-01-05'
+const TUE = '2026-01-06'
+const WED = '2026-01-07'
+const THU = '2026-01-08'
+const SUN = '2026-01-11'
 
-describe('nextSplitDay', () => {
-  it('starts at the first day when nothing has been finished', () => {
-    expect(nextSplitDay(split(), [])?.label).toBe('Push')
+describe('dayForDate', () => {
+  const week = split(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+
+  it('puts the first day on the first day of the week', () => {
+    expect(dayForDate(week, MON)?.label).toBe('Mon')
   })
 
-  it('advances to the day after the last finished one', () => {
-    expect(nextSplitDay(split(), [mark('day-0', '2026-01-10')])?.label).toBe('Pull')
+  it('follows the calendar across the week', () => {
+    expect(dayForDate(week, TUE)?.label).toBe('Tue')
+    expect(dayForDate(week, WED)?.label).toBe('Wed')
+    expect(dayForDate(week, SUN)?.label).toBe('Sun')
   })
 
-  it('wraps at the end of the cycle', () => {
-    const marks = [mark('day-0', '2026-01-10'), mark('day-1', '2026-01-12'), mark('day-2', '2026-01-14')]
-    expect(nextSplitDay(split(), marks)?.label).toBe('Push')
+  it('does not carry a missed day forward — Wednesday is still Wednesday', () => {
+    // Nothing was done on Tuesday, and Wednesday is unaffected by that.
+    expect(dayForDate(week, WED)?.label).toBe('Wed')
   })
 
-  it('does not advance for a session that was un-finished', () => {
-    const marks = [mark('day-0', '2026-01-10'), mark('day-0', '2026-01-10', 'uncomplete')]
-    expect(nextSplitDay(split(), marks)?.label).toBe('Push')
+  it('repeats a short split within the week', () => {
+    const ppl = split(['Push', 'Pull', 'Legs'])
+    expect(dayForDate(ppl, MON)?.label).toBe('Push')
+    expect(dayForDate(ppl, TUE)?.label).toBe('Pull')
+    expect(dayForDate(ppl, WED)?.label).toBe('Legs')
+    expect(dayForDate(ppl, THU)?.label).toBe('Push')
   })
 
-  it('follows the latest finish, not array order', () => {
-    const first = mark('day-0', '2026-01-10')
-    const second = mark('day-1', '2026-01-12')
-    expect(nextSplitDay(split(), [second, first])?.label).toBe('Legs')
+  it('shifts with the week-start setting', () => {
+    // Under a Sunday week start, Sunday is column zero.
+    expect(dayForDate(week, SUN, 'sunday')?.label).toBe('Mon')
+    expect(dayForDate(week, MON, 'sunday')?.label).toBe('Tue')
   })
 
-  it('ignores marks belonging to a different split', () => {
-    expect(nextSplitDay(split(), [mark('someone-elses-day', '2026-01-10')])?.label).toBe('Push')
+  it('lands on the rest days where the split puts them', () => {
+    const batman = split(['D1', 'D2', 'Rest', 'D4', 'D5', 'D6', 'Rest'])
+    expect(dayForDate(batman, WED)?.kind).toBe('rest')
+    expect(dayForDate(batman, SUN)?.kind).toBe('rest')
+    expect(dayForDate(batman, MON)?.kind).toBe('training')
   })
 
-  it('has no next day for a split with no days', () => {
-    expect(nextSplitDay({ ...split(), days: [] }, [])).toBeUndefined()
+  it('has no day for a split with none', () => {
+    expect(dayForDate({ ...split(['Push']), days: [] }, MON)).toBeUndefined()
   })
 })
 
 describe('plannedSetCount', () => {
   it('sums the sets across a day', () => {
-    expect(plannedSetCount(split().days[0])).toBe(7)
+    expect(plannedSetCount(split(['Push']).days[0])).toBe(7)
   })
 
-  it('is zero for an empty day', () => {
-    expect(plannedSetCount({ id: 'd', label: 'Empty', kind: 'training', entries: [] })).toBe(0)
+  it('is zero for a rest day', () => {
+    expect(plannedSetCount(split(['Rest']).days[0])).toBe(0)
+  })
+})
+
+describe('formatPrescription', () => {
+  it('states a range as a range', () => {
+    expect(formatPrescription({ exerciseId: 'a', sets: 3, repsMin: 6, repsMax: 8 })).toBe('3 × 6-8')
+  })
+
+  it('collapses a fixed target to one number', () => {
+    expect(formatPrescription({ exerciseId: 'a', sets: 3, repsMin: 10, repsMax: 10 })).toBe('3 × 10')
+  })
+
+  it('says nothing for cardio, which has no sets or reps to state', () => {
+    expect(formatPrescription({ exerciseId: 'a', sets: 1, repsMin: 0, repsMax: 0 }, 'cardio')).toBe('')
   })
 })

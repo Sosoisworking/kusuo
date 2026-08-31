@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import Screen, { EmptyState } from '../components/Screen'
-import type { SessionMark, Settings, Split } from '../db/schema'
-import { allSessionMarks } from '../db/sessions'
+import type { Settings, Split } from '../db/schema'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { instantiateTemplate, listSplits, setActiveSplit } from '../db/splits'
 import { todayLocalDate } from '../lib/date'
 import { formatShortDate } from '../lib/format'
 import { SPLIT_TEMPLATES, type SplitTemplate } from '../lib/splitTemplates'
-import { nextSplitDay, plannedSetCount } from '../logic/nextSession'
+import { dayForDate, plannedSetCount } from '../logic/nextSession'
 
 /**
  * One line per programme, saying what makes it different rather than selling
@@ -61,19 +60,16 @@ export default function Splits() {
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState<Settings | undefined>()
   const [splits, setSplits] = useState<Split[]>([])
-  const [marks, setMarks] = useState<SessionMark[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const [s, all, m] = await Promise.all([
+    const [s, all] = await Promise.all([
       getSettings(getOrCreateDeviceId()),
       listSplits(),
-      allSessionMarks(),
     ])
     setSettings(s)
     setSplits(all)
-    setMarks(m)
   }, [])
 
   useEffect(() => {
@@ -115,7 +111,7 @@ export default function Splits() {
 
   if (loading) return <Screen title="Splits">{null}</Screen>
 
-  const upNext = active ? nextSplitDay(active, marks) : undefined
+  const upNext = active ? dayForDate(active, todayLocalDate(), settings?.weekStart ?? 'monday') : undefined
 
   return (
     <Screen title="Splits" eyebrow={`${SPLIT_TEMPLATES.length} programmes`}>

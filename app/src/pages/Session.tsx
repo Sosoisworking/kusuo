@@ -424,7 +424,7 @@ export default function Session() {
               className={cell}
               style={{
                 gridTemplateColumns: columns,
-                background: isActive ? 'var(--color-accent-900)' : undefined,
+                background: isActive ? 'var(--color-surface)' : undefined,
                 boxShadow: isActive ? 'inset 0 0 0 1px var(--color-accent)' : undefined,
               }}
             >

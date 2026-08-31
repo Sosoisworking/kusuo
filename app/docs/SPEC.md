@@ -18,7 +18,9 @@ It is a PWA installed to the iPhone home screen. All data is local. There are no
 
 Sixteen commits, slices 0 through 11 plus the training data model (`902eeff`), all on `main` and deployed.
 
-**Screens** (8): Onboarding, Today, Progress, Habit detail, Habit form (new/edit), Goals, Reflection, Settings.
+**Screens** (14): Onboarding, Today, Train, Session, Exercise detail, Splits, Split editor, Directory, Calendar, Records, Progress, Habit detail, Habit form, Goals, Reflection, Settings.
+
+**Goals** carry a title, an optional description and an optional target date. Reaching one (`completeGoal`) is distinct from putting it away (`archiveGoal`): only a goal actually reached appears in Records. Reflections are read back on the Calendar under the day they were written, and listed in Records.
 
 **Data** — Dexie/IndexedDB, database `kusuo`, schema at **version 3**:
 
@@ -73,6 +75,21 @@ Full working in `docs/decisions/2026-08-31-nocturne-contrast-corrected.md`. The 
 The 45% mix stays, but only for what it is genuinely valid for: hairlines, icon strokes, disabled states, and text at 24px or above. **It must not carry labels, meta text, or inactive tab labels** — those are small text and need 4.5:1.
 
 `--color-accent` `#9184d9` measures **5.45:1** on the ground, so it passes AA as body text and needs no large-text exemption.
+
+### The split is a weekly schedule
+
+Decided 31 August 2026, replacing the cycle it shipped with.
+
+`logic/nextSession.ts:dayForDate` maps a date to a split day: the split's first
+day falls on the first day of the week, and today's date decides today's
+session. A split shorter than seven days repeats inside the week, so a 3-day
+push/pull/legs runs Mon-Tue-Wed and again Thu-Fri-Sat. The `weekStart` setting
+decides which weekday is column zero.
+
+**A missed session is missed.** It is not carried forward and it does not shift
+everything after it — Wednesday shows Wednesday's work whether or not Tuesday
+happened. Rest days are days in the schedule, so the Batman split rests on
+Wednesday and Sunday.
 
 ## Rules that do not bend
 

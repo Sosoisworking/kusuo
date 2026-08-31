@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
 import BackLink from '../components/BackLink'
 import { PrimaryButton } from '../components/Button'
-import { archiveGoal, createGoal, listActiveGoals } from '../db/goals'
+import { completeGoal, createGoal, listActiveGoals } from '../db/goals'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import type { Goal, Settings } from '../db/schema'
 
@@ -19,6 +19,7 @@ export default function Goals() {
   const [settings, setSettings] = useState<Settings | undefined>()
   const [goals, setGoals] = useState<Goal[]>([])
   const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
   const [targetDate, setTargetDate] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -62,10 +63,15 @@ export default function Goals() {
     setError(null)
     setSaving(true)
     try {
-      await createGoal({ title: trimmed, targetDate: targetDate || undefined })
+      await createGoal({
+        title: trimmed,
+        description: description.trim() || undefined,
+        targetDate: targetDate || undefined,
+      })
       const g = await listActiveGoals()
       setGoals(g)
       setTitle('')
+      setDescription('')
       setTargetDate('')
     } catch {
       setError("Couldn't save that — give it another tap.")
@@ -77,7 +83,8 @@ export default function Goals() {
   async function handleDone(id: string) {
     setGoals((prev) => prev.filter((g) => g.id !== id))
     try {
-      await archiveGoal(id)
+      // Reached, not abandoned — only this puts it in Records.
+      await completeGoal(id)
     } catch {
       const g = await listActiveGoals()
       setGoals(g)
@@ -100,6 +107,17 @@ export default function Goals() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="What are you working toward?"
+            className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          />
+          <label className="text-sm font-medium text-[var(--color-text-primary)]" htmlFor="goal-description">
+            Description (optional)
+          </label>
+          <textarea
+            id="goal-description"
+            rows={2}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="What reaching it would look like"
             className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
           />
           <label className="text-sm font-medium text-[var(--color-text-primary)]" htmlFor="goal-target-date">
@@ -136,6 +154,9 @@ export default function Goals() {
               >
                 <div className="flex flex-col gap-1">
                   <span className="text-sm text-[var(--color-text-primary)]">{g.title}</span>
+                  {g.description && (
+                    <span className="text-xs text-[var(--color-text-secondary)]">{g.description}</span>
+                  )}
                   {g.targetDate && (
                     <span className="text-xs text-[var(--color-text-secondary)]">{formatTargetDate(g.targetDate)}</span>
                   )}
@@ -146,7 +167,7 @@ export default function Goals() {
                     onClick={() => handleDone(g.id)}
                     className="min-h-11 shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
                   >
-                    Done
+                    Reached
                   </button>
                 )}
               </li>
