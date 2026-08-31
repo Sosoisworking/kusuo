@@ -7,16 +7,17 @@ Read `SPEC.md` first — it is the source of truth for what exists. This file is
 to there. Every slice leaves the app working, installed and deployed; a two-week gap costs momentum
 and nothing else.
 
-## The constraint that shapes the order
+## The shape of the order
 
-The canvas defines **twenty** CSS custom properties and the value of none of them: they live in
-`_ds/nocturne-.../styles.css`, which is not in the repo. Layout, behaviour and copy are all fully
-legible in the canvas; only the palette is missing.
+The canvas defines **twenty** CSS custom properties and the value of none of them; they lived in
+`_ds/nocturne-.../styles.css`, which was missing until 31 August. Its token block is now in
+`docs/nocturne-tokens.css`.
 
-So the redesign splits cleanly in two. **Every slice below builds structure, behaviour and copy
-against the tokens already in `src/styles/tokens.css`.** The Nocturne palette lands once, as slice I,
-whenever the stylesheet arrives — cheap, because rule 10 already forbids colour literals in
-components.
+The redesign still splits cleanly in two, and the split is worth keeping. **Slices B–H build
+structure, behaviour and copy against the tokens already in `src/styles/tokens.css`**, and the
+palette swap lands once as slice I. Keeping them apart means a colour problem and a layout problem
+can never arrive in the same commit — cheap, because rule 10 already forbids colour literals in
+components. Slice I can land whenever you want to see it.
 
 ## Slice A — training data model ✅ done
 
@@ -111,19 +112,23 @@ Mac read-only, and slice A's exercise seeding hangs off it.
 
 ## Slice I — the Nocturne palette
 
-**Blocked** on `_ds/nocturne-.../styles.css` being exported from Claude Design.
+**Unblocked 31 August 2026.** The stylesheet was read out of the Claude Design project; its token
+block is in `docs/nocturne-tokens.css`.
 
-A single change to `src/styles/tokens.css`: the twenty Nocturne properties replace the terracotta
-set, and the committed dark-only decision removes the light-mode override. `--color-text-muted`
-ships as a solid token per `decisions/2026-08-30-nocturne-contrast.md`, **not** as a 45% mix — that
-mix measures 3.90:1 and fails AA for anything under 24px.
+A single change to `src/styles/tokens.css`: the Nocturne properties replace the terracotta set, and
+the committed dark-only decision removes the light-mode override.
 
-Every ratio in that decision assumes `--color-text: #eaeaf2`, a value not currently on disk.
-**Recompute all four rows against the real exported stylesheet before shipping this slice.**
+Kusuo's components use `--color-text-primary`, `--color-text-secondary`, `--color-border` and
+`--color-complete`, none of which Nocturne defines. Map them rather than rename every component:
+`--color-text-primary` → `--color-text`, `--color-text-secondary` → the **55% mix** (5.19:1 —
+`#8a8b93`), `--color-border` → `--color-neutral-800`. `--color-complete` has no Nocturne equivalent
+and is the one real decision in this slice; the palette carries no green, and per the product rules
+completion is not an alert colour, so it likely becomes an accent step.
 
-Can land any time after slice B. If the stylesheet never arrives,
-`docs/nocturne-tokens-prompt.md` regenerates a palette from the known anchors — a fallback, since
-the thirty screens were rendered with the originals.
+Per `decisions/2026-08-31-nocturne-contrast-corrected.md`: **do not add a `--color-text-muted`
+solid token**, and never use the 45% mix for text under 24px.
+
+Can land any time after slice B.
 
 ---
 

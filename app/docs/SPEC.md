@@ -46,45 +46,29 @@ State is **derived by replaying events**, last-event-wins. Never stored as a fla
 
 ## What is in flight
 
-A redesign, specified in `docs/REDESIGN-PROMPT.md`: six-tab navigation (Today, Train, Splits, Calendar, Records, Settings), the training module surfaced properly in the UI, and a move to the **Nocturne** palette — near-black `#05050c` ground with a purple accent ramp.
+A redesign, specified in `docs/REDESIGN-PROMPT.md`: six-tab navigation (Today, Train, Splits, Calendar, Records, Settings), the training module surfaced properly in the UI, and a move to the **Nocturne** palette — a deep indigo `#161826` ground with a blurple accent ramp (`--color-accent #9184d9`).
 
 This is a **UI and navigation change**. The data model and logic underneath it are already built and do not change.
 
-> **Note on the reference design.** `REDESIGN-PROMPT.md` cites `Kusuo Redesign.dc.html` as the source for exact layout and copy. That file **now exists** at the repository root (274 KB, roughly 30 phone frames, exported 30 August). It was missing earlier that day; if any document still says it is absent, that document is stale.
+> **Note on the reference design.** `Kusuo Redesign.dc.html` is at the repository root — 274 KB, 30 phone frames. Its twenty custom properties were **not** inlined; they lived in `_ds/nocturne-3b49528c-ab2a-4dc7-aaad-a66924b76555/styles.css`, which was missing.
 >
-> **It is incomplete.** The canvas links two assets that are *not* on disk:
+> **Resolved 31 August 2026.** That stylesheet was read out of the Claude Design project and its `:root` block copied to `docs/nocturne-tokens.css` — every token the canvas references. The remaining 213 lines of the source file are component classes for the design canvas's own deck and slide components; Kusuo builds its own components against the tokens, so they were deliberately not copied.
 >
-> ```
-> _ds/nocturne-3b49528c-ab2a-4dc7-aaad-a66924b76555/styles.css
-> _ds/nocturne-3b49528c-ab2a-4dc7-aaad-a66924b76555/_ds_bundle.js
-> ```
+> `docs/nocturne-tokens-prompt.md` was the fallback for regenerating a palette. It is no longer needed and should not be used — the real values are now on disk.
 >
-> There is no `_ds/` directory anywhere in the repo. **The token values are not inlined** — an earlier draft of this spec said they were, and that was wrong. The canvas references **twenty** distinct custom properties and defines **none** of them; the only hex literals in all 274 KB are `#05050c` (×4), `#101120` (×2), `#9184d9` and `#b5abfc`. The entire palette, type scale and shadow set live in the missing `styles.css`, so the file does not merely open degraded — its colours do not exist.
->
-> **Export `_ds/` alongside it from the Claude Design session before treating the canvas as the reference.** `REDESIGN-PROMPT.md`'s prose covers layout, behaviour and copy, and is detailed enough to build structure from — but it carries no colour values either, so it cannot substitute for the stylesheet.
->
-> A prompt for regenerating the palette from the known anchors is in `docs/nocturne-tokens-prompt.md`. It is a fallback: the thirty screens were rendered with the original values, so regenerated ones will not match them exactly.
->
-> Whatever happens, do not reconstruct missing screens from inference and present them as the agreed design.
+> Do not reconstruct missing screens from inference and present them as the agreed design.
 
 ### Nocturne accessibility constraint — must be honoured
 
-Verified by independent calculation on 30 August 2026. Full working in `docs/decisions/2026-08-30-nocturne-contrast.md`.
+Full working in `docs/decisions/2026-08-31-nocturne-contrast-corrected.md`. The 30 August decision it supersedes was computed against the canvas frame colour rather than the real `--color-bg`, and its `--color-text-muted` fix must not be implemented.
 
-`color-mix(in srgb, var(--color-text) 45%, transparent)` over `#05050c` resolves to `#6c6c74` — **3.90:1**. That is below the 4.5:1 WCAG AA threshold for normal-size text, and it cannot be fixed by raising `--color-text` (the required source value works out to 256.1, past the top of the range).
+`color-mix(in srgb, var(--color-text) 45%, transparent)` over the real ground `#161826` resolves to `#757680` — **3.91:1**. That is below the 4.5:1 WCAG AA threshold for normal-size text.
 
-Recomputed independently on 31 August 2026 and confirmed: 16.981:1, 3.904:1, 5.404:1, 4.517:1. Two caveats the decision record does not state:
-
-- Every figure assumes `--color-text: #eaeaf2`. **That value is not on disk** — it lives in the missing `styles.css`. If the exported Nocturne text colour differs, all four rows move and the decision needs recomputing.
-- `#76767f` is the *first* solid step that clears 4.5:1. There is no headroom; darkening it by one step fails.
-
-**The fix: make the muted step a solid token, not a mix.**
-
-```css
---color-text-muted: #76767f;  /* 4.52:1 on #05050c — verified */
-```
+**The fix: use the 55% mix for small muted text** — `#8a8b93`, 5.19:1. The 50% mix clears 4.5:1 exactly, with no headroom; 55% is what the design system's own canvas already uses. **Do not add a `--color-text-muted` solid token** — the superseded decision called for one only because it was working against the wrong ground.
 
 The 45% mix stays, but only for what it is genuinely valid for: hairlines, icon strokes, disabled states, and text at 24px or above. **It must not carry labels, meta text, or inactive tab labels** — those are small text and need 4.5:1.
+
+`--color-accent` `#9184d9` measures **5.45:1** on the ground, so it passes AA as body text and needs no large-text exemption.
 
 ## Rules that do not bend
 
@@ -109,5 +93,5 @@ The 45% mix stays, but only for what it is genuinely valid for: hairlines, icon 
 ## Known gaps
 
 - **No component or route tests.** All 15 test files are db/logic. The UI is unverified by anything but eye.
-- The redesign's reference canvas is in the repo, but its `_ds/` stylesheet is not, so the Nocturne palette has no values anywhere (above).
+- The Nocturne tokens are now on disk (`docs/nocturne-tokens.css`); slice I ports them into `src/styles/tokens.css`.
 - `app/PRODUCT.md` is Impeccable's own schema file, owned by that tool. It is consistent with this spec. Do not hand-edit it.

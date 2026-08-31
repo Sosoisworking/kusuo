@@ -1,3 +1,12 @@
+> **SUPERSEDED 31 August 2026** by `2026-08-31-nocturne-contrast-corrected.md`.
+>
+> Everything below was computed against `--color-bg: #05050c` and `--color-text: #eaeaf2`. Neither
+> is a Nocturne token: `#05050c` is the canvas frame colour behind the iPhone mockups, mistaken for
+> the app background while the real stylesheet was missing from the repo. The real ground is
+> `#161826`. The arithmetic here is correct; its inputs are not. **Do not implement the
+> `--color-text-muted: #76767f` fix — against the real ground the 55% mix clears AA and no solid
+> token is needed.** Kept for its reasoning.
+
 # Decision — the Nocturne muted text step must be a solid token
 
 **Date:** 30 August 2026
