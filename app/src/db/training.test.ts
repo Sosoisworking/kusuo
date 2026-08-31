@@ -4,7 +4,13 @@ import { isSessionComplete, liveSets, setsOnDate } from '../logic/sessions'
 import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
 import { EXERCISE_SEED } from '../lib/exerciseSeed'
 import { allHabitEvents } from './events'
-import { createCustomExercise, filterExercises, listExercises, seedExercises } from './exercises'
+import {
+  createCustomExercise,
+  filterExercises,
+  listExercises,
+  recentExerciseIds,
+  seedExercises,
+} from './exercises'
 import { createHabit } from './habits'
 import { db } from './schema'
 import {
@@ -85,6 +91,66 @@ describe('filterExercises', () => {
     const found = filterExercises(await listExercises(), { customOnly: true })
     expect(found).toHaveLength(1)
     expect(found[0].name).toBe('Sled push')
+  })
+
+  it('narrows to a recently used set', async () => {
+    await seedExercises()
+    const all = await listExercises()
+    const found = filterExercises(all, { recentIds: ['ex-back-squat', 'ex-deadlift'] })
+    expect(found.map((x) => x.id).sort()).toEqual(['ex-back-squat', 'ex-deadlift'])
+  })
+
+  it('combines recently used with a category', async () => {
+    await seedExercises()
+    const all = await listExercises()
+    const found = filterExercises(all, {
+      category: 'legs',
+      recentIds: ['ex-back-squat', 'ex-barbell-bench-press'],
+    })
+    expect(found.map((x) => x.id)).toEqual(['ex-back-squat'])
+  })
+
+  it('shows nothing when the recent set is empty', async () => {
+    await seedExercises()
+    expect(filterExercises(await listExercises(), { recentIds: [] })).toEqual([])
+  })
+})
+
+describe('recentExerciseIds', () => {
+  const base = {
+    localDate: '2026-08-30',
+    splitDayId: 'day-1',
+    weightKg: 60,
+    reps: 8,
+    action: 'log' as const,
+    deviceId: 'device',
+  }
+
+  it('orders by the newest logged set, not by how often', () => {
+    const ids = recentExerciseIds([
+      { id: '1', ...base, exerciseId: 'ex-a', setIndex: 0, timestamp: 1 },
+      { id: '2', ...base, exerciseId: 'ex-a', setIndex: 1, timestamp: 2 },
+      { id: '3', ...base, exerciseId: 'ex-b', setIndex: 0, timestamp: 9 },
+    ])
+    expect(ids).toEqual(['ex-b', 'ex-a'])
+  })
+
+  it('ignores voided sets', () => {
+    const ids = recentExerciseIds([
+      { id: '1', ...base, action: 'void', exerciseId: 'ex-a', setIndex: 0, timestamp: 1 },
+    ])
+    expect(ids).toEqual([])
+  })
+
+  it('caps the list at the limit', () => {
+    const events = Array.from({ length: 20 }, (_, i) => ({
+      id: `e${i}`,
+      ...base,
+      exerciseId: `ex-${i}`,
+      setIndex: 0,
+      timestamp: i + 1,
+    }))
+    expect(recentExerciseIds(events, 3)).toEqual(['ex-19', 'ex-18', 'ex-17'])
   })
 })
 

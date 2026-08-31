@@ -5,6 +5,7 @@ import { seedExercises } from './db/exercises'
 import { getOrCreateDeviceId, getSettings } from './db/settings'
 import { applyTheme } from './lib/theme'
 import CalendarView from './pages/CalendarView'
+import Directory from './pages/Directory'
 import ExerciseDetail from './pages/ExerciseDetail'
 import Goals from './pages/Goals'
 import HabitDetail from './pages/HabitDetail'
@@ -15,6 +16,7 @@ import Records from './pages/Records'
 import Reflection from './pages/Reflection'
 import Session from './pages/Session'
 import Settings from './pages/Settings'
+import SplitEditor from './pages/SplitEditor'
 import Splits from './pages/Splits'
 import Today from './pages/Today'
 import Train from './pages/Train'
@@ -37,8 +39,13 @@ function App() {
       <Route path="/habits/new" element={<HabitForm />} />
       <Route path="/habits/:id/edit" element={<HabitForm />} />
       {/* A session is a focused mode, so it sits outside the tab shell: the way
-          out is finishing it or leaving it, not wandering into Records mid-set. */}
+          out is finishing it or leaving it, not wandering into Records mid-set.
+          The editor and the directory are full screens for the same reason —
+          the tab bar would only offer a way to leave a half-finished edit by
+          the wrong door. */}
       <Route path="/train/session/:dayId" element={<Session />} />
+      <Route path="/splits/:splitId/edit" element={<SplitEditor />} />
+      <Route path="/exercises" element={<Directory />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Today />} />
         <Route path="/train" element={<Train />} />

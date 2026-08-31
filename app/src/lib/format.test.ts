@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { formatLongDate, formatRelativeDay, formatShortDate, greeting, initials } from './format'
 
+describe('formatShortDate', () => {
+  it('reads as day and short month', () => {
+    expect(formatShortDate('2026-08-12')).toBe('12 Aug')
+  })
+})
+
 describe('formatLongDate', () => {
   it('reads as weekday, day, month', () => {
     expect(formatLongDate('2026-08-29')).toBe('Saturday 29 August')

@@ -172,7 +172,7 @@ describe('the Mac read-only build', () => {
     renderAt('/splits')
 
     await screen.findByRole('heading', { name: 'Splits', level: 1 })
-    expect(screen.queryByRole('button', { name: 'Use this' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Use / })).toBeNull()
   })
 
   it('carries the viewing-only line on every tab, once', async () => {
@@ -209,8 +209,9 @@ describe('Splits', () => {
     await seedExercises()
     renderAt('/splits')
 
-    const rows = await screen.findAllByRole('button', { name: 'Use this' })
-    await userEvent.click(rows[0])
+    // The canvas makes the whole programme row the control; there is no
+    // separate "Use this" button beside it.
+    await userEvent.click(await screen.findByRole('button', { name: 'Use Push / Pull / Legs' }))
 
     await waitFor(() => expect(screen.getByText('Active')).toBeInTheDocument())
     expect(await db.splits.count()).toBe(1)
@@ -223,8 +224,7 @@ describe('Splits', () => {
     await instantiateTemplate('split-upper-lower-4')
     renderAt('/splits')
 
-    const useButtons = await screen.findAllByRole('button', { name: 'Use this' })
-    await userEvent.click(useButtons[0])
+    await userEvent.click(await screen.findByRole('button', { name: 'Use Push / Pull / Legs' }))
 
     await waitFor(async () => {
       expect((await db.splits.get(first.id))?.isActive).toBe(true)
