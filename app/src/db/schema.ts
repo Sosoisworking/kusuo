@@ -64,6 +64,24 @@ export interface ReflectionEntry {
 
 export type ExerciseCategory = 'push' | 'pull' | 'legs' | 'abs' | 'cardio'
 
+export interface CircuitStep {
+  name: string
+  reps: number
+}
+
+/**
+ * A circuit is not one movement — it is a named round of several, repeated for
+ * a fixed time. The rounds are reference you read between sets, not something
+ * to log rep by rep, so the circuit is logged by time like any other cardio and
+ * carries its own shape for display.
+ */
+export interface Circuit {
+  durationMin: number
+  /** e.g. "1 min break after every 2 rounds". */
+  restNote: string
+  steps: CircuitStep[]
+}
+
 export interface Exercise {
   id: string
   name: string
@@ -72,6 +90,8 @@ export interface Exercise {
   equipment: string
   /** Reference page for the movement. Seeded set points at ExRx.net; no affiliation implied. */
   referenceUrl?: string
+  /** Present only on circuits, which are always category 'cardio'. */
+  circuit?: Circuit
   isCustom: boolean
   createdAt: number
   updatedAt: number
@@ -241,6 +261,8 @@ export class KusuoDB extends Dexie {
     // Reflections gain prompts. Additive and unindexed: an entry written before
     // them simply has none, and its free note still reads back whole.
     this.version(6)
+    // Circuits. Additive and unindexed — an exercise without one is unchanged.
+    this.version(7)
   }
 }
 

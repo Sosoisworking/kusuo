@@ -230,7 +230,7 @@ export const SPLIT_TEMPLATES: SplitTemplate[] = [
           e('ex-front-raise', 3, 12, 15),
           e('ex-bayesian-curl', 2, 10, 12),
           e('ex-preacher-curl', 3, 8, 12),
-          e('ex-stair-master', 1, 0, 0),
+          e('ex-kettlebell-1', 1, 0, 0),
         ],
       },
       {
@@ -247,7 +247,7 @@ export const SPLIT_TEMPLATES: SplitTemplate[] = [
           e('ex-shrug', 3, 12, 15),
           e('ex-triceps-pushdown', 3, 10, 12),
           e('ex-overhead-triceps-extension', 3, 10, 12),
-          e('ex-treadmill', 1, 0, 0),
+          e('ex-kettlebell-2', 1, 0, 0),
         ],
       },
       { label: 'Rest', kind: 'rest', entries: [] },
@@ -264,7 +264,7 @@ export const SPLIT_TEMPLATES: SplitTemplate[] = [
           e('ex-hip-adduction', 3, 10, 12),
           e('ex-standing-calf-raise', 2, 15, 20),
           e('ex-cable-crunch', 3, 12, 15),
-          e('ex-bike', 1, 0, 0),
+          e('ex-kettlebell-3', 1, 0, 0),
         ],
       },
       {
@@ -278,7 +278,7 @@ export const SPLIT_TEMPLATES: SplitTemplate[] = [
           e('ex-machine-chest-press', 2, 10, 12),
           e('ex-kneeling-cable-pulldown', 2, 12, 15),
           e('ex-cable-fly', 2, 12, 15),
-          e('ex-stair-master', 1, 0, 0),
+          e('ex-kettlebell-1', 1, 0, 0),
         ],
       },
       {
@@ -297,10 +297,10 @@ export const SPLIT_TEMPLATES: SplitTemplate[] = [
           e('ex-overhead-triceps-extension', 3, 10, 12),
           e('ex-triceps-extension', 3, 10, 12),
           e('ex-single-arm-pushdown', 3, 10, 12),
-          e('ex-treadmill', 1, 0, 0),
+          e('ex-kettlebell-2', 1, 0, 0),
         ],
       },
-      { label: 'Active recovery', kind: 'rest', entries: [] },
+      { label: 'Active recovery', entries: [e('ex-kettlebell-3', 1, 0, 0)] },
     ],
   },
 ]

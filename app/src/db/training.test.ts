@@ -173,12 +173,30 @@ describe('split templates', () => {
     expect(SPLIT_TEMPLATES.map((t) => t.days.length)).toEqual([3, 4, 5, 4, 3, 5, 7])
   })
 
-  it('gives the Batman split two rest days in the right places', () => {
+  it('rests on day 3 only — day 7 is active recovery with a circuit in it', () => {
     const batman = SPLIT_TEMPLATES.find((t) => t.id === 'split-batman-7')
     expect(batman?.days.map((d) => d.kind ?? 'training')).toEqual([
-      'training', 'training', 'rest', 'training', 'training', 'training', 'rest',
+      'training', 'training', 'rest', 'training', 'training', 'training', 'training',
     ])
     expect(batman?.days.filter((d) => d.kind === 'rest').every((d) => d.entries.length === 0)).toBe(true)
+    const day7 = batman?.days[6]
+    expect(day7?.label).toBe('Active recovery')
+    expect(day7?.entries.map((e) => e.exerciseId)).toEqual(['ex-kettlebell-3'])
+  })
+
+  it('closes every training day of the Batman split with a kettlebell circuit', () => {
+    const batman = SPLIT_TEMPLATES.find((t) => t.id === 'split-batman-7')
+    const finals = batman?.days
+      .filter((d) => d.entries.length > 0)
+      .map((d) => d.entries.at(-1)?.exerciseId)
+    expect(finals).toEqual([
+      'ex-kettlebell-1',
+      'ex-kettlebell-2',
+      'ex-kettlebell-3',
+      'ex-kettlebell-1',
+      'ex-kettlebell-2',
+      'ex-kettlebell-3',
+    ])
   })
 
   it('keeps the rep ranges the Batman split was written with', () => {
@@ -300,5 +318,35 @@ describe('finishing a session', () => {
     expect(completedDatesForHabit(await allHabitEvents(), habit.id)).toEqual(
       new Set(['2026-01-10']),
     )
+  })
+})
+
+describe('kettlebell circuits', () => {
+  it('carries its rounds, its length and its rest rule', () => {
+    const one = EXERCISE_SEED.find((e) => e.id === 'ex-kettlebell-1')
+    expect(one?.category).toBe('cardio')
+    expect(one?.equipment).toBe('Kettlebell')
+    expect(one?.circuit?.durationMin).toBe(20)
+    expect(one?.circuit?.restNote).toBe('1 min break after every 2 rounds')
+    expect(one?.circuit?.steps.map((s) => s.name)).toEqual([
+      'Cleans',
+      'Horizontal press + twist, both sides',
+      'Swings',
+      'Around the world halos (R/L)',
+      'Six curl + press',
+    ])
+  })
+
+  it('gives all three circuits five rounds of ten', () => {
+    for (const id of ['ex-kettlebell-1', 'ex-kettlebell-2', 'ex-kettlebell-3']) {
+      const circuit = EXERCISE_SEED.find((e) => e.id === id)?.circuit
+      expect(circuit?.steps).toHaveLength(5)
+      expect(circuit?.steps.every((s) => s.reps === 10)).toBe(true)
+    }
+  })
+
+  it('leaves every non-circuit movement without one', () => {
+    const stray = EXERCISE_SEED.filter((e) => e.circuit && !e.id.startsWith('ex-kettlebell-'))
+    expect(stray).toEqual([])
   })
 })

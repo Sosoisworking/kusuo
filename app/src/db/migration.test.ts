@@ -59,7 +59,7 @@ describe('schema upgrade from version 2', () => {
 
     const upgraded = new KusuoDB(name)
     await upgraded.open()
-    expect(upgraded.verno).toBe(6)
+    expect(upgraded.verno).toBe(7)
 
     const settings = await upgraded.settings.get('dev1')
     expect(settings?.units).toBe('kg')

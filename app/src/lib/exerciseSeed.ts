@@ -1,4 +1,4 @@
-import type { ExerciseCategory } from '../db/schema'
+import type { Circuit, ExerciseCategory } from '../db/schema'
 
 export interface ExerciseSeed {
   /**
@@ -11,6 +11,8 @@ export interface ExerciseSeed {
   category: ExerciseCategory
   muscleGroup: string
   equipment: string
+  /** Circuits only: the rounds that make it up. */
+  circuit?: Circuit
 }
 
 /**
@@ -102,6 +104,63 @@ export const EXERCISE_SEED: ExerciseSeed[] = [
   { id: 'ex-stair-master', name: 'Stair master', category: 'cardio', muscleGroup: 'Conditioning', equipment: 'Machine' },
   { id: 'ex-treadmill', name: 'Treadmill', category: 'cardio', muscleGroup: 'Conditioning', equipment: 'Machine' },
   { id: 'ex-bike', name: 'Bike', category: 'cardio', muscleGroup: 'Conditioning', equipment: 'Machine' },
+
+  // Kettlebell circuits. Each is one entry in a day and is logged by time; the
+  // rounds below are what you read while doing it, not something to log rep by rep.
+  {
+    id: 'ex-kettlebell-1',
+    name: 'Kettlebell 1',
+    category: 'cardio',
+    muscleGroup: 'Conditioning',
+    equipment: 'Kettlebell',
+    circuit: {
+      durationMin: 20,
+      restNote: '1 min break after every 2 rounds',
+      steps: [
+        { name: 'Cleans', reps: 10 },
+        { name: 'Horizontal press + twist, both sides', reps: 10 },
+        { name: 'Swings', reps: 10 },
+        { name: 'Around the world halos (R/L)', reps: 10 },
+        { name: 'Six curl + press', reps: 10 },
+      ],
+    },
+  },
+  {
+    id: 'ex-kettlebell-2',
+    name: 'Kettlebell 2',
+    category: 'cardio',
+    muscleGroup: 'Conditioning',
+    equipment: 'Kettlebell',
+    circuit: {
+      durationMin: 20,
+      restNote: '1 min break after every 2 rounds',
+      steps: [
+        { name: 'Goblet squats', reps: 10 },
+        { name: 'Bent over rows', reps: 10 },
+        { name: 'Skull crushers', reps: 10 },
+        { name: 'Narrow cheat press', reps: 10 },
+        { name: 'Devils halos', reps: 10 },
+      ],
+    },
+  },
+  {
+    id: 'ex-kettlebell-3',
+    name: 'Kettlebell 3',
+    category: 'cardio',
+    muscleGroup: 'Conditioning',
+    equipment: 'Kettlebell',
+    circuit: {
+      durationMin: 20,
+      restNote: '1 min break after every 2 rounds',
+      steps: [
+        { name: 'Bent over rows', reps: 10 },
+        { name: 'Cleans', reps: 10 },
+        { name: 'Crush press', reps: 10 },
+        { name: 'Swings', reps: 10 },
+        { name: 'Around the world halos (R/L)', reps: 10 },
+      ],
+    },
+  },
 ]
 
 export const EXERCISE_ATTRIBUTION =

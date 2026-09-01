@@ -192,7 +192,12 @@ export default function Session() {
       logged.filter((s) => s.setIndex < target).at(-1) ??
       previous.find((s) => s.setIndex === target) ??
       previous[0]
-    if (!before) return EMPTY_DRAFT
+    if (!before) {
+      // A circuit states how long it runs, so that is the honest starting value.
+      return exercise?.circuit
+        ? { ...EMPTY_DRAFT, reps: String(exercise.circuit.durationMin) }
+        : EMPTY_DRAFT
+    }
     return {
       weight: isCardio ? '' : weightValue(before.weightKg, units),
       reps: isCardio ? String(Math.round((before.durationSec ?? 0) / 60)) : String(before.reps),
@@ -430,6 +435,34 @@ export default function Session() {
             .filter(Boolean)
             .join(' · ')}
         </p>
+
+        {/* The rounds, where you actually read them: between sets, mid-circuit,
+            on the screen you already have open. The circuit itself is logged by
+            time, so these are reference rather than rows to tick. */}
+        {exercise?.circuit && (
+          <section
+            aria-label={`${exercise.name} rounds`}
+            className="mt-3 flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface)] p-3"
+          >
+            <p className="text-xs text-[var(--color-text-secondary)]">
+              {exercise.circuit.durationMin} min · {exercise.circuit.restNote}
+            </p>
+            <ul className="flex flex-col">
+              {exercise.circuit.steps.map((step) => (
+                <li
+                  key={step.name}
+                  className="flex items-baseline justify-between gap-3 py-1.5"
+                  style={{ borderBottom: '1px solid var(--color-divider)' }}
+                >
+                  <span className="text-sm text-[var(--color-text-primary)]">{step.name}</span>
+                  <span className="text-xs text-[var(--color-text-secondary)]">
+                    {step.reps} reps
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
 
       {error && (

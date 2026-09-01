@@ -592,3 +592,31 @@ describe('editing the day from inside the session', () => {
     expect(screen.queryByRole('button', { name: /Un-finish/ })).toBeNull()
   })
 })
+
+describe('a kettlebell circuit in a session', () => {
+  it('shows its rounds and starts the clock at its stated length', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-batman-7')
+    // Day 1 closes with Kettlebell 1.
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Incline barbell press', level: 1 })
+    for (let i = 0; i < 12; i++) {
+      const next = screen.queryByRole('button', { name: /Next movement/ })
+      if (!next) break
+      await userEvent.click(next)
+      if (screen.queryByRole('heading', { name: 'Kettlebell 1', level: 1 })) break
+    }
+
+    expect(await screen.findByRole('heading', { name: 'Kettlebell 1', level: 1 })).toBeInTheDocument()
+    const rounds = screen.getByRole('region', { name: 'Kettlebell 1 rounds' })
+    expect(within(rounds).getByText('Cleans')).toBeInTheDocument()
+    expect(within(rounds).getByText('Six curl + press')).toBeInTheDocument()
+    expect(within(rounds).getByText(/20 min · 1 min break after every 2 rounds/)).toBeInTheDocument()
+
+    // Logged by time, and the field already holds the circuit's own length.
+    expect(screen.getByRole('textbox', { name: /Minutes for set 1/ })).toHaveValue('20')
+    expect(screen.queryByRole('textbox', { name: /Weight for set 1/ })).toBeNull()
+  })
+})

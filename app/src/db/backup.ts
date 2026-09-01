@@ -142,6 +142,21 @@ function isReflectionEntry(x: unknown): x is ReflectionEntry {
   )
 }
 
+function isCircuit(x: unknown): boolean {
+  if (typeof x !== 'object' || x === null) return false
+  const c = x as Record<string, unknown>
+  return (
+    typeof c.durationMin === 'number' &&
+    typeof c.restNote === 'string' &&
+    Array.isArray(c.steps) &&
+    c.steps.every((s) => {
+      if (typeof s !== 'object' || s === null) return false
+      const step = s as Record<string, unknown>
+      return typeof step.name === 'string' && typeof step.reps === 'number'
+    })
+  )
+}
+
 function isExercise(x: unknown): x is Exercise {
   if (typeof x !== 'object' || x === null) return false
   const e = x as Record<string, unknown>
@@ -154,7 +169,8 @@ function isExercise(x: unknown): x is Exercise {
     typeof e.isCustom === 'boolean' &&
     typeof e.createdAt === 'number' &&
     typeof e.updatedAt === 'number' &&
-    (e.referenceUrl === undefined || typeof e.referenceUrl === 'string')
+    (e.referenceUrl === undefined || typeof e.referenceUrl === 'string') &&
+    (e.circuit === undefined || isCircuit(e.circuit))
   )
 }
 

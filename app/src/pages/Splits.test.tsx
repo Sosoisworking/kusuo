@@ -77,7 +77,9 @@ describe('the Splits screen', () => {
     renderAt('/splits')
 
     const card = await screen.findByRole('region', { name: 'Active split' })
-    expect(within(card).getAllByText('rest')).toHaveLength(2)
+    // Day 3 only. Day 7 is active recovery — it has a circuit in it, so calling
+    // it rest would have the split claim you did nothing.
+    expect(within(card).getAllByText('rest')).toHaveLength(1)
   })
 
   it('says what to do when no split is chosen', async () => {

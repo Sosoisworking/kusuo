@@ -157,7 +157,7 @@ describe('the split editor', () => {
 
   it('asks for no rep target on a cardio movement', async () => {
     await openEditor('split-batman-7')
-    await userEvent.click(await screen.findByRole('button', { name: /^Stair master/ }))
+    await userEvent.click(await screen.findByRole('button', { name: /^Kettlebell 1/ }))
 
     expect(
       screen.getByText('Cardio is logged by time, so it carries no set or rep target.'),
