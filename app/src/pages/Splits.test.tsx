@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -106,5 +106,81 @@ describe('the Splits screen', () => {
     const stored = await db.splits.toArray()
     expect(stored).toHaveLength(1)
     expect(stored[0].seededFrom).toBe('split-full-body-3')
+  })
+})
+
+describe('opening a day', () => {
+  it('expands into that day\'s exercises', async () => {
+    await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-batman-7')
+    renderAt('/splits')
+
+    const chip = await screen.findByRole('button', { name: /Chest \/ Shoulders \/ Biceps/ })
+    expect(chip).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Machine pec deck')).toBeNull()
+
+    await userEvent.click(chip)
+
+    const panel = await screen.findByRole('region', {
+      name: 'Chest / Shoulders / Biceps exercises',
+    })
+    expect(within(panel).getByText('Machine pec deck')).toBeInTheDocument()
+    expect(within(panel).getByText('2 × 12-15')).toBeInTheDocument()
+    expect(chip).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('closes again when the same day is tapped', async () => {
+    await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-batman-7')
+    renderAt('/splits')
+
+    const chip = await screen.findByRole('button', { name: /Chest \/ Shoulders \/ Biceps/ })
+    await userEvent.click(chip)
+    await screen.findByRole('region', { name: 'Chest / Shoulders / Biceps exercises' })
+    await userEvent.click(chip)
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('region', { name: 'Chest / Shoulders / Biceps exercises' }),
+      ).toBeNull(),
+    )
+  })
+
+  it('says a rest day is a rest day rather than showing an empty list', async () => {
+    await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-batman-7')
+    renderAt('/splits')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^Rest/ }))
+
+    const panel = await screen.findByRole('region', { name: 'Rest exercises' })
+    expect(within(panel).getByText('A rest day. Nothing scheduled.')).toBeInTheDocument()
+  })
+
+  it('gives a circuit its length instead of a rep target', async () => {
+    await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-batman-7')
+    renderAt('/splits')
+
+    await userEvent.click(await screen.findByRole('button', { name: /Active recovery/ }))
+
+    const panel = await screen.findByRole('region', { name: 'Active recovery exercises' })
+    expect(within(panel).getByText('Kettlebell 3')).toBeInTheDocument()
+    expect(within(panel).getByText('20 min')).toBeInTheDocument()
+  })
+
+  it('counts one set as a set', async () => {
+    await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-batman-7')
+    renderAt('/splits')
+
+    const chip = await screen.findByRole('button', { name: /Active recovery/ })
+    expect(chip.textContent).toContain('1 set')
+    expect(chip.textContent).not.toContain('1 sets')
   })
 })

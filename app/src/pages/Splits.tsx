@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import Screen, { EmptyState } from '../components/Screen'
-import type { Settings, Split } from '../db/schema'
+import type { Exercise, Settings, Split } from '../db/schema'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
+import { listExercises } from '../db/exercises'
 import { instantiateTemplate, listSplits, setActiveSplit } from '../db/splits'
 import { todayLocalDate } from '../lib/date'
 import { formatShortDate } from '../lib/format'
 import { SPLIT_TEMPLATES, type SplitTemplate } from '../lib/splitTemplates'
-import { dayForDate, plannedSetCount } from '../logic/nextSession'
+import { dayForDate, formatPrescription, plannedSetCount } from '../logic/nextSession'
 
 /**
  * One line per programme, saying what makes it different rather than selling
@@ -60,16 +61,20 @@ export default function Splits() {
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState<Settings | undefined>()
   const [splits, setSplits] = useState<Split[]>([])
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [openDay, setOpenDay] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const [s, all] = await Promise.all([
+    const [s, all, list] = await Promise.all([
       getSettings(getOrCreateDeviceId()),
       listSplits(),
+      listExercises(),
     ])
     setSettings(s)
     setSplits(all)
+    setExercises(list)
   }, [])
 
   useEffect(() => {
@@ -90,6 +95,8 @@ export default function Splits() {
 
   const isReader = settings?.deviceRole === 'reader'
   const active = splits.find((s) => s.isActive)
+  const byId = new Map(exercises.map((e) => [e.id, e]))
+  const openedDay = active?.days.find((d) => d.id === openDay)
 
   async function choose(templateId: string) {
     if (isReader) return
@@ -168,38 +175,87 @@ export default function Splits() {
           <ul className="flex flex-wrap gap-1.5">
             {active.days.map((day) => {
               const isNext = day.id === upNext?.id
+              const isOpen = day.id === openDay
+              const sets = plannedSetCount(day)
               return (
-                <li
-                  key={day.id}
-                  className="flex min-w-[5.5rem] flex-1 flex-col gap-px rounded-[var(--radius-sm)] px-2.5 py-2"
-                  style={{
-                    background: isNext ? 'var(--color-complete-fill)' : 'transparent',
-                    boxShadow: isNext
-                      ? 'inset 0 0 0 1px var(--color-accent)'
-                      : 'inset 0 0 0 1px var(--color-border)',
-                  }}
-                >
-                  <span
-                    className="text-xs font-medium"
+                <li key={day.id} className="flex min-w-[5.5rem] flex-1 basis-[5.5rem]">
+                  <button
+                    onClick={() => setOpenDay((current) => (current === day.id ? null : day.id))}
+                    aria-expanded={isOpen}
+                    className="flex min-h-11 w-full flex-col justify-center gap-px rounded-[var(--radius-sm)] px-2.5 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                     style={{
-                      color: isNext ? 'var(--color-complete-mark)' : 'var(--color-text-primary)',
+                      background: isNext
+                        ? 'var(--color-complete-fill)'
+                        : isOpen
+                          ? 'var(--color-surface)'
+                          : 'transparent',
+                      boxShadow:
+                        isNext || isOpen
+                          ? 'inset 0 0 0 1px var(--color-accent)'
+                          : 'inset 0 0 0 1px var(--color-border)',
                     }}
                   >
-                    {day.label}
-                  </span>
-                  <span
-                    className="text-[10px]"
-                    style={{
-                      color: isNext ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-                    }}
-                  >
-                    {day.kind === 'rest' ? 'rest' : `${plannedSetCount(day)} sets`}
-                    {isNext && ' · next'}
-                  </span>
+                    <span
+                      className="text-xs font-medium"
+                      style={{
+                        color: isNext ? 'var(--color-complete-mark)' : 'var(--color-text-primary)',
+                      }}
+                    >
+                      {day.label}
+                    </span>
+                    <span
+                      className="text-[10px]"
+                      style={{
+                        color: isNext ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                      }}
+                    >
+                      {day.kind === 'rest' ? 'rest' : `${sets} ${sets === 1 ? 'set' : 'sets'}`}
+                      {isNext && ' · next'}
+                    </span>
+                  </button>
                 </li>
               )
             })}
           </ul>
+
+          {/* The day you opened, in full. A chip that only counts sets tells you
+              how much is coming but never what it is. */}
+          {openedDay && (
+            <section
+              aria-label={`${openedDay.label} exercises`}
+              className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-bg)] p-3"
+            >
+              <p className="text-xs text-[var(--color-text-secondary)]">{openedDay.label}</p>
+              {openedDay.entries.length === 0 ? (
+                <p className="text-sm text-[var(--color-text-secondary)]">
+                  {openedDay.kind === 'rest'
+                    ? 'A rest day. Nothing scheduled.'
+                    : 'Nothing in this day yet.'}
+                </p>
+              ) : (
+                <ul className="flex flex-col">
+                  {openedDay.entries.map((entry, i) => {
+                    const exercise = byId.get(entry.exerciseId)
+                    return (
+                      <li
+                        key={`${entry.exerciseId}-${i}`}
+                        className="flex items-baseline justify-between gap-3 py-2"
+                        style={{ borderBottom: '1px solid var(--color-divider)' }}
+                      >
+                        <span className="text-sm text-[var(--color-text-primary)]">
+                          {exercise?.name ?? 'Unknown movement'}
+                        </span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          {formatPrescription(entry, exercise?.category) ||
+                            (exercise?.circuit ? `${exercise.circuit.durationMin} min` : 'cardio')}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+          )}
         </section>
       ) : (
         <EmptyState>
