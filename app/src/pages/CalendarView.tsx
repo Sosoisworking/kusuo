@@ -3,12 +3,15 @@ import Screen from '../components/Screen'
 import { allHabitEvents } from '../db/events'
 import { listAllHabits } from '../db/habits'
 import type { Habit, HabitEvent, SessionMark, Settings } from '../db/schema'
-import { allSessionMarks } from '../db/sessions'
+import { allSessionEvents, allSessionMarks } from '../db/sessions'
+import { listExercises } from '../db/exercises'
+import { formatWeight, weightValue } from '../lib/units'
+import { dayBreakdown, trainingDates } from '../logic/sessions'
 import { allReflections } from '../db/reflections'
 import { listActiveGoals } from '../db/goals'
-import type { Goal, ReflectionEntry } from '../db/schema'
+import type { Exercise, Goal, ReflectionEntry, SessionEvent } from '../db/schema'
 import { latestReflectionForDate, reflectionSummary } from '../logic/reflection'
-import { trainingDates } from '../logic/sessions'
+
 import { formatLongDate } from '../lib/format'
 import { Link } from 'react-router'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
@@ -24,6 +27,8 @@ export default function CalendarView() {
   const [marks, setMarks] = useState<SessionMark[]>([])
   const [reflections, setReflections] = useState<ReflectionEntry[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
+  const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([])
+  const [exercises, setExercises] = useState<Exercise[]>([])
   const [cursor, setCursor] = useState(todayLocalDate)
   const [selected, setSelected] = useState<string | null>(null)
   const [goalsOpen, setGoalsOpen] = useState(false)
@@ -37,7 +42,9 @@ export default function CalendarView() {
       allSessionMarks(),
       allReflections(),
       listActiveGoals(),
-    ]).then(([s, h, e, m, r, g]) => {
+      allSessionEvents(),
+      listExercises(),
+    ]).then(([s, h, e, m, r, g, sessions, list]) => {
       if (cancelled) return
       setSettings(s)
       setHabits(h)
@@ -45,6 +52,8 @@ export default function CalendarView() {
       setMarks(m)
       setReflections(r)
       setGoals(g)
+      setSessionEvents(sessions)
+      setExercises(list)
       setLoading(false)
     })
     return () => {
@@ -60,6 +69,11 @@ export default function CalendarView() {
   )
   const trained = useMemo(() => trainingDates(marks), [marks])
   const selectedReflection = selected ? latestReflectionForDate(reflections, selected) : undefined
+  const units = settings?.units ?? 'kg'
+  const byId = new Map(exercises.map((e) => [e.id, e]))
+  const daySets = selected ? dayBreakdown(sessionEvents, selected) : []
+  const dayVolume = daySets.reduce((total, row) => total + row.volumeKg, 0)
+  const setCount = daySets.reduce((total, row) => total + row.sets.length, 0)
 
   if (loading) return <Screen title="Calendar">{null}</Screen>
 
@@ -162,10 +176,67 @@ export default function CalendarView() {
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              {counts.get(selected) ?? 0} of {activeHabitCount} habits
-              {trained.has(selected) ? ' · trained' : ''}
-            </p>
+            <dl className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-text-secondary)]">
+              <div className="flex gap-1.5">
+                <dt>Habits</dt>
+                <dd className="text-[var(--color-text-primary)]">
+                  {counts.get(selected) ?? 0} of {activeHabitCount}
+                </dd>
+              </div>
+              {daySets.length > 0 && (
+                <>
+                  <div className="flex gap-1.5">
+                    <dt>Volume</dt>
+                    <dd className="text-[var(--color-text-primary)]">
+                      {formatWeight(dayVolume, units)}
+                    </dd>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <dt>Sets</dt>
+                    <dd className="text-[var(--color-text-primary)]">{setCount}</dd>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <dt>Exercises</dt>
+                    <dd className="text-[var(--color-text-primary)]">{daySets.length}</dd>
+                  </div>
+                </>
+              )}
+            </dl>
+
+            {/* Summary first, then the sets. The number tells you the shape of
+                the day; the breakdown is what you check when it surprises you. */}
+            {daySets.length > 0 && (
+              <section className="flex flex-col">
+                <h3 className="pb-1 text-xs text-[var(--color-text-secondary)]">What you did</h3>
+                {daySets.map((row) => (
+                  <div
+                    key={row.exerciseId}
+                    className="flex flex-col gap-0.5 py-2"
+                    style={{ borderBottom: '1px solid var(--color-divider)' }}
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-sm text-[var(--color-text-primary)]">
+                        {byId.get(row.exerciseId)?.name ?? 'Unknown movement'}
+                      </span>
+                      {row.volumeKg > 0 && (
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          {formatWeight(row.volumeKg, units)}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-[var(--color-text-secondary)]">
+                      {row.sets
+                        .map((s) =>
+                          s.durationSec
+                            ? `${Math.round(s.durationSec / 60)} min`
+                            : `${weightValue(s.weightKg, units)} × ${s.reps}`,
+                        )
+                        .join(' · ')}
+                    </span>
+                  </div>
+                ))}
+              </section>
+            )}
             {selectedReflection ? (
               <p className="whitespace-pre-wrap text-sm text-[var(--color-text-primary)]">
                 {reflectionSummary(selectedReflection)}

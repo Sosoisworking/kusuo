@@ -71,7 +71,7 @@ on each row into the directory. **One gesture per row at a time.** The directory
 and filters by category, muscle group, equipment, recently used and "mine"; add-custom is a bottom
 sheet. ExRx.net is credited, with no affiliation implied.
 
-## Slice E — Calendar
+## Slice E — Calendar ✅ done
 
 **Canvas:** `Calendar`, `Calendar day`.
 
@@ -79,7 +79,7 @@ Month grid with category dots and a Habits / Training segmented toggle. Day deta
 summary — dots, volume, sets, habits done — and puts the set-by-set breakdown below. Week start
 follows the setting.
 
-## Slice F — Records
+## Slice F — Records ✅ done
 
 **Canvas:** `Records`.
 
@@ -87,7 +87,7 @@ Per-lift records and habit bests behind the same Habits / Training toggle, with 
 inline as well as in Settings. Every figure comes from `logic/records.ts`, derived by replay. Facts
 stated plainly: no trophies, no targets, no celebration.
 
-## Slice G — Settings and "Your data"
+## Slice G — Settings and "Your data" — core done, share outstanding
 
 **Canvas:** `Settings (six-tab)`, `Settings — your data`, `Share`, `Import`, `Export confirm`,
 `Reset confirm`, `Profile menu`, `Account`.

@@ -135,3 +135,36 @@ export function bestMonth(completedDates: Set<string>): { month: string; count: 
   }
   return best
 }
+
+export interface LiftRecord {
+  exerciseId: string
+  records: ExerciseRecords
+  /** Volume of the single heaviest session this movement appeared in. */
+  bestSession: SessionTotal | undefined
+}
+
+/**
+ * Every movement that has been lifted at least once, heaviest single set first.
+ * Ordering by weight rather than by recency puts the lifts you care about at
+ * the top without ranking you against anything.
+ */
+export function liftRecords(events: SessionEvent[]): LiftRecord[] {
+  const ids = new Set<string>()
+  for (const e of events) ids.add(e.exerciseId)
+
+  const rows: LiftRecord[] = []
+  for (const exerciseId of ids) {
+    const records = exerciseRecords(events, exerciseId)
+    if (records.totalSets === 0 || !records.heaviestSet) continue
+    // Cardio and circuits carry no load, so they have no lift record to state.
+    if (records.heaviestSet.weightKg <= 0) continue
+    rows.push({
+      exerciseId,
+      records,
+      bestSession: bestSessionVolume(setsForExercise(events, exerciseId)),
+    })
+  }
+  return rows.sort(
+    (a, b) => (b.records.heaviestSet?.weightKg ?? 0) - (a.records.heaviestSet?.weightKg ?? 0),
+  )
+}

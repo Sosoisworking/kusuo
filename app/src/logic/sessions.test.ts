@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionEvent, SessionMark } from '../db/schema'
-import { isSessionComplete, liveSets, setsOnDate, trainingDates, volume } from './sessions'
+import { dayBreakdown, isSessionComplete, liveSets, setsOnDate, trainingDates, volume } from './sessions'
 
 let clock = 1000
 function makeEvent(overrides: Partial<SessionEvent> = {}): SessionEvent {
@@ -137,5 +137,43 @@ describe('trainingDates', () => {
       makeMark({ localDate: '2026-01-10', splitDayId: 'day1', action: 'uncomplete' }),
     ]
     expect(trainingDates(marks)).toEqual(new Set(['2026-01-10']))
+  })
+})
+
+describe('dayBreakdown', () => {
+  it('is empty for a day with nothing logged', () => {
+    expect(dayBreakdown([], '2026-01-05')).toEqual([])
+  })
+
+  it('groups a day by movement, in the order each was first logged', () => {
+    const events = [
+      makeEvent({ exerciseId: 'ex-squat', setIndex: 0, weightKg: 100, reps: 5 }),
+      makeEvent({ exerciseId: 'ex-rdl', setIndex: 0, weightKg: 80, reps: 8 }),
+      makeEvent({ exerciseId: 'ex-squat', setIndex: 1, weightKg: 100, reps: 5 }),
+    ]
+    const rows = dayBreakdown(events, '2026-01-10')
+    expect(rows.map((r) => r.exerciseId)).toEqual(['ex-squat', 'ex-rdl'])
+    expect(rows[0].sets).toHaveLength(2)
+    expect(rows[0].volumeKg).toBe(1000)
+    expect(rows[1].volumeKg).toBe(640)
+  })
+
+  it('leaves a voided set out of the day', () => {
+    const events = [
+      makeEvent({ exerciseId: 'ex-squat', setIndex: 0, weightKg: 100, reps: 5 }),
+      makeEvent({ exerciseId: 'ex-squat', setIndex: 1, weightKg: 999, reps: 1 }),
+      makeEvent({ exerciseId: 'ex-squat', setIndex: 1, weightKg: 999, reps: 1, action: 'void' }),
+    ]
+    const rows = dayBreakdown(events, '2026-01-10')
+    expect(rows[0].sets).toHaveLength(1)
+    expect(rows[0].volumeKg).toBe(500)
+  })
+
+  it('keeps a different day out of it', () => {
+    const events = [
+      makeEvent({ localDate: '2026-01-10', exerciseId: 'ex-squat', weightKg: 100, reps: 5 }),
+      makeEvent({ localDate: '2026-01-11', exerciseId: 'ex-squat', weightKg: 110, reps: 5 }),
+    ]
+    expect(dayBreakdown(events, '2026-01-10')[0].volumeKg).toBe(500)
   })
 })

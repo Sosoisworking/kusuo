@@ -7,6 +7,7 @@ import { seedExercises } from '../db/exercises'
 import { createHabit } from '../db/habits'
 import { db } from '../db/schema'
 import { createSettings } from '../db/settings'
+import { logSet } from '../db/sessions'
 import { instantiateTemplate } from '../db/splits'
 
 const DEVICE_ID = 'test-device'
@@ -165,5 +166,66 @@ describe('Your data', () => {
     expect(screen.queryByRole('button', { name: /Reset all data/ })).toBeNull()
     // Exporting is a read, so a Mac keeps it.
     expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeInTheDocument()
+  })
+})
+
+describe('Records', () => {
+  async function withLift() {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const day = split.days[0].id
+    const at = { localDate: '2026-01-05', splitDayId: day, exerciseId: 'ex-barbell-bench-press' }
+    await logSet({ ...at, setIndex: 0 }, { weightKg: 80, reps: 5 }, DEVICE_ID)
+    await logSet({ ...at, setIndex: 1 }, { weightKg: 85, reps: 3 }, DEVICE_ID)
+  }
+
+  it('opens on habits and keeps lifts behind the toggle', async () => {
+    await onboard()
+    await withLift()
+    renderAt('/records')
+
+    // The heading is in the skeleton too, so wait for the toggle itself.
+    expect(await screen.findByRole('button', { name: 'Habits' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.queryByText('Barbell bench press')).toBeNull()
+  })
+
+  it('states a lift plainly once you switch to training', async () => {
+    await onboard()
+    await withLift()
+    renderAt('/records')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Training' }))
+
+    expect(await screen.findByText('Barbell bench press')).toBeInTheDocument()
+    // Heaviest single set, and the derived figures beside it.
+    expect(screen.getByText('85')).toBeInTheDocument()
+    expect(screen.getByText('Est. 1RM')).toBeInTheDocument()
+    expect(screen.getByText('Best set volume')).toBeInTheDocument()
+  })
+
+  it('converts every weight when the unit is switched', async () => {
+    await onboard()
+    await withLift()
+    renderAt('/records')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Training' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'lb' }))
+
+    await waitFor(async () => expect((await db.settings.get(DEVICE_ID))?.units).toBe('lb'))
+    // 85 kg is 187.4 lb, so the kg figure is gone.
+    expect(screen.queryByText('85')).toBeNull()
+  })
+
+  it('says so when nothing has been lifted', async () => {
+    await onboard()
+    renderAt('/records')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Training' }))
+    expect(
+      await screen.findByText(/A movement appears here the first time you put a weight on it/),
+    ).toBeInTheDocument()
   })
 })

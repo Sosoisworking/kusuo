@@ -96,3 +96,28 @@ export function trainingDates(marks: SessionMark[]): Set<string> {
   }
   return dates
 }
+
+export interface DayExercise {
+  exerciseId: string
+  sets: LoggedSet[]
+  volumeKg: number
+}
+
+/**
+ * A day's training, grouped by movement in the order it was first logged.
+ * Reads back as "what you did" rather than as a flat list of sets.
+ */
+export function dayBreakdown(events: SessionEvent[], localDate: string): DayExercise[] {
+  const sets = setsOnDate(events, localDate)
+  const byExercise = new Map<string, LoggedSet[]>()
+  for (const set of sets.sort((a, b) => a.timestamp - b.timestamp)) {
+    const group = byExercise.get(set.exerciseId)
+    if (group) group.push(set)
+    else byExercise.set(set.exerciseId, [set])
+  }
+  return [...byExercise.entries()].map(([exerciseId, group]) => ({
+    exerciseId,
+    sets: [...group].sort((a, b) => a.setIndex - b.setIndex),
+    volumeKg: volume(group),
+  }))
+}

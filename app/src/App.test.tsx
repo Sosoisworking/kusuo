@@ -10,7 +10,7 @@ import { db } from './db/schema'
 import { createSettings } from './db/settings'
 import { archiveGoal, completeGoal, createGoal } from './db/goals'
 import { appendReflection } from './db/reflections'
-import { finishSession } from './db/sessions'
+import { finishSession, logSet } from './db/sessions'
 import { instantiateTemplate } from './db/splits'
 import { addDays, todayLocalDate } from './lib/date'
 
@@ -358,5 +358,56 @@ describe('Reflection', () => {
     renderAt('/reflection')
 
     expect(await screen.findByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+})
+
+describe('the calendar day detail', () => {
+  it('leads with the summary and then what you did', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const today = todayLocalDate()
+    const at = { localDate: today, splitDayId: split.days[0].id, exerciseId: 'ex-barbell-bench-press' }
+    await logSet({ ...at, setIndex: 0 }, { weightKg: 80, reps: 6 }, DEVICE_ID)
+    await logSet({ ...at, setIndex: 1 }, { weightKg: 80, reps: 5 }, DEVICE_ID)
+    await finishSession(today, split.days[0].id, DEVICE_ID)
+
+    renderAt('/calendar')
+    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+
+    // Summary: 80x6 + 80x5 = 880 kg across 2 sets of 1 movement. It appears
+    // twice — once as the day total, once as this movement's own volume.
+    expect(await screen.findAllByText('880kg')).toHaveLength(2)
+    expect(screen.getByText('What you did')).toBeInTheDocument()
+    expect(screen.getByText('Barbell bench press')).toBeInTheDocument()
+    expect(screen.getByText('80 × 6 · 80 × 5')).toBeInTheDocument()
+  })
+
+  it('shows a circuit as time rather than as a weight', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-batman-7')
+    const today = todayLocalDate()
+    await logSet(
+      { localDate: today, splitDayId: split.days[0].id, exerciseId: 'ex-kettlebell-1', setIndex: 0 },
+      { weightKg: 0, reps: 0, durationSec: 1200 },
+      DEVICE_ID,
+    )
+
+    renderAt('/calendar')
+    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+
+    expect(await screen.findByText('Kettlebell 1')).toBeInTheDocument()
+    expect(screen.getByText('20 min')).toBeInTheDocument()
+  })
+
+  it('says nothing about training on a day with none', async () => {
+    await onboard()
+    const today = todayLocalDate()
+    renderAt('/calendar')
+    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+
+    await screen.findByText('Nothing written that day.')
+    expect(screen.queryByText('What you did')).toBeNull()
   })
 })

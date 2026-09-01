@@ -6,6 +6,7 @@ import {
   bestStreak,
   estimatedOneRepMax,
   exerciseRecords,
+  liftRecords,
   sessionTotals,
 } from './records'
 import { liveSets } from './sessions'
@@ -189,5 +190,46 @@ describe('bestMonth', () => {
   it('breaks a tie toward the earlier month', () => {
     const dates = new Set(['2026-01-01', '2026-02-01'])
     expect(bestMonth(dates)).toEqual({ month: '2026-01', count: 1 })
+  })
+})
+
+describe('liftRecords', () => {
+  it('is empty before anything is lifted', () => {
+    expect(liftRecords([])).toEqual([])
+  })
+
+  it('orders movements by their heaviest single set', () => {
+    const rows = liftRecords([
+      makeEvent({ exerciseId: 'ex-bench', weightKg: 80, reps: 5 }),
+      makeEvent({ exerciseId: 'ex-squat', weightKg: 120, reps: 5 }),
+      makeEvent({ exerciseId: 'ex-press', weightKg: 50, reps: 5 }),
+    ])
+    expect(rows.map((r) => r.exerciseId)).toEqual(['ex-squat', 'ex-bench', 'ex-press'])
+  })
+
+  it('leaves out a movement whose only sets were voided', () => {
+    const rows = liftRecords([
+      makeEvent({ exerciseId: 'ex-bench', weightKg: 80, reps: 5 }),
+      makeEvent({ exerciseId: 'ex-bench', weightKg: 80, reps: 5, action: 'void' }),
+    ])
+    expect(rows).toEqual([])
+  })
+
+  it('leaves out cardio, which carries no load to record', () => {
+    const rows = liftRecords([
+      makeEvent({ exerciseId: 'ex-kettlebell-1', weightKg: 0, reps: 0, durationSec: 1200 }),
+      makeEvent({ exerciseId: 'ex-bench', weightKg: 80, reps: 5 }),
+    ])
+    expect(rows.map((r) => r.exerciseId)).toEqual(['ex-bench'])
+  })
+
+  it('carries the heaviest session that movement appeared in', () => {
+    const rows = liftRecords([
+      makeEvent({ exerciseId: 'ex-bench', localDate: '2026-01-05', setIndex: 0, weightKg: 80, reps: 5 }),
+      makeEvent({ exerciseId: 'ex-bench', localDate: '2026-01-05', setIndex: 1, weightKg: 80, reps: 5 }),
+      makeEvent({ exerciseId: 'ex-bench', localDate: '2026-01-07', setIndex: 0, weightKg: 85, reps: 3 }),
+    ])
+    expect(rows[0].bestSession?.localDate).toBe('2026-01-05')
+    expect(rows[0].bestSession?.volumeKg).toBe(800)
   })
 })

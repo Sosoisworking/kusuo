@@ -10,8 +10,14 @@ import { latestReflectionsByDate, reflectionSummary } from '../logic/reflection'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { monthLabel, todayLocalDate } from '../lib/date'
 
+import Segmented from '../components/Segmented'
+import { listExercises } from '../db/exercises'
+import { allSessionEvents } from '../db/sessions'
+import { updateSettings } from '../db/settings'
+import type { Exercise, SessionEvent, Units } from '../db/schema'
+import { formatWeight, weightValue } from '../lib/units'
 import { completedDatesForHabit } from '../logic/derive'
-import { bestMonth, bestStreak } from '../logic/records'
+import { bestMonth, bestStreak, liftRecords } from '../logic/records'
 
 /** A completion instant, as the calendar day it happened on. */
 function todayLocalDateOf(timestamp: number | undefined): string {
@@ -31,6 +37,9 @@ export default function Records() {
   const [rows, setRows] = useState<HabitBests[]>([])
   const [reached, setReached] = useState<Goal[]>([])
   const [reflections, setReflections] = useState<ReflectionEntry[]>([])
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([])
+  const [tab, setTab] = useState<'habits' | 'training'>('habits')
 
   useEffect(() => {
     let cancelled = false
@@ -40,18 +49,24 @@ export default function Records() {
       allHabitEvents(),
       listCompletedGoals(),
       allReflections(),
+      listExercises(),
+      allSessionEvents(),
     ]).then(
-      ([s, habits, events, goals, entries]: [
+      ([s, habits, events, goals, entries, list, sessions]: [
         Settings | undefined,
         Habit[],
         HabitEvent[],
         Goal[],
         ReflectionEntry[],
+        Exercise[],
+        SessionEvent[],
       ]) => {
         if (cancelled) return
         setSettings(s)
         setReached(goals)
         setReflections(entries)
+        setExercises(list)
+        setSessionEvents(sessions)
         setRows(
           habits.map((habit) => {
             const completed = completedDatesForHabit(events, habit.id)
@@ -78,8 +93,115 @@ export default function Records() {
     b[0].localeCompare(a[0]),
   )
 
+  const units: Units = settings?.units ?? 'kg'
+  const byId = new Map(exercises.map((e) => [e.id, e]))
+  const lifts = liftRecords(sessionEvents)
+
+  async function switchUnits(next: Units) {
+    if (!settings || next === settings.units) return
+    setSettings({ ...settings, units: next })
+    await updateSettings(settings.deviceId, { units: next })
+  }
+
   return (
-    <Screen title="Records" eyebrow={settings?.units === 'lb' ? 'Weights in lb' : undefined}>
+    <Screen title="Records" eyebrow="Your best, stated plainly">
+      <Segmented<'habits' | 'training'>
+        label="Show"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'habits', label: 'Habits' },
+          { value: 'training', label: 'Training' },
+        ]}
+      />
+
+      {tab === 'training' ? (
+        <>
+          {/* The unit switch lives here as well as in Settings: this is the one
+              screen where every number is a weight, so it is where you notice. */}
+          <Segmented<Units>
+            label="Lifts"
+            value={units}
+            onChange={switchUnits}
+            options={[
+              { value: 'kg', label: 'kg' },
+              { value: 'lb', label: 'lb' },
+            ]}
+          />
+
+          {lifts.length === 0 ? (
+            <EmptyState>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                No lifts logged yet. A movement appears here the first time you put a weight on it.
+              </p>
+            </EmptyState>
+          ) : (
+            <section className="flex flex-col">
+              {lifts.map(({ exerciseId, records, bestSession }) => {
+                const heaviest = records.heaviestSet
+                const oneRepMax = records.bestEstimatedOneRepMax
+                const topRep = records.repPrs[0]
+                return (
+                  <article
+                    key={exerciseId}
+                    className="flex flex-col gap-2 py-3"
+                    style={{ borderBottom: '1px solid var(--color-divider)' }}
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-base text-[var(--color-text-primary)]">
+                        {byId.get(exerciseId)?.name ?? 'Unknown movement'}
+                      </span>
+                      <span className="text-lg text-[var(--color-accent)]">
+                        {heaviest ? weightValue(heaviest.weightKg, units) : '—'}
+                        <span className="ml-1 text-xs text-[var(--color-text-secondary)]">
+                          {units}
+                        </span>
+                      </span>
+                    </div>
+                    <dl className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-text-secondary)]">
+                      {oneRepMax && (
+                        <div className="flex gap-1.5">
+                          <dt>Est. 1RM</dt>
+                          <dd className="text-[var(--color-text-primary)]">
+                            {formatWeight(oneRepMax.oneRepMaxKg, units)}
+                          </dd>
+                        </div>
+                      )}
+                      {records.bestSetVolume && (
+                        <div className="flex gap-1.5">
+                          <dt>Best set volume</dt>
+                          <dd className="text-[var(--color-text-primary)]">
+                            {formatWeight(records.bestSetVolume.volumeKg, units)}
+                          </dd>
+                        </div>
+                      )}
+                      {bestSession && (
+                        <div className="flex gap-1.5">
+                          <dt>Session volume</dt>
+                          <dd className="text-[var(--color-text-primary)]">
+                            {formatWeight(bestSession.volumeKg, units)}
+                          </dd>
+                        </div>
+                      )}
+                      {topRep && (
+                        <div className="flex gap-1.5">
+                          <dt>Reps at {formatWeight(topRep.weightKg, units)}</dt>
+                          <dd className="text-[var(--color-text-primary)]">{topRep.reps}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  </article>
+                )
+              })}
+            </section>
+          )}
+
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            Counted from your logged sets, never stored. A voided set leaves no record behind.
+          </p>
+        </>
+      ) : (
+        <>
       {withHistory.length === 0 ? (
         <EmptyState>
           <p className="text-sm text-[var(--color-text-secondary)]">
@@ -180,6 +302,8 @@ export default function Records() {
       <p className="text-xs text-[var(--color-text-secondary)]">
         Every figure here is counted from your history, not stored.
       </p>
+        </>
+      )}
     </Screen>
   )
 }
