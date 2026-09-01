@@ -102,7 +102,7 @@ Destructive actions read through an outlined button, a warning icon and explicit
 
 Account and the profile menu move behind the initials button in the Today and Train headers.
 
-## Slice H — Onboarding
+## Slice H — Onboarding ✅ done
 
 **Canvas:** `Onboarding 1 — welcome` through `4 — split`.
 

@@ -234,8 +234,12 @@ describe('the session flow', () => {
     await typeSet('80', '6')
     await userEvent.click(await screen.findByRole('button', { name: 'Log set 1' }))
 
-    expect(await screen.findByRole('button', { name: 'Log set 2' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Weight for set 2 in kg')).toHaveValue('80')
+    // "Log set 2" exists before the log lands, so waiting on it gates nothing.
+    // Set 1 flipping to its logged state is what says the write went through.
+    await screen.findByRole('button', { name: 'Set 1 logged — remove it' })
+    await waitFor(() =>
+      expect(screen.getByLabelText('Weight for set 2 in kg')).toHaveValue('80'),
+    )
   })
 
   it('corrects a set instead of duplicating it', async () => {

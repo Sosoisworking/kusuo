@@ -84,7 +84,8 @@ describe('the six-tab shell', () => {
 
   it('sends a device that has not onboarded to onboarding', async () => {
     renderAt('/')
-    expect(await screen.findByText(/Which device is this/i)).toBeInTheDocument()
+    // Onboarding opens on the welcome screen now, not the device question.
+    expect(await screen.findByText(/Habits, and the training that goes with them/i)).toBeInTheDocument()
   })
 })
 

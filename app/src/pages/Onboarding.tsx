@@ -3,26 +3,31 @@ import { useNavigate } from 'react-router'
 import { PrimaryButton, SecondaryButton } from '../components/Button'
 import { createHabit } from '../db/habits'
 import { seedExercises } from '../db/exercises'
+import { instantiateTemplate } from '../db/splits'
+import Segmented from '../components/Segmented'
+import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
 import { completeOnboarding, createSettings, getOrCreateDeviceId, getSettings, updateSettings } from '../db/settings'
-import type { DeviceRole, FrequencyType } from '../db/schema'
+import type { DeviceRole, FrequencyType, Units } from '../db/schema'
 import { STARTER_TEMPLATES } from '../lib/templates'
 
-type Step = 'loading' | 'role' | 'confirmReader' | 'name' | 'templates'
+type Step = 'loading' | 'welcome' | 'role' | 'confirmReader' | 'name' | 'templates' | 'split'
 
 const WRITER_STEP_NUMBER: Record<Step, number | undefined> = {
   loading: undefined,
+  welcome: undefined,
   role: 1,
   confirmReader: undefined,
   name: 2,
   templates: 3,
+  split: 4,
 }
 
 function StepIndicator({ step }: { step: Step }) {
   const current = WRITER_STEP_NUMBER[step]
   if (!current) return null
   return (
-    <div className="flex gap-2" aria-label={`Step ${current} of 3`}>
-      {[1, 2, 3].map((n) => (
+    <div className="flex gap-2" aria-label={`Step ${current} of 4`}>
+      {[1, 2, 3, 4].map((n) => (
         <span
           key={n}
           className="h-1.5 w-6 rounded-full"
@@ -42,6 +47,7 @@ export default function Onboarding() {
   const [customHabits, setCustomHabits] = useState<{ name: string; frequencyType: FrequencyType; frequencyValue: number }[]>([])
   const [customName, setCustomName] = useState('')
   const [customFrequency, setCustomFrequency] = useState<'daily' | 'weekly'>('daily')
+  const [units, setUnits] = useState<Units>('kg')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -49,7 +55,7 @@ export default function Onboarding() {
     getSettings(deviceId).then((settings) => {
       if (cancelled) return
       if (!settings) {
-        setStep('role')
+        setStep('welcome')
       } else if (!settings.userName && settings.deviceRole === 'writer') {
         setName(settings.userName ?? '')
         setStep('name')
@@ -82,10 +88,13 @@ export default function Onboarding() {
     navigate('/', { replace: true })
   }
 
-  async function submitName() {
+  /** Name and units together, both optional. Skipping leaves the defaults. */
+  async function submitYou(skip = false) {
     const trimmed = name.trim()
-    if (!trimmed) return
-    await updateSettings(deviceId, { userName: trimmed })
+    await updateSettings(deviceId, {
+      userName: skip || !trimmed ? undefined : trimmed,
+      units: skip ? 'kg' : units,
+    })
     setStep('templates')
   }
 
@@ -133,11 +142,60 @@ export default function Onboarding() {
     for (const c of customHabits) {
       await createHabit({ name: c.name, frequencyType: c.frequencyType, frequencyValue: c.frequencyValue })
     }
-    await completeOnboarding(deviceId)
-    navigate('/', { replace: true })
+    setSaving(false)
+    setStep('split')
+  }
+
+  /**
+   * The last step, and the one that was missing: without it a fresh install
+   * landed on Today with no training set up and had to find Splits alone.
+   * Skipping is allowed — Train offers the same picker.
+   */
+  async function chooseSplit(templateId: string | null) {
+    setSaving(true)
+    try {
+      if (templateId) await instantiateTemplate(templateId)
+      await completeOnboarding(deviceId)
+      navigate('/', { replace: true })
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (step === 'loading') return null
+
+  if (step === 'welcome') {
+    return (
+      <main className="flex min-h-dvh flex-col justify-center gap-5 px-6 pt-[max(3rem,env(safe-area-inset-top))]">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs uppercase tracking-[0.16em] text-[var(--color-accent)]">Kusuo</span>
+          <h1 className="text-[28px] font-medium tracking-[-0.02em] text-[var(--color-text-primary)]">
+            Habits, and the training that goes with them
+          </h1>
+        </div>
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          A few daily habits, and a proper log for the days you lift. No streak-shaming, no account,
+          no server — this phone holds the only copy.
+        </p>
+        <ul className="flex flex-col">
+          {[
+            'Today shows what is left and what is next — nothing else.',
+            'Train logs weight, reps and RPE set by set, from your split.',
+            'This iPhone writes. A Mac can read your history, never edit it.',
+          ].map((line) => (
+            <li
+              key={line}
+              className="py-2.5 text-sm text-[var(--color-text-primary)]"
+              style={{ borderBottom: '1px solid var(--color-divider)' }}
+            >
+              {line}
+            </li>
+          ))}
+        </ul>
+        <PrimaryButton onClick={() => setStep('role')}>Set it up</PrimaryButton>
+      </main>
+    )
+  }
 
   if (step === 'role') {
     return (
@@ -173,39 +231,101 @@ export default function Onboarding() {
 
   if (step === 'name') {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-6 text-center">
+      <main className="flex min-h-dvh flex-col justify-center gap-5 px-6 pt-[max(3rem,env(safe-area-inset-top))]">
         <StepIndicator step={step} />
-        <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">What should I call you?</h1>
-        <p className="max-w-xs text-sm text-[var(--color-text-secondary)]">
-          Just your name — nothing else, no account needed.
-        </p>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">
+            A little about you
+          </h1>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Only what the app needs to show sensible numbers. Skip any of it.
+          </p>
+        </div>
         <form
-          className="flex w-full max-w-xs flex-col gap-3"
+          className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault()
-            submitName()
+            submitYou()
           }}
         >
-          <label className="sr-only" htmlFor="onboarding-name">
-            Your name
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">
+              What should I call you
+            </span>
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            />
           </label>
-          <input
-            id="onboarding-name"
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
-            className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+
+          <Segmented<Units>
+            label="Weight units"
+            value={units}
+            onChange={setUnits}
+            options={[
+              { value: 'kg', label: 'Kilograms' },
+              { value: 'lb', label: 'Pounds' },
+            ]}
           />
-          <PrimaryButton type="submit" disabled={!name.trim()}>
-            Continue
-          </PrimaryButton>
+
+          <PrimaryButton type="submit">Continue</PrimaryButton>
+          <button
+            type="button"
+            onClick={() => submitYou(true)}
+            className="min-h-11 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          >
+            Skip — I'll fill this in later
+          </button>
         </form>
       </main>
     )
   }
 
+
   // templates
+  if (step === 'split') {
+    return (
+      <main className="flex min-h-dvh flex-col gap-5 px-6 pb-10 pt-[max(3rem,env(safe-area-inset-top))]">
+        <StepIndicator step={step} />
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">
+            Which split are you running?
+          </h1>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Comes in as a template you can rearrange. Switch or edit it whenever.
+          </p>
+        </div>
+        <ul className="flex flex-col">
+          {SPLIT_TEMPLATES.map((template) => (
+            <li key={template.id}>
+              <button
+                onClick={() => chooseSplit(template.id)}
+                disabled={saving}
+                className="flex min-h-11 w-full items-center justify-between gap-3 py-3 text-left disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                style={{ borderBottom: '1px solid var(--color-divider)' }}
+              >
+                <span className="text-sm text-[var(--color-text-primary)]">{template.name}</span>
+                <span className="text-xs text-[var(--color-text-secondary)]">
+                  {template.days.length} days
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button
+          onClick={() => chooseSplit(null)}
+          disabled={saving}
+          className="min-h-11 text-sm text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        >
+          Skip — I'm not lifting yet
+        </button>
+      </main>
+    )
+  }
+
   return (
     <main className="flex min-h-dvh flex-col items-center gap-6 px-6 pb-12 pt-[max(3rem,env(safe-area-inset-top))] text-center">
       <StepIndicator step={step} />
@@ -299,4 +419,5 @@ export default function Onboarding() {
       )}
     </main>
   )
+
 }
