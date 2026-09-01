@@ -16,6 +16,7 @@ import Records from './pages/Records'
 import Reflection from './pages/Reflection'
 import Session from './pages/Session'
 import Settings from './pages/Settings'
+import Share from './pages/Share'
 import SplitEditor from './pages/SplitEditor'
 import Splits from './pages/Splits'
 import Today from './pages/Today'
@@ -62,6 +63,7 @@ function App() {
         <Route path="/habits/:id" element={<HabitDetail />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/data" element={<YourData />} />
+        <Route path="/settings/share" element={<Share />} />
         <Route path="/reflection" element={<Reflection />} />
         <Route path="/goals" element={<Goals />} />
       </Route>

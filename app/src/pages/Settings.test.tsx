@@ -9,6 +9,7 @@ import { db } from '../db/schema'
 import { createSettings } from '../db/settings'
 import { logSet } from '../db/sessions'
 import { instantiateTemplate } from '../db/splits'
+import { encodeWorkout } from '../lib/share'
 
 const DEVICE_ID = 'test-device'
 
@@ -227,5 +228,89 @@ describe('Records', () => {
     expect(
       await screen.findByText(/A movement appears here the first time you put a weight on it/),
     ).toBeInTheDocument()
+  })
+})
+
+describe('the profile menu', () => {
+  it('opens from the initials and reaches what lost a tab', async () => {
+    await onboard()
+    renderAt('/')
+
+    const button = await screen.findByRole('button', { name: 'Your profile' })
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(button)
+
+    const menu = await screen.findByRole('menu')
+    for (const label of ['Settings', 'Your data', 'Share', 'Reflect', 'Goals']) {
+      expect(within(menu).getByRole('menuitem', { name: label })).toBeInTheDocument()
+    }
+    expect(within(menu).getByText(/holds the only copy/)).toBeInTheDocument()
+  })
+
+  it('closes on Escape', async () => {
+    await onboard()
+    renderAt('/')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Your profile' }))
+    await screen.findByRole('menu')
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  it('is on Train as well as Today', async () => {
+    await onboard()
+    renderAt('/train')
+
+    expect(await screen.findByRole('button', { name: 'Your profile' })).toBeInTheDocument()
+  })
+})
+
+describe('sharing a workout', () => {
+  it('refuses a message with no code in it', async () => {
+    await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-ppl-3')
+    renderAt('/settings/data')
+
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: 'Paste a shared workout' }),
+      'just a normal message',
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Add to my split' }))
+
+    expect(await screen.findByText(/No Kusuo code in that/)).toBeInTheDocument()
+  })
+
+  it('adds a pasted workout as a new day without touching the others', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const before = split.days.length
+    const code = encodeWorkout({
+      v: 2,
+      label: 'Arms',
+      entries: [{ name: 'Barbell curl', sets: 3, repsMin: 8, repsMax: 10 }],
+    })
+    renderAt('/settings/data')
+
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: 'Paste a shared workout' }),
+      `try this{Enter}{Enter}${code}`,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Add to my split' }))
+
+    expect(await screen.findByText(/Added "Arms \(shared\)"/)).toBeInTheDocument()
+    const after = await db.splits.get(split.id)
+    expect(after?.days).toHaveLength(before + 1)
+    expect(after?.days.slice(0, before)).toEqual(split.days)
+  })
+
+  it('gives a reader no way to import one', async () => {
+    await onboard('reader')
+    renderAt('/settings/data')
+
+    await screen.findByRole('heading', { name: 'Your data', level: 1 })
+    expect(screen.queryByRole('textbox', { name: 'Paste a shared workout' })).toBeNull()
   })
 })

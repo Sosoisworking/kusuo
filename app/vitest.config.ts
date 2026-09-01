@@ -14,6 +14,8 @@ export default defineConfig({
     },
   },
   test: {
+    // e2e belongs to Playwright; vitest picking it up gives a confusing red.
+    exclude: ['node_modules/**', 'e2e/**'],
     environment: 'jsdom',
     // jsdom defaults to an opaque origin, where localStorage is undefined.
     // The app stores its deviceId there, so tests need a real origin.

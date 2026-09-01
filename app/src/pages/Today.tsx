@@ -5,7 +5,8 @@ import { listActiveHabits } from '../db/habits'
 import type { Habit, HabitEvent, Settings, Split, SplitDay } from '../db/schema'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { getActiveSplit } from '../db/splits'
-import { WEEKDAY_INITIALS, formatLongDate, greeting, initials } from '../lib/format'
+import ProfileMenu from '../components/ProfileMenu'
+import { WEEKDAY_INITIALS, formatLongDate, greeting } from '../lib/format'
 import { todayLocalDate } from '../lib/date'
 import { completedDatesForHabit } from '../logic/derive'
 import { dayForDate, plannedSetCount } from '../logic/nextSession'
@@ -264,13 +265,7 @@ export default function Today() {
               : greeting(new Date().getHours())}
           </h1>
         </div>
-        <Link
-          to="/settings"
-          aria-label="Settings and your data"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-        >
-          {initials(settings.userName) || '·'}
-        </Link>
+        <ProfileMenu name={settings.userName} />
       </header>
 
       {error && (

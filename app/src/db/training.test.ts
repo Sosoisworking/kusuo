@@ -21,7 +21,7 @@ import {
   unfinishSession,
   voidSet,
 } from './sessions'
-import { findSplitDay, getActiveSplit, instantiateTemplate, listSplits, setActiveSplit } from './splits'
+import { findSplitDay, getActiveSplit, importWorkoutAsDay, instantiateTemplate, listSplits, setActiveSplit } from './splits'
 
 beforeEach(async () => {
   await db.habits.clear()
@@ -348,5 +348,67 @@ describe('kettlebell circuits', () => {
   it('leaves every non-circuit movement without one', () => {
     const stray = EXERCISE_SEED.filter((e) => e.circuit && !e.id.startsWith('ex-kettlebell-'))
     expect(stray).toEqual([])
+  })
+})
+
+describe('importing a shared workout', () => {
+  it('arrives as a new day and leaves the existing ones alone', async () => {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const before = split.days.length
+
+    const day = await importWorkoutAsDay(split.id, {
+      v: 2,
+      label: 'Push',
+      entries: [{ name: 'Barbell bench press', sets: 4, repsMin: 5, repsMax: 5 }],
+    })
+
+    const after = await db.splits.get(split.id)
+    expect(after?.days).toHaveLength(before + 1)
+    expect(after?.days.at(-1)?.id).toBe(day.id)
+    // The original days are untouched, byte for byte.
+    expect(after?.days.slice(0, before)).toEqual(split.days)
+  })
+
+  it('reuses a movement it already knows rather than duplicating it', async () => {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const before = await db.exercises.count()
+
+    await importWorkoutAsDay(split.id, {
+      v: 2,
+      label: 'Push',
+      entries: [{ name: 'barbell BENCH press', sets: 3, repsMin: 8, repsMax: 8 }],
+    })
+
+    expect(await db.exercises.count()).toBe(before)
+    const added = (await db.splits.get(split.id))?.days.at(-1)
+    expect(added?.entries[0].exerciseId).toBe('ex-barbell-bench-press')
+  })
+
+  it('creates a movement it has never heard of, so the day is complete', async () => {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+
+    await importWorkoutAsDay(split.id, {
+      v: 2,
+      label: 'Push',
+      entries: [{ name: 'Zercher carry', sets: 2, repsMin: 1, repsMax: 1 }],
+    })
+
+    const created = (await db.exercises.toArray()).find((e) => e.name === 'Zercher carry')
+    expect(created?.isCustom).toBe(true)
+  })
+
+  it('labels it as shared, and does not collide with a second import', async () => {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const workout = { v: 2 as const, label: 'Push', entries: [] }
+
+    const first = await importWorkoutAsDay(split.id, workout)
+    const second = await importWorkoutAsDay(split.id, workout)
+
+    expect(first.label).toBe('Push (shared)')
+    expect(second.label).toBe('Push (shared 2)')
   })
 })

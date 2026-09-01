@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Navigate } from 'react-router'
+import { Link, Navigate } from 'react-router'
 import BackLink from '../components/BackLink'
 import { PrimaryButton, SecondaryButton } from '../components/Button'
 import {
@@ -15,6 +15,8 @@ import {
 import { db, type Settings as SettingsType } from '../db/schema'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { todayLocalDate } from '../lib/date'
+import { decodeWorkout, findWorkoutCode, InvalidWorkoutCodeError } from '../lib/share'
+import { getActiveSplit, importWorkoutAsDay } from '../db/splits'
 
 function formatBackupDate(ts: number): string {
   return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -44,6 +46,8 @@ export default function YourData() {
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [pasted, setPasted] = useState('')
+  const [workoutStatus, setWorkoutStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [resetTyped, setResetTyped] = useState('')
   const [resetting, setResetting] = useState(false)
@@ -116,6 +120,39 @@ export default function YourData() {
       setImportError("Couldn't import — give it another tap.")
     } finally {
       setImporting(false)
+    }
+  }
+
+  /**
+   * Takes a whole pasted message, finds the code in it, and adds the workout to
+   * the active split as a new day. Nothing existing is touched.
+   */
+  async function importWorkout() {
+    setWorkoutStatus(null)
+    const code = findWorkoutCode(pasted)
+    if (!code) {
+      setWorkoutStatus({ ok: false, message: "No Kusuo code in that — paste the whole message." })
+      return
+    }
+    try {
+      const workout = decodeWorkout(code)
+      const split = await getActiveSplit()
+      if (!split) {
+        setWorkoutStatus({
+          ok: false,
+          message: 'Choose a split first — a shared workout arrives as a day inside one.',
+        })
+        return
+      }
+      const day = await importWorkoutAsDay(split.id, workout)
+      setPasted('')
+      setWorkoutStatus({ ok: true, message: `Added "${day.label}" to ${split.name}.` })
+    } catch (err) {
+      setWorkoutStatus({
+        ok: false,
+        message:
+          err instanceof InvalidWorkoutCodeError ? err.message : "Couldn't add that — try again.",
+      })
     }
   }
 
@@ -319,6 +356,54 @@ export default function YourData() {
           )}
         </section>
       )}
+
+      {isWriter && (
+        <section className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-medium text-[var(--color-text-primary)]">
+              Import a shared workout
+            </h2>
+            <p className="text-xs text-[var(--color-text-secondary)]">
+              Paste the whole message — the code is found inside it. It arrives as a new day in your
+              active split; nothing you have is overwritten.
+            </p>
+          </div>
+          <textarea
+            aria-label="Paste a shared workout"
+            value={pasted}
+            onChange={(e) => {
+              setPasted(e.target.value)
+              setWorkoutStatus(null)
+            }}
+            rows={3}
+            className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          />
+          <SecondaryButton onClick={importWorkout} disabled={!pasted.trim()}>
+            Add to my split
+          </SecondaryButton>
+          {workoutStatus && (
+            <p
+              role={workoutStatus.ok ? 'status' : 'alert'}
+              className="text-xs text-[var(--color-text-secondary)]"
+            >
+              {workoutStatus.message}
+            </p>
+          )}
+        </section>
+      )}
+
+      <Link
+        to="/settings/share"
+        className="flex min-h-11 items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+      >
+        <span className="flex flex-col">
+          <span className="text-sm text-[var(--color-text-primary)]">Share as text</span>
+          <span className="text-xs text-[var(--color-text-secondary)]">A session, with or without an import code</span>
+        </span>
+        <span aria-hidden="true" className="text-[var(--color-text-secondary)]">
+          ›
+        </span>
+      </Link>
 
       <section className="flex flex-col gap-1">
         <h2 className="text-sm font-medium text-[var(--color-text-primary)]">

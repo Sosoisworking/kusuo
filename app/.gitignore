@@ -55,3 +55,8 @@ playwright/.cache/
 *.kusuo.json
 kusuo-export-*.json
 data-backups/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

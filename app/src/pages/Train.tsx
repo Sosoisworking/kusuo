@@ -10,7 +10,8 @@ import { allSessionEvents, allSessionMarks, finishSession } from '../db/sessions
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { getActiveSplit, instantiateTemplate, listSplits, setActiveSplit } from '../db/splits'
 import { todayLocalDate } from '../lib/date'
-import { formatRelativeDay, initials } from '../lib/format'
+import ProfileMenu from '../components/ProfileMenu'
+import { formatRelativeDay } from '../lib/format'
 import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
 import { weightValue } from '../lib/units'
 import { formatPrescription, dayForDate, plannedSetCount } from '../logic/nextSession'
@@ -145,15 +146,7 @@ export default function Train() {
     <Screen
       title="Train"
       eyebrow={split ? `${split.name} · ${split.days.length} day` : undefined}
-      action={
-        <Link
-          to="/settings"
-          aria-label="Settings and your data"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-        >
-          {initials(settings?.userName) || '·'}
-        </Link>
-      }
+      action={<ProfileMenu name={settings?.userName} />}
     >
       {error && (
         <p role="alert" className="text-xs text-[var(--color-text-secondary)]">
