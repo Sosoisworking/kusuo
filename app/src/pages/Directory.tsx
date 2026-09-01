@@ -205,7 +205,10 @@ export default function Directory() {
     const days = split.days.map((d) => (d.id === day.id ? { ...d, entries } : d))
     try {
       await updateSplit(split.id, { days })
-      navigate(`/splits/${split.id}/edit?day=${day.id}`, { replace: true })
+      // Back where the directory was opened from — the split editor by default,
+      // or a session that sent someone here mid-workout.
+      const returnTo = params.get('return')
+      navigate(returnTo ?? `/splits/${split.id}/edit?day=${day.id}`, { replace: true })
     } catch {
       setError("Couldn't add that — try it again.")
     }

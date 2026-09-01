@@ -22,7 +22,7 @@ import {
   voidSet,
 } from '../db/sessions'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
-import { findSplitDay } from '../db/splits'
+import { findSplitDay, updateSplit } from '../db/splits'
 import { todayLocalDate } from '../lib/date'
 import { toKg, weightValue } from '../lib/units'
 import { formatPrescription, plannedSetCount } from '../logic/nextSession'
@@ -233,8 +233,8 @@ export default function Session() {
     setError(null)
   }
 
-  async function log(row: number) {
-    if (busy) return
+  async function log(row: number, options: { advance?: boolean } = {}) {
+    if (busy && options.advance !== false) return
     const value = valueFor(row)
     const reps = parse(value.reps)
     if (reps === undefined || reps <= 0) {
@@ -264,9 +264,69 @@ export default function Session() {
         delete next[row]
         return next
       })
-      moveTo(null, true)
+      moveTo(null, options.advance !== false)
     } catch {
       setError("Couldn't save that set — try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * Moving on commits what you typed. Anything filled in but not ticked is
+   * logged first; a row with a weight and no reps (or the other way round) is
+   * an accident, so it holds you there and says which one. A row left entirely
+   * blank is a set you did not do, and that is allowed.
+   */
+  async function handleNext() {
+    if (busy) return
+    const pending: number[] = []
+    for (const row of rows) {
+      if (loggedByIndex.has(row) && !isDirty(row)) continue
+      const value = valueFor(row)
+      const reps = parse(value.reps)
+      const weight = parse(value.weight)
+      const blank = reps === undefined && weight === undefined && !value.rpe.trim()
+      if (blank) continue
+      if (reps === undefined || reps <= 0) {
+        setChosenIndex(row)
+        setError(
+          isCardio
+            ? `Set ${row + 1} has no time on it.`
+            : `Set ${row + 1} has a weight but no reps.`,
+        )
+        return
+      }
+      if (!isCardio && weight === undefined) {
+        setChosenIndex(row)
+        setError(`Set ${row + 1} has reps but no weight — bodyweight is 0.`)
+        return
+      }
+      pending.push(row)
+    }
+
+    setError(null)
+    for (const row of pending) await log(row, { advance: false })
+    openExercise(index + 1)
+  }
+
+  /**
+   * Takes this movement out of the day. Sets already logged against it stay in
+   * the event log — the exercise leaving the plan does not unmake the work —
+   * so they still count toward records and still show on the calendar.
+   */
+  async function dropMovement() {
+    if (busy || day.entries.length <= 1) return
+    setBusy(true)
+    setError(null)
+    try {
+      const entries = day.entries.filter((_, i) => i !== index)
+      const days = split.days.map((d) => (d.id === day.id ? { ...d, entries } : d))
+      await updateSplit(split.id, { days })
+      setData(await loadSession(dayId))
+      openExercise(Math.min(index, entries.length - 1))
+    } catch {
+      setError("Couldn't change the day — try that again.")
     } finally {
       setBusy(false)
     }
@@ -516,7 +576,7 @@ export default function Session() {
           only way on was scrolling to a list at the bottom of the screen. */}
       {index < day.entries.length - 1 ? (
         <button
-          onClick={() => openExercise(index + 1)}
+          onClick={handleNext}
           className="flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
         >
           Next movement
@@ -527,6 +587,22 @@ export default function Session() {
       <p className="text-xs text-[var(--color-text-secondary)]">
         No timer — rest as long as you like.
       </p>
+
+      <div className="flex gap-2">
+          <Link
+            to={`/exercises?splitId=${split.id}&dayId=${day.id}&return=${encodeURIComponent(`/train/session/${day.id}`)}`}
+            className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          >
+            Add a movement
+          </Link>
+          <button
+            onClick={dropMovement}
+            disabled={busy || day.entries.length <= 1}
+            className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 text-sm text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          >
+            Drop this movement
+          </button>
+      </div>
       <section className="flex flex-col gap-2">
         <SectionHeading>Rest of the session</SectionHeading>
         <ul className="flex flex-col">
@@ -574,7 +650,7 @@ export default function Session() {
               disabled={busy}
               className="flex min-h-12 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] px-5 text-sm text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
             >
-              Un-finish the session
+              Reopen this session
             </button>
           </>
         ) : (

@@ -501,3 +501,94 @@ describe('moving through a session', () => {
     expect(screen.queryByText(/\d+ min$/)).toBeNull()
   })
 })
+
+describe('moving on carries what you typed', () => {
+  it('logs a set that was filled in but never ticked', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    await typeSet('80', '6')
+    // No tick — straight on to the next movement.
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
+    const sets = liveSets(await allSessionEvents())
+    expect(sets[0]).toMatchObject({ setIndex: 0, weightKg: 80, reps: 6 })
+  })
+
+  it('holds you there when a set has a weight but no reps', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    const weight = await screen.findByRole('textbox', { name: /Weight for set 1/ })
+    await userEvent.clear(weight)
+    await userEvent.type(weight, '80')
+    const reps = screen.getByRole('textbox', { name: /Reps for set 1/ })
+    await userEvent.clear(reps)
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+
+    expect(await screen.findByText('Set 1 has a weight but no reps.')).toBeInTheDocument()
+    expect(await db.sessionEvents.count()).toBe(0)
+    // Still on the same movement.
+    expect(screen.getByRole('heading', { name: 'Barbell bench press', level: 1 })).toBeInTheDocument()
+  })
+
+  it('lets a movement you skipped entirely pass', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    for (const row of [1, 2, 3]) {
+      const w = screen.queryByRole('textbox', { name: new RegExp(`Weight for set ${row}`) })
+      const r = screen.queryByRole('textbox', { name: new RegExp(`Reps for set ${row}`) })
+      if (w) await userEvent.clear(w)
+      if (r) await userEvent.clear(r)
+    }
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+
+    expect(await screen.findByRole('heading', { level: 1 })).not.toHaveTextContent(
+      'Barbell bench press',
+    )
+    expect(await db.sessionEvents.count()).toBe(0)
+  })
+})
+
+describe('editing the day from inside the session', () => {
+  it('drops a movement and keeps the sets already logged against it', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    await typeSet('80', '6')
+    await userEvent.click(screen.getByRole('button', { name: 'Log set 1' }))
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
+
+    const before = (await db.splits.get(split.id))?.days[0].entries.length ?? 0
+    await userEvent.click(screen.getByRole('button', { name: 'Drop this movement' }))
+
+    await waitFor(async () =>
+      expect((await db.splits.get(split.id))?.days[0].entries.length).toBe(before - 1),
+    )
+    // The work still happened, so the event stays.
+    expect(await db.sessionEvents.count()).toBe(1)
+  })
+
+  it('offers a way to add one', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    const add = await screen.findByRole('link', { name: 'Add a movement' })
+    expect(add.getAttribute('href')).toContain(`splitId=${split.id}`)
+    expect(add.getAttribute('href')).toContain('return=')
+  })
+
+  it('calls reopening a session what it is', async () => {
+    const split = await withPpl()
+    await finishSession(todayLocalDate(), split.days[0].id, DEVICE_ID)
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    expect(await screen.findByRole('button', { name: 'Reopen this session' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Un-finish/ })).toBeNull()
+  })
+})
