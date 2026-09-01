@@ -155,6 +155,9 @@ export default function Settings() {
         <label className="flex flex-col gap-2">
           <span className="text-sm font-medium text-[var(--color-text-primary)]">Your name</span>
           <input
+            autoCapitalize="words"
+            autoCorrect="off"
+            spellCheck={false}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={saveName}

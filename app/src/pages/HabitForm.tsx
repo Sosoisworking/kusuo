@@ -154,6 +154,9 @@ export default function HabitForm() {
           <input
             id="habit-name"
             autoFocus
+            autoCapitalize="sentences"
+            autoCorrect="off"
+            spellCheck={false}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Habit name"

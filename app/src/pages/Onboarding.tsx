@@ -174,7 +174,7 @@ export default function Onboarding() {
 
   if (step === 'welcome') {
     return (
-      <main className="flex min-h-dvh flex-col justify-center gap-5 px-6 pt-[max(3rem,env(safe-area-inset-top))]">
+      <main className="flex min-h-dvh flex-col gap-5 px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(4rem,env(safe-area-inset-top))]">
         <div className="flex flex-col gap-1">
           <span className="text-xs uppercase tracking-[0.16em] text-[var(--color-accent)]">Kusuo</span>
           <h1 className="text-[28px] font-medium tracking-[-0.02em] text-[var(--color-text-primary)]">
@@ -200,7 +200,10 @@ export default function Onboarding() {
             </li>
           ))}
         </ul>
-        <PrimaryButton onClick={() => setStep('role')}>Set it up</PrimaryButton>
+        {/* Anchored low: the reading is at the top, the action is under the thumb. */}
+        <PrimaryButton className="mt-auto" onClick={() => setStep('role')}>
+          Set it up
+        </PrimaryButton>
       </main>
     )
   }
@@ -261,7 +264,11 @@ export default function Onboarding() {
               What should I call you
             </span>
             <input
-              autoFocus
+              // No autoFocus: opening the keyboard on arrival hides Continue
+              // and Skip behind it before you have read the question.
+              autoCapitalize="words"
+              autoCorrect="off"
+              spellCheck={false}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
