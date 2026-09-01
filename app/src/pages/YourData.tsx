@@ -12,7 +12,8 @@ import {
   serializeBackup,
   type BackupPayload,
 } from '../db/backup'
-import { db, type Settings as SettingsType } from '../db/schema'
+import type { Settings as SettingsType } from '../db/schema'
+import { clearEverything } from '../db/tables'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { todayLocalDate } from '../lib/date'
 import { decodeWorkout, findWorkoutCode, InvalidWorkoutCodeError } from '../lib/share'
@@ -166,35 +167,7 @@ export default function YourData() {
     setResetting(true)
     setError(null)
     try {
-      await db.transaction(
-        'rw',
-        [
-          db.habits,
-          db.habitEvents,
-          db.goals,
-          db.reflections,
-          db.exercises,
-          db.splits,
-          db.sessionEvents,
-          db.sessionMarks,
-          db.bodyweight,
-          db.settings,
-        ],
-        async () => {
-          await Promise.all([
-            db.habits.clear(),
-            db.habitEvents.clear(),
-            db.goals.clear(),
-            db.reflections.clear(),
-            db.exercises.clear(),
-            db.splits.clear(),
-            db.sessionEvents.clear(),
-            db.sessionMarks.clear(),
-            db.bodyweight.clear(),
-            db.settings.clear(),
-          ])
-        },
-      )
+      await clearEverything()
       window.location.replace(`${import.meta.env.BASE_URL}onboarding`)
     } catch {
       setResetting(false)

@@ -19,6 +19,7 @@ import {
   type SplitEntry,
 } from './schema'
 import { updateSettings } from './settings'
+import { recordTables } from './tables'
 
 export interface BackupPayload {
   schemaVersion: number
@@ -46,32 +47,16 @@ export interface BackupPayload {
 const CURRENT_SCHEMA_VERSION = 4
 
 export async function buildBackup(): Promise<BackupPayload> {
-  const [habits, habitEvents, goals, reflections, exercises, splits, sessionEvents, sessionMarks, bodyweight] =
-    await Promise.all([
-      db.habits.toArray(),
-      db.habitEvents.toArray(),
-      db.goals.toArray(),
-      db.reflections.toArray(),
-      db.exercises.toArray(),
-      db.splits.toArray(),
-      db.sessionEvents.toArray(),
-      db.sessionMarks.toArray(),
-      db.bodyweight.toArray(),
-    ])
+  const tables = recordTables()
+  const rows = await Promise.all(tables.map((table) => table.toArray()))
+  const record = Object.fromEntries(tables.map((table, i) => [table.name, rows[i]]))
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     exportedAt: Date.now(),
-    habits,
-    habitEvents,
-    goals,
-    reflections,
-    exercises,
-    splits,
-    sessionEvents,
-    sessionMarks,
-    bodyweight,
-  }
+    ...record,
+  } as BackupPayload
 }
+
 
 export function serializeBackup(payload: BackupPayload): string {
   return JSON.stringify(payload, null, 2)
@@ -376,41 +361,19 @@ export async function isReverseImport(payload: BackupPayload): Promise<boolean> 
  * old file never carried them.
  */
 export async function importBackup(payload: BackupPayload): Promise<void> {
-  await db.transaction(
-    'rw',
-    [
-      db.habits,
-      db.habitEvents,
-      db.goals,
-      db.reflections,
-      db.exercises,
-      db.splits,
-      db.sessionEvents,
-      db.sessionMarks,
-      db.bodyweight,
-    ],
-    async () => {
-      await db.habits.clear()
-      await db.habitEvents.clear()
-      await db.goals.clear()
-      await db.reflections.clear()
-      await db.exercises.clear()
-      await db.splits.clear()
-      await db.sessionEvents.clear()
-      await db.sessionMarks.clear()
-      await db.bodyweight.clear()
-      if (payload.habits.length > 0) await db.habits.bulkAdd(payload.habits)
-      if (payload.habitEvents.length > 0) await db.habitEvents.bulkAdd(payload.habitEvents)
-      if (payload.goals.length > 0) await db.goals.bulkAdd(payload.goals)
-      if (payload.reflections.length > 0) await db.reflections.bulkAdd(payload.reflections)
-      if (payload.exercises.length > 0) await db.exercises.bulkAdd(payload.exercises)
-      if (payload.splits.length > 0) await db.splits.bulkAdd(payload.splits)
-      if (payload.sessionEvents.length > 0) await db.sessionEvents.bulkAdd(payload.sessionEvents)
-      if (payload.sessionMarks.length > 0) await db.sessionMarks.bulkAdd(payload.sessionMarks)
-      if (payload.bodyweight.length > 0) await db.bodyweight.bulkAdd(payload.bodyweight)
-    },
-  )
+  const tables = recordTables()
+  await db.transaction('rw', tables, async () => {
+    for (const table of tables) {
+      await table.clear()
+      // Payload keys are the table names, so a table added to the schema is
+      // carried here without this function being touched. A table the file
+      // does not mention imports as empty, which is what an older export means.
+      const rows = (payload as unknown as Record<string, unknown[]>)[table.name] ?? []
+      if (rows.length > 0) await table.bulkAdd(rows)
+    }
+  })
 }
+
 
 export async function recordBackupExported(deviceId: string): Promise<void> {
   await updateSettings(deviceId, { lastBackupAt: Date.now() })

@@ -9,23 +9,18 @@ import {
   serializeBackup,
   type BackupPayload,
 } from './backup'
+import { resetDatabase } from '../test/setup'
 import { appendHabitEvent } from './events'
 import { seedExercises } from './exercises'
 import { createHabit } from './habits'
 import { finishSession, logSet } from './sessions'
 import { instantiateTemplate } from './splits'
+import { recordTableNames } from './tables'
 import { db, type Habit, type HabitEvent } from './schema'
 import { createSettings, getSettings } from './settings'
 
 beforeEach(async () => {
-  await db.habits.clear()
-  await db.habitEvents.clear()
-  await db.settings.clear()
-  await db.exercises.clear()
-  await db.splits.clear()
-  await db.sessionEvents.clear()
-  await db.sessionMarks.clear()
-  await db.bodyweight.clear()
+  await resetDatabase()
 })
 
 function makeHabit(overrides: Partial<Habit> = {}): Habit {
@@ -399,5 +394,51 @@ describe('importing a schema 2 export', () => {
       ],
     }
     expect(() => parseBackup(JSON.stringify(broken))).toThrow(InvalidBackupError)
+  })
+})
+
+describe('the backup keeps up with the schema', () => {
+  it('carries every table that holds a record', async () => {
+    const payload = await buildBackup()
+    for (const name of recordTableNames()) {
+      // A table added to the schema and forgotten here would ship an export
+      // that silently drops it — the failure mode that loses history.
+      expect({ table: name, carried: name in payload }).toEqual({ table: name, carried: true })
+    }
+  })
+
+  it('does not carry the device settings, which belong to the phone', async () => {
+    const payload = await buildBackup()
+    expect('settings' in payload).toBe(false)
+  })
+
+  it('round-trips every table, not only the ones anyone remembered', async () => {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
+    await logSet(
+      { localDate: '2026-01-05', splitDayId: split.days[0].id, exerciseId: 'ex-barbell-bench-press', setIndex: 0 },
+      { weightKg: 80, reps: 5 },
+      'dev1',
+    )
+    await finishSession('2026-01-05', split.days[0].id, 'dev1')
+    await db.bodyweight.add({
+      id: 'w1',
+      localDate: '2026-01-05',
+      weightKg: 80,
+      timestamp: 1,
+      deviceId: 'dev1',
+    })
+
+    const before = new Map<string, number>()
+    for (const name of recordTableNames()) before.set(name, await db.table(name).count())
+
+    const restored = parseBackup(serializeBackup(await buildBackup()))
+    await resetDatabase()
+    await importBackup(restored)
+
+    for (const [name, count] of before) {
+      expect({ table: name, rows: await db.table(name).count() }).toEqual({ table: name, rows: count })
+    }
   })
 })

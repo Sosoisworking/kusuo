@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../App'
 import { seedExercises } from '../db/exercises'
 import { createHabit } from '../db/habits'
+import { resetDatabase } from '../test/setup'
 import { db } from '../db/schema'
+import { allTables, clearEverything, clearRecord } from '../db/tables'
 import { createSettings } from '../db/settings'
 import { logSet } from '../db/sessions'
 import { instantiateTemplate } from '../db/splits'
@@ -16,18 +18,7 @@ const DEVICE_ID = 'test-device'
 beforeEach(async () => {
   localStorage.clear()
   localStorage.setItem('kusuo-device-id', DEVICE_ID)
-  await Promise.all([
-    db.habits.clear(),
-    db.habitEvents.clear(),
-    db.settings.clear(),
-    db.goals.clear(),
-    db.reflections.clear(),
-    db.exercises.clear(),
-    db.splits.clear(),
-    db.sessionEvents.clear(),
-    db.sessionMarks.clear(),
-    db.bodyweight.clear(),
-  ])
+  await resetDatabase()
 })
 
 async function onboard(role: 'writer' | 'reader' = 'writer') {
@@ -346,8 +337,11 @@ describe('bodyweight', () => {
 })
 
 describe('reset covers everything', () => {
-  it('names every table, so a new one cannot be quietly left behind', async () => {
+  it('empties every table Dexie knows about, whatever gets added later', async () => {
     await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-ppl-3')
+    await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
     await db.bodyweight.add({
       id: 'w1',
       localDate: '2026-01-05',
@@ -355,28 +349,33 @@ describe('reset covers everything', () => {
       timestamp: 1,
       deviceId: DEVICE_ID,
     })
-    expect(await db.bodyweight.count()).toBe(1)
 
-    // The reset screen reloads the page, which jsdom cannot follow, so this
-    // exercises the same transaction directly rather than through the button.
-    await db.transaction(
-      'rw',
-      [
-        db.habits,
-        db.habitEvents,
-        db.goals,
-        db.reflections,
-        db.exercises,
-        db.splits,
-        db.sessionEvents,
-        db.sessionMarks,
-        db.bodyweight,
-        db.settings,
-      ],
-      async () => {
-        await db.bodyweight.clear()
-      },
-    )
-    expect(await db.bodyweight.count()).toBe(0)
+    const populated = []
+    for (const table of allTables()) {
+      if ((await table.count()) > 0) populated.push(table.name)
+    }
+    expect(populated.length).toBeGreaterThan(3)
+
+    await clearEverything()
+
+    // Enumerated from the schema, so a table added tomorrow is covered by this
+    // assertion without anyone remembering to extend it.
+    for (const table of allTables()) {
+      expect({ table: table.name, rows: await table.count() }).toEqual({
+        table: table.name,
+        rows: 0,
+      })
+    }
+  })
+
+  it('leaves this device its settings when only the record is cleared', async () => {
+    await onboard()
+    await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
+
+    await clearRecord()
+
+    expect(await db.habits.count()).toBe(0)
+    // The device role, units and id belong to the phone, not the history.
+    expect((await db.settings.get(DEVICE_ID))?.deviceRole).toBe('writer')
   })
 })

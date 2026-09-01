@@ -68,3 +68,13 @@ for (const name of ['localStorage', 'sessionStorage'] as const) {
     })
   }
 }
+
+/**
+ * Empties every table between tests. Each test file used to keep its own list,
+ * so a table added to the schema leaked between cases until nine files were
+ * remembered. This asks Dexie instead.
+ */
+export async function resetDatabase(): Promise<void> {
+  const { clearEverything } = await import('../db/tables')
+  await clearEverything()
+}

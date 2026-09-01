@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { allReflections, appendReflection } from './reflections'
+import { resetDatabase } from '../test/setup'
 import { db } from './schema'
 
 beforeEach(async () => {
-  await db.reflections.clear()
+  await resetDatabase()
 })
 
 describe('appendReflection', () => {

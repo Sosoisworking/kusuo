@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { appendHabitEvent, eventsForHabit } from './events'
 import { archiveHabit, createHabit, listActiveHabits, listAllHabits, listCategories, updateHabit } from './habits'
+import { resetDatabase } from '../test/setup'
 import { db } from './schema'
 import { completedDatesForHabit } from '../logic/derive'
 import { dailyStreak } from '../logic/streaks'
 
 beforeEach(async () => {
-  await db.habits.clear()
-  await db.habitEvents.clear()
-  await db.settings.clear()
+  await resetDatabase()
 })
 
 describe('habit CRUD', () => {

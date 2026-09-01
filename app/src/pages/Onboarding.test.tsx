@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../App'
+import { resetDatabase } from '../test/setup'
 import { db } from '../db/schema'
 
 const DEVICE_ID = 'test-device'
@@ -10,18 +11,7 @@ const DEVICE_ID = 'test-device'
 beforeEach(async () => {
   localStorage.clear()
   localStorage.setItem('kusuo-device-id', DEVICE_ID)
-  await Promise.all([
-    db.habits.clear(),
-    db.habitEvents.clear(),
-    db.settings.clear(),
-    db.goals.clear(),
-    db.reflections.clear(),
-    db.exercises.clear(),
-    db.splits.clear(),
-    db.sessionEvents.clear(),
-    db.sessionMarks.clear(),
-    db.bodyweight.clear(),
-  ])
+  await resetDatabase()
 })
 
 function renderApp() {

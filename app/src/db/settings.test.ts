@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { completeOnboarding, createSettings, getSettings, updateSettings } from './settings'
-import { db } from './schema'
+import { resetDatabase } from '../test/setup'
 
 beforeEach(async () => {
-  await db.settings.clear()
+  await resetDatabase()
 })
 
 describe('settings CRUD', () => {

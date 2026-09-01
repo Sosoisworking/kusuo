@@ -6,6 +6,7 @@ import App from './App'
 import { seedExercises } from './db/exercises'
 import { eventsForHabit } from './db/events'
 import { createHabit } from './db/habits'
+import { resetDatabase } from './test/setup'
 import { db, type Split } from './db/schema'
 import { allSessionEvents, finishSession, logSet } from './db/sessions'
 import { createSettings, updateSettings } from './db/settings'
@@ -20,18 +21,7 @@ const BENCH = 'ex-barbell-bench-press'
 beforeEach(async () => {
   localStorage.clear()
   localStorage.setItem('kusuo-device-id', DEVICE_ID)
-  await Promise.all([
-    db.habits.clear(),
-    db.habitEvents.clear(),
-    db.settings.clear(),
-    db.goals.clear(),
-    db.reflections.clear(),
-    db.exercises.clear(),
-    db.splits.clear(),
-    db.sessionEvents.clear(),
-    db.sessionMarks.clear(),
-    db.bodyweight.clear(),
-  ])
+  await resetDatabase()
 })
 
 async function onboard(role: 'writer' | 'reader' = 'writer') {

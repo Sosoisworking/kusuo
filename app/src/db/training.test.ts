@@ -12,6 +12,7 @@ import {
   seedExercises,
 } from './exercises'
 import { createHabit } from './habits'
+import { resetDatabase } from '../test/setup'
 import { db } from './schema'
 import { exerciseRecords } from '../logic/records'
 import {
@@ -37,13 +38,7 @@ import {
 } from './splits'
 
 beforeEach(async () => {
-  await db.habits.clear()
-  await db.habitEvents.clear()
-  await db.exercises.clear()
-  await db.splits.clear()
-  await db.sessionEvents.clear()
-  await db.sessionMarks.clear()
-  await db.bodyweight.clear()
+  await resetDatabase()
 })
 
 describe('seedExercises', () => {

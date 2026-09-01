@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../App'
 import { seedExercises } from '../db/exercises'
+import { resetDatabase } from '../test/setup'
 import { db, type Split } from '../db/schema'
 import { logSet } from '../db/sessions'
 import { createSettings } from '../db/settings'
@@ -14,16 +15,7 @@ const DEVICE_ID = 'test-device'
 beforeEach(async () => {
   localStorage.clear()
   localStorage.setItem('kusuo-device-id', DEVICE_ID)
-  await Promise.all([
-    db.habits.clear(),
-    db.habitEvents.clear(),
-    db.settings.clear(),
-    db.exercises.clear(),
-    db.splits.clear(),
-    db.sessionEvents.clear(),
-    db.sessionMarks.clear(),
-    db.bodyweight.clear(),
-  ])
+  await resetDatabase()
 })
 
 async function onboard(role: 'writer' | 'reader' = 'writer') {

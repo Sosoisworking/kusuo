@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { archiveGoal, createGoal, getGoal, listActiveGoals, listAllGoals, updateGoal } from './goals'
+import { resetDatabase } from '../test/setup'
 import { db } from './schema'
 
 beforeEach(async () => {
-  await db.goals.clear()
+  await resetDatabase()
 })
 
 describe('goal CRUD', () => {
