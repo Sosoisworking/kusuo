@@ -16,7 +16,9 @@ Single named user, Soso. No multi-user, no accounts. Two physical contexts: iPho
 
 ## Product Purpose
 
-A personal-growth habit tracker that helps Soso build a small set of real daily habits (first-run templates: Reading, Japanese, Fitness) and see honest progress without being punished, gamified, or nagged into it. Success is Soso opening the app, seeing today's habits within 5 seconds, tapping through them, and coming back tomorrow — not streak-maximizing or feature completeness.
+A personal-growth app holding two halves of the same practice: a small set of daily habits, and a proper training log for the days Soso lifts. Success is opening it, seeing today's habits and today's session within 5 seconds, and coming back tomorrow — not streak-maximizing or feature completeness.
+
+Six tabs: Today, Train, Splits, Calendar, Records, Settings. Reflect and Goals are reached from cards on Today and from the profile menu; they lost their tabs deliberately when the training module arrived.
 
 ## Positioning
 
@@ -32,18 +34,21 @@ Not a general habit-tracking product. It is calm, local-first, and personally ow
 
 ## Capabilities and Constraints
 
-- v1 scope: habits only (add/edit/archive, daily check-off, streak/progress viewing, history). Goals and Reflection are explicit stretch slices (10–11), attempted only if the habits-only core (slices 0–9) ships solid with time remaining — not a committed v1 feature.
+- Shipped: habits (add/edit/archive, daily check-off, streaks, history), a full training module (exercises, splits, set-by-set session logging, derived records, kettlebell circuits), goals with completion, structured reflections, a calendar, a records screen, and JSON export/import.
+- **A split is a weekly schedule, not a cycle.** Its first day falls on the first day of the week and today's date decides today's session; a missed session is missed, not carried forward. Rest days are days in the schedule.
+- Rep targets are ranges (`3 × 6-8`). Weight is always stored in kilograms and converted for display. Cardio and circuits are logged by time, not load.
 - No backend, no authentication, no AI features, no telemetry/analytics, no gamification (no XP, levels, achievements, badges).
-- No reminders or notifications in v1 (confirmed explicitly).
+- No reminders or notifications. Confirmed four times, most recently 1 September 2026 after being told the technical position: an iOS PWA has no scheduled local notifications, and a real 11pm push would need a server, which the product refuses.
 - Data model is an append-only event log: habit completions (and any future reflections) are immutable events with UUIDs, never mutable boolean flags and never auto-increment integer IDs — this is what keeps a future multi-writer merge (set union by id) trivial and is treated as a hard architectural rule, not a style preference.
 - JSON export/import is in v1 scope (not deferred); it is both the backup mechanism and the only cross-device transfer mechanism for now.
-- Terminology: "habit" (a tracked recurring behavior), "completion" (an event marking a habit done on a date), "streak" (derived from completions by replay, never stored as state).
+- Terminology: "habit" (a tracked recurring behavior), "completion" (an event marking a habit done on a date), "streak" (derived from completions by replay, never stored as state), "split" (a weekly training programme), "split day" (one day of it), "circuit" (a named round of movements logged by time), "record" (a fact derived by replaying the session log, never stored).
+- Sharing is one-way and inert: a session can be exported as plain text with an optional `KUS2` code. An imported workout arrives as a **new** split day and overwrites nothing.
 
 ## Brand Commitments
 
 - Name: **Kusuo**, displayed with a letter-mark icon (no illustrated mascot/logo direction).
-- Voice: warm and encouraging, never punitive. A bad week must read as actively reassuring, not guilt-inducing.
-- Visual feel: calm, quiet, steady — explicitly not hectic, gamified, or shouty. Dark-first (system-following light mode also supported), one accent colour (not a multi-colour palette), system font, airy density.
+- Voice: **factual and unsentimental**. It states what is true and stops. No exclamation marks anywhere in the interface. A bad week reads plainly — never punitive, and never falsely encouraging. (This replaces an earlier "warm and encouraging" direction.)
+- Visual: the **Nocturne** design system. Deep indigo ground `#161826`, blurple accent `#9184d9`, neutral and accent ramps. One accent carries meaning — the present moment, the interactive thing, and the completed thing. **No green and no red**: completion is the accent arriving, and absence is a neutral hairline, because a missed day is not an error. Light theme is derived from the same OKLCH ramps. Lists are separated by hairline rules; a card is reserved for something you act on.
 - Anti-reference: Duolingo-style gamification and streak-shaming mechanics are explicitly rejected as a direction.
 
 ## Evidence on Hand
@@ -54,9 +59,10 @@ None. This is a personal app with no testimonials, case studies, press, or third
 
 1. Calm over stimulating — no urgency-manufacturing patterns (streak-loss shaming, red badges, punitive copy).
 2. Local-first and single-writer — the iPhone owns truth; the Mac only ever observes it.
-3. Small and honest — ship the habits-only core well before considering goals/reflection; do not pad v1 with product experiments from the legacy Android spec (daily/growth score, XP, achievements) without asking first.
+3. Small and honest — no daily/growth score, no XP, no achievements, no composite anything. Records are facts stated plainly.
 4. Data safety over convenience — event-sourced, UUID-keyed, exportable; never a shape that makes future multi-device merge or migration destructive.
 5. Five-second open — today's habits must be visible and tappable almost immediately; nothing gates the core loop behind navigation.
+6. Nothing runs a clock — no rest timer, no countdown, no elapsed-session number. A running number on a training screen is a rest timer wearing a hat.
 
 ## Accessibility & Inclusion
 

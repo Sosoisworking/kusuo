@@ -87,7 +87,7 @@ Per-lift records and habit bests behind the same Habits / Training toggle, with 
 inline as well as in Settings. Every figure comes from `logic/records.ts`, derived by replay. Facts
 stated plainly: no trophies, no targets, no celebration.
 
-## Slice G — Settings and "Your data" — core done, share outstanding
+## Slice G — Settings and "Your data" ✅ done
 
 **Canvas:** `Settings (six-tab)`, `Settings — your data`, `Share`, `Import`, `Export confirm`,
 `Reset confirm`, `Profile menu`, `Account`.
@@ -155,50 +155,29 @@ rather than being scheduled as separate work that never happens.
 
 ---
 
-## Where this stands — 31 August 2026
+## Where this stands — 1 September 2026
 
-Verified against the code, not recalled. 315 tests, deployed and live.
+Every slice A through I is done. 380 unit tests across 28 files, plus two
+Playwright paths on WebKit at iPhone size. CI runs typecheck, lint, unit tests
+and e2e before anything deploys.
 
-**Done:** A (training data model), B (six-tab shell and Today), C (Train, session
-flow, exercise detail), D (Splits, editor, directory), I (Nocturne).
+### Carried debt, closed
 
-**Slice E — Calendar · part built.** Month grid, habit dots, a training dot,
-day selection, the day's reflection and the goals bar all ship. Still to do:
-category-coloured dots, the Habits / Training toggle, and the day detail's
-set-by-set breakdown with volume and set counts. Today it says "1 of 3 habits ·
-trained" but not what was trained.
+- `PRODUCT.md` was stale enough to mislead Impeccable. Rewritten from `SPEC.md`.
+- There was no Playwright test. There are two, covering the only thing the
+  component suite cannot: data surviving a real reload in a real browser engine.
+- CI ran `npm run build` alone, so a green deploy meant the code compiled and
+  nothing more. It gates on the full suite now.
 
-**Slice F — Records · part built.** Habit bests, reached goals and reflections
-ship. Still to do: per-lift records — heaviest set, Epley 1RM, best volume, rep
-PRs. `logic/records.ts` already computes all of it and is tested; only Exercise
-detail renders it. Also the Habits / Training toggle and the inline kg/lb
-toggle.
+### Carried debt, open
 
-**Slice G — Settings · the widest gap.** Theme, the update check with its build
-stamp, backup import and Start over all ship. Still to do: **units and week
-start have no UI at all** — both are in the schema and honoured by the logic, so
-the app is stuck on kg and Monday with no way to change either. That is the
-first thing to fix here. Then: the "Your data" sub-screen, Share with the
-`KUS2` code, export confirm, profile menu, account.
-
-**Slice H — Onboarding · part built.** Three steps: device role, name, first
-habits. Still to do: the canvas's four steps, and the real gap — **onboarding
-never picks a split**, so a fresh install lands on Today with no training set up
-and has to find Splits alone.
-
-### Carried debt
-
-- `app/PRODUCT.md` is stale. Impeccable reads it as the product contract and it
-  still describes a warm-and-encouraging voice, one accent, habits-only scope
-  and Reflection as a maybe. Every Impeccable run starts from a wrong picture
-  until it is regenerated.
-- No Playwright test. `SPEC.md`'s definition of done asks for one covering
-  add habit → complete → reload → still complete. No config, no e2e directory.
-- Nothing has been run on a real iPhone by anyone but Soso. Safe-area, `100dvh`
-  and the on-screen keyboard are confirmed only by his own use.
-
-### Waiting on Soso
-
-- The kettlebell cycle. It becomes an eighth template once the exercises and
-  days arrive; the same three questions apply as for the Batman split — rep
-  ranges, rest days, and which entries are cardio.
+- **Nothing has run on a physical iPhone.** The closest automated coverage is
+  Playwright's WebKit at iPhone 13 size, which is the same engine but not the
+  same device. The iOS Simulator would be closer still and needs Xcode
+  installed on this Mac; it is not.
+- The reference canvas has screens this build does not: the split editor has no
+  way to add, rename or remove a **day**, so a split cannot be built from
+  scratch. Slice D left it out deliberately rather than ship a from-scratch
+  split into an editor that could not finish it.
+- Bodyweight, height and experience are asked for by the canvas's onboarding and
+  are not collected, because nothing reads them.
