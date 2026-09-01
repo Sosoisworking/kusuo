@@ -12,12 +12,13 @@ import { monthLabel, todayLocalDate } from '../lib/date'
 
 import Segmented from '../components/Segmented'
 import { listExercises } from '../db/exercises'
+import { allBodyweight, appendBodyweight } from '../db/bodyweight'
 import { allSessionEvents } from '../db/sessions'
 import { updateSettings } from '../db/settings'
-import type { Exercise, SessionEvent, Units } from '../db/schema'
-import { formatWeight, weightValue } from '../lib/units'
+import type { BodyweightEntry, Exercise, SessionEvent, Units } from '../db/schema'
+import { formatWeight, toKg, weightValue } from '../lib/units'
 import { completedDatesForHabit } from '../logic/derive'
-import { bestMonth, bestStreak, liftRecords } from '../logic/records'
+import { bestMonth, bestStreak, bodyweightByDate, bodyweightChange, liftRecords } from '../logic/records'
 
 /** A completion instant, as the calendar day it happened on. */
 function todayLocalDateOf(timestamp: number | undefined): string {
@@ -40,6 +41,8 @@ export default function Records() {
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([])
   const [tab, setTab] = useState<'habits' | 'training'>('habits')
+  const [weighIns, setWeighIns] = useState<BodyweightEntry[]>([])
+  const [weightInput, setWeightInput] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -51,8 +54,9 @@ export default function Records() {
       allReflections(),
       listExercises(),
       allSessionEvents(),
+      allBodyweight(),
     ]).then(
-      ([s, habits, events, goals, entries, list, sessions]: [
+      ([s, habits, events, goals, entries, list, sessions, weights]: [
         Settings | undefined,
         Habit[],
         HabitEvent[],
@@ -60,6 +64,7 @@ export default function Records() {
         ReflectionEntry[],
         Exercise[],
         SessionEvent[],
+        BodyweightEntry[],
       ]) => {
         if (cancelled) return
         setSettings(s)
@@ -67,6 +72,7 @@ export default function Records() {
         setReflections(entries)
         setExercises(list)
         setSessionEvents(sessions)
+        setWeighIns(weights)
         setRows(
           habits.map((habit) => {
             const completed = completedDatesForHabit(events, habit.id)
@@ -97,6 +103,17 @@ export default function Records() {
   const byId = new Map(exercises.map((e) => [e.id, e]))
   const lifts = liftRecords(sessionEvents)
 
+  const points = bodyweightByDate(weighIns)
+  const change = bodyweightChange(points)
+
+  async function logWeighIn() {
+    const typed = Number(weightInput)
+    if (!Number.isFinite(typed) || typed <= 0 || !settings) return
+    await appendBodyweight(todayLocalDate(), toKg(typed, units), settings.deviceId)
+    setWeighIns(await allBodyweight())
+    setWeightInput('')
+  }
+
   async function switchUnits(next: Units) {
     if (!settings || next === settings.units) return
     setSettings({ ...settings, units: next })
@@ -117,6 +134,61 @@ export default function Records() {
 
       {tab === 'training' ? (
         <>
+          {/* Bodyweight sits with the lifts because that is what it is read
+              against — a number you watch beside them, not a score. */}
+          <section className="flex flex-col gap-2">
+            <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Bodyweight</h2>
+            {weighIns.length > 0 && (
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                {formatWeight(points[0].weightKg, units)} on {formatLongDate(points[0].localDate)}
+                {change !== undefined &&
+                  ` · ${change >= 0 ? '+' : ''}${formatWeight(Math.abs(change), units)} since ${formatLongDate(points[points.length - 1].localDate)}`}
+              </p>
+            )}
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                logWeighIn()
+              }}
+            >
+              <input
+                inputMode="decimal"
+                aria-label={`Today's bodyweight in ${units}`}
+                placeholder={units}
+                value={weightInput}
+                onChange={(e) => setWeightInput(e.target.value)}
+                className="min-h-11 flex-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              />
+              <button
+                type="submit"
+                disabled={!Number.isFinite(Number(weightInput)) || weightInput.trim() === ''}
+                className="min-h-11 rounded-[var(--radius-md)] px-5 text-sm text-[var(--color-accent)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                style={{ boxShadow: 'inset 0 0 0 1px var(--color-accent)' }}
+              >
+                Log
+              </button>
+            </form>
+            {points.length > 1 && (
+              <ul className="flex flex-col">
+                {points.slice(0, 8).map((point) => (
+                  <li
+                    key={point.localDate}
+                    className="flex items-baseline justify-between gap-3 py-2"
+                    style={{ borderBottom: '1px solid var(--color-divider)' }}
+                  >
+                    <span className="text-xs text-[var(--color-text-secondary)]">
+                      {formatLongDate(point.localDate)}
+                    </span>
+                    <span className="text-sm text-[var(--color-text-primary)]">
+                      {formatWeight(point.weightKg, units)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           {/* The unit switch lives here as well as in Settings: this is the one
               screen where every number is a weight, so it is where you notice. */}
           <Segmented<Units>

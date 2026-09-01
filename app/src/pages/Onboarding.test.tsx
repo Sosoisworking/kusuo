@@ -20,6 +20,7 @@ beforeEach(async () => {
     db.splits.clear(),
     db.sessionEvents.clear(),
     db.sessionMarks.clear(),
+    db.bodyweight.clear(),
   ])
 })
 
@@ -51,7 +52,8 @@ describe('onboarding', () => {
   it('takes a name and weight units together', async () => {
     await toYouStep()
 
-    await userEvent.type(screen.getByRole('textbox'), 'Soso')
+    // Two text fields now: the name and the first weigh-in.
+    await userEvent.type(screen.getByRole('textbox', { name: /call you/i }), 'Soso')
     await userEvent.click(screen.getByRole('button', { name: 'Pounds' }))
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
 

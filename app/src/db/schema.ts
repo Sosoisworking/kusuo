@@ -172,6 +172,20 @@ export interface SessionMark {
   deviceId: string
 }
 
+/**
+ * Bodyweight on a date. Append-only like every other record here: correcting a
+ * day writes a new entry rather than editing the old one, and the last entry
+ * for a date wins.
+ */
+export interface BodyweightEntry {
+  id: string
+  localDate: string
+  /** Always kilograms. Display converts. */
+  weightKg: number
+  timestamp: number
+  deviceId: string
+}
+
 export type DeviceRole = 'writer' | 'reader'
 export type Theme = 'dark' | 'light' | 'system'
 export type Units = 'kg' | 'lb'
@@ -207,6 +221,7 @@ export class KusuoDB extends Dexie {
   splits!: EntityTable<Split, 'id'>
   sessionEvents!: EntityTable<SessionEvent, 'id'>
   sessionMarks!: EntityTable<SessionMark, 'id'>
+  bodyweight!: EntityTable<BodyweightEntry, 'id'>
 
   constructor(name = 'kusuo') {
     super(name)
@@ -274,6 +289,7 @@ export class KusuoDB extends Dexie {
           s.defaultSets ??= 3
         }),
     )
+    this.version(9).stores({ bodyweight: 'id, localDate, timestamp' })
   }
 }
 

@@ -26,6 +26,7 @@ beforeEach(async () => {
     db.splits.clear(),
     db.sessionEvents.clear(),
     db.sessionMarks.clear(),
+    db.bodyweight.clear(),
   ])
 })
 
@@ -312,5 +313,70 @@ describe('sharing a workout', () => {
 
     await screen.findByRole('heading', { name: 'Your data', level: 1 })
     expect(screen.queryByRole('textbox', { name: 'Paste a shared workout' })).toBeNull()
+  })
+})
+
+describe('bodyweight', () => {
+  it('logs a weigh-in and reads it back', async () => {
+    await onboard()
+    renderAt('/records')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Training' }))
+    await userEvent.type(await screen.findByRole('textbox', { name: /bodyweight in kg/i }), '82.5')
+    await userEvent.click(screen.getByRole('button', { name: 'Log' }))
+
+    await waitFor(async () => expect(await db.bodyweight.count()).toBe(1))
+    expect(await screen.findByText(/82.5kg on/)).toBeInTheDocument()
+  })
+
+  it('records it in the sender\'s units', async () => {
+    await onboard()
+    await db.settings.update(DEVICE_ID, { units: 'lb' })
+    renderAt('/records')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Training' }))
+    await userEvent.type(await screen.findByRole('textbox', { name: /bodyweight in lb/i }), '180')
+    await userEvent.click(screen.getByRole('button', { name: 'Log' }))
+
+    await waitFor(async () => expect(await db.bodyweight.count()).toBe(1))
+    // Stored in kg regardless of what was typed.
+    const stored = (await db.bodyweight.toArray())[0]
+    expect(stored.weightKg).toBeCloseTo(81.6, 1)
+  })
+})
+
+describe('reset covers everything', () => {
+  it('names every table, so a new one cannot be quietly left behind', async () => {
+    await onboard()
+    await db.bodyweight.add({
+      id: 'w1',
+      localDate: '2026-01-05',
+      weightKg: 80,
+      timestamp: 1,
+      deviceId: DEVICE_ID,
+    })
+    expect(await db.bodyweight.count()).toBe(1)
+
+    // The reset screen reloads the page, which jsdom cannot follow, so this
+    // exercises the same transaction directly rather than through the button.
+    await db.transaction(
+      'rw',
+      [
+        db.habits,
+        db.habitEvents,
+        db.goals,
+        db.reflections,
+        db.exercises,
+        db.splits,
+        db.sessionEvents,
+        db.sessionMarks,
+        db.bodyweight,
+        db.settings,
+      ],
+      async () => {
+        await db.bodyweight.clear()
+      },
+    )
+    expect(await db.bodyweight.count()).toBe(0)
   })
 })

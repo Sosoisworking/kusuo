@@ -169,15 +169,18 @@ and e2e before anything deploys.
 - CI ran `npm run build` alone, so a green deploy meant the code compiled and
   nothing more. It gates on the full suite now.
 
+### Carried debt, closed on 1 September
+
+- The split editor can add, rename, remove and rest a **day**, and Splits offers
+  "Build a split of my own" — the canvas's from-scratch path, now that the
+  editor can finish what it starts. Removing a day keeps every session logged
+  against it: the day leaving the plan does not unmake the training.
+- **Bodyweight is tracked over time.** Onboarding takes the first weigh-in and
+  Records holds the rest, with the change since the first. Height and experience
+  are still not collected, because nothing reads them.
+
 ### Carried debt, open
 
 - **Nothing has run on a physical iPhone.** The closest automated coverage is
-  Playwright's WebKit at iPhone 13 size, which is the same engine but not the
-  same device. The iOS Simulator would be closer still and needs Xcode
-  installed on this Mac; it is not.
-- The reference canvas has screens this build does not: the split editor has no
-  way to add, rename or remove a **day**, so a split cannot be built from
-  scratch. Slice D left it out deliberately rather than ship a from-scratch
-  split into an editor that could not finish it.
-- Bodyweight, height and experience are asked for by the canvas's onboarding and
-  are not collected, because nothing reads them.
+  Playwright's WebKit at iPhone 13 size — the same engine, not the same device.
+  The iOS Simulator is closer still and needs Xcode on this Mac.

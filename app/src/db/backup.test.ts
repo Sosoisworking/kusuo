@@ -25,6 +25,7 @@ beforeEach(async () => {
   await db.splits.clear()
   await db.sessionEvents.clear()
   await db.sessionMarks.clear()
+  await db.bodyweight.clear()
 })
 
 function makeHabit(overrides: Partial<Habit> = {}): Habit {
@@ -83,6 +84,7 @@ describe('serializeBackup / parseBackup', () => {
       splits: [],
       sessionEvents: [],
       sessionMarks: [],
+      bodyweight: [],
     }
     const json = serializeBackup(payload)
     expect(parseBackup(json)).toEqual(payload)
@@ -134,7 +136,7 @@ describe('serializeBackup / parseBackup', () => {
 
 describe('isReverseImport', () => {
   it('is false when the local DB is empty', async () => {
-    const payload: BackupPayload = { schemaVersion: 1, exportedAt: 1000, habits: [], habitEvents: [], goals: [], reflections: [], exercises: [], splits: [], sessionEvents: [], sessionMarks: [] }
+    const payload: BackupPayload = { schemaVersion: 1, exportedAt: 1000, habits: [], habitEvents: [], goals: [], reflections: [], exercises: [], splits: [], sessionEvents: [], sessionMarks: [], bodyweight: [] }
     expect(await isReverseImport(payload)).toBe(false)
   })
 
@@ -152,6 +154,7 @@ describe('isReverseImport', () => {
       splits: [],
       sessionEvents: [],
       sessionMarks: [],
+      bodyweight: [],
     }
     expect(await isReverseImport(payload)).toBe(true)
   })
@@ -170,6 +173,7 @@ describe('isReverseImport', () => {
       splits: [],
       sessionEvents: [],
       sessionMarks: [],
+      bodyweight: [],
     }
     expect(await isReverseImport(payload)).toBe(false)
   })
@@ -193,6 +197,7 @@ describe('importBackup', () => {
       splits: [],
       sessionEvents: [],
       sessionMarks: [],
+      bodyweight: [],
     }
 
     await importBackup(payload)
@@ -205,7 +210,7 @@ describe('importBackup', () => {
     const habit = await createHabit({ name: 'Old', frequencyType: 'daily', frequencyValue: 1 })
     await appendHabitEvent(habit.id, '2026-01-01', 'complete', 'dev1')
 
-    const payload: BackupPayload = { schemaVersion: 1, exportedAt: Date.now(), habits: [], habitEvents: [], goals: [], reflections: [], exercises: [], splits: [], sessionEvents: [], sessionMarks: [] }
+    const payload: BackupPayload = { schemaVersion: 1, exportedAt: Date.now(), habits: [], habitEvents: [], goals: [], reflections: [], exercises: [], splits: [], sessionEvents: [], sessionMarks: [], bodyweight: [] }
     await importBackup(payload)
 
     expect(await db.habits.toArray()).toEqual([])
@@ -225,6 +230,7 @@ describe('importBackup', () => {
       splits: [],
       sessionEvents: [],
       sessionMarks: [],
+      bodyweight: [],
     }
 
     await importBackup(payload)
@@ -276,7 +282,7 @@ describe('backup across schema versions', () => {
     await finishSession('2026-01-10', split.days[0].id, 'dev1')
 
     const payload = await buildBackup()
-    expect(payload.schemaVersion).toBe(3)
+    expect(payload.schemaVersion).toBe(4)
 
     const restored = parseBackup(serializeBackup(payload))
     expect(restored).toEqual(payload)
@@ -333,6 +339,7 @@ describe('backup across schema versions', () => {
       splits: [],
       sessionEvents: [],
       sessionMarks: [],
+      bodyweight: [],
     })
 
     expect(await db.exercises.count()).toBe(0)
@@ -352,6 +359,7 @@ describe('importing a schema 2 export', () => {
       exercises: [],
       sessionEvents: [],
       sessionMarks: [],
+      bodyweight: [],
       splits: [
         {
           id: 'split-legacy',

@@ -22,6 +22,7 @@ beforeEach(async () => {
     db.splits.clear(),
     db.sessionEvents.clear(),
     db.sessionMarks.clear(),
+    db.bodyweight.clear(),
   ])
 })
 

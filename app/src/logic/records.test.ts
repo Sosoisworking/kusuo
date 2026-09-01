@@ -6,6 +6,8 @@ import {
   bestStreak,
   estimatedOneRepMax,
   exerciseRecords,
+  bodyweightByDate,
+  bodyweightChange,
   liftRecords,
   sessionTotals,
 } from './records'
@@ -231,5 +233,42 @@ describe('liftRecords', () => {
     ])
     expect(rows[0].bestSession?.localDate).toBe('2026-01-05')
     expect(rows[0].bestSession?.volumeKg).toBe(800)
+  })
+})
+
+describe('bodyweight over time', () => {
+  const entry = (localDate: string, weightKg: number, timestamp: number) => ({
+    id: crypto.randomUUID(),
+    localDate,
+    weightKg,
+    timestamp,
+    deviceId: 'dev1',
+  })
+
+  it('is empty before anything is weighed', () => {
+    expect(bodyweightByDate([])).toEqual([])
+    expect(bodyweightChange([])).toBeUndefined()
+  })
+
+  it('keeps one weigh-in per day, most recent first', () => {
+    const points = bodyweightByDate([
+      entry('2026-01-05', 80, 1),
+      entry('2026-01-12', 79, 2),
+    ])
+    expect(points).toEqual([
+      { localDate: '2026-01-12', weightKg: 79 },
+      { localDate: '2026-01-05', weightKg: 80 },
+    ])
+  })
+
+  it('lets a correction replace the day rather than adding a second one', () => {
+    const points = bodyweightByDate([entry('2026-01-05', 80, 1), entry('2026-01-05', 81.5, 2)])
+    expect(points).toEqual([{ localDate: '2026-01-05', weightKg: 81.5 }])
+  })
+
+  it('reports the change since the first weigh-in, and nothing from one alone', () => {
+    expect(bodyweightChange(bodyweightByDate([entry('2026-01-05', 80, 1)]))).toBeUndefined()
+    const points = bodyweightByDate([entry('2026-01-05', 80, 1), entry('2026-01-12', 78.5, 2)])
+    expect(bodyweightChange(points)).toBeCloseTo(-1.5, 5)
   })
 })

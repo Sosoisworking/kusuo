@@ -13,6 +13,7 @@ import {
 } from './exercises'
 import { createHabit } from './habits'
 import { db } from './schema'
+import { exerciseRecords } from '../logic/records'
 import {
   allSessionEvents,
   allSessionMarks,
@@ -21,7 +22,19 @@ import {
   unfinishSession,
   voidSet,
 } from './sessions'
-import { findSplitDay, getActiveSplit, importWorkoutAsDay, instantiateTemplate, listSplits, setActiveSplit } from './splits'
+import {
+  addSplitDay,
+  createSplit,
+  findSplitDay,
+  getActiveSplit,
+  importWorkoutAsDay,
+  instantiateTemplate,
+  listSplits,
+  removeSplitDay,
+  renameSplitDay,
+  setActiveSplit,
+  setSplitDayKind,
+} from './splits'
 
 beforeEach(async () => {
   await db.habits.clear()
@@ -30,6 +43,7 @@ beforeEach(async () => {
   await db.splits.clear()
   await db.sessionEvents.clear()
   await db.sessionMarks.clear()
+  await db.bodyweight.clear()
 })
 
 describe('seedExercises', () => {
@@ -410,5 +424,63 @@ describe('importing a shared workout', () => {
 
     expect(first.label).toBe('Push (shared)')
     expect(second.label).toBe('Push (shared 2)')
+  })
+})
+
+describe('building a split of your own', () => {
+  it('starts empty and active', async () => {
+    const split = await createSplit('Home programme')
+    expect(split.name).toBe('Home programme')
+    expect(split.days).toEqual([])
+    expect(split.isActive).toBe(true)
+  })
+
+  it('falls back to a name rather than an empty one', async () => {
+    expect((await createSplit('   ')).name).toBe('My split')
+  })
+
+  it('adds, renames and removes days', async () => {
+    const split = await createSplit('Mine')
+    const day = await addSplitDay(split.id, 'Push')
+    expect((await db.splits.get(split.id))?.days).toHaveLength(1)
+
+    await renameSplitDay(split.id, day.id, 'Upper')
+    expect((await db.splits.get(split.id))?.days[0].label).toBe('Upper')
+
+    await removeSplitDay(split.id, day.id)
+    expect((await db.splits.get(split.id))?.days).toEqual([])
+  })
+
+  it('empties a day when it becomes a rest day, because a rest day has no plan', async () => {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const day = split.days[0]
+    expect(day.entries.length).toBeGreaterThan(0)
+
+    await setSplitDayKind(split.id, day.id, 'rest')
+
+    const after = (await db.splits.get(split.id))?.days[0]
+    expect(after?.kind).toBe('rest')
+    expect(after?.entries).toEqual([])
+  })
+
+  it('keeps the sessions logged against a day that is deleted', async () => {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const day = split.days[0]
+    await logSet(
+      { localDate: '2026-01-05', splitDayId: day.id, exerciseId: 'ex-barbell-bench-press', setIndex: 0 },
+      { weightKg: 80, reps: 5 },
+      'dev1',
+    )
+    await finishSession('2026-01-05', day.id, 'dev1')
+
+    await removeSplitDay(split.id, day.id)
+
+    // The day is gone from the plan; the training is not gone from the record.
+    expect((await db.splits.get(split.id))?.days.find((d) => d.id === day.id)).toBeUndefined()
+    expect(await db.sessionEvents.count()).toBe(1)
+    expect(await db.sessionMarks.count()).toBe(1)
+    expect(exerciseRecords(await allSessionEvents(), 'ex-barbell-bench-press').totalSets).toBe(1)
   })
 })

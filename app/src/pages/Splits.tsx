@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import Screen, { EmptyState } from '../components/Screen'
 import type { Exercise, Settings, Split } from '../db/schema'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { listExercises } from '../db/exercises'
-import { instantiateTemplate, listSplits, setActiveSplit } from '../db/splits'
+import { createSplit, instantiateTemplate, listSplits, setActiveSplit } from '../db/splits'
 import { todayLocalDate } from '../lib/date'
 import { formatShortDate } from '../lib/format'
 import { SPLIT_TEMPLATES, type SplitTemplate } from '../lib/splitTemplates'
@@ -58,6 +58,7 @@ function RuledHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default function Splits() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState<Settings | undefined>()
   const [splits, setSplits] = useState<Split[]>([])
@@ -97,6 +98,19 @@ export default function Splits() {
   const active = splits.find((s) => s.isActive)
   const byId = new Map(exercises.map((e) => [e.id, e]))
   const openedDay = active?.days.find((d) => d.id === openDay)
+
+  /** An empty programme, straight into the editor with its first day. */
+  async function buildMyOwn() {
+    if (isReader) return
+    setBusy('custom')
+    try {
+      const split = await createSplit('My split')
+      navigate(`/splits/${split.id}/edit`)
+    } catch {
+      setError("Couldn't start a new split — try that again.")
+      setBusy(null)
+    }
+  }
 
   async function choose(templateId: string) {
     if (isReader) return
@@ -263,6 +277,17 @@ export default function Splits() {
             No split chosen yet. Pick one below and it becomes yours to edit.
           </p>
         </EmptyState>
+      )}
+
+      {!isReader && (
+        <button
+          onClick={buildMyOwn}
+          disabled={busy !== null}
+          className="flex min-h-11 items-center justify-center rounded-[var(--radius-md)] px-5 text-sm text-[var(--color-text-primary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          style={{ boxShadow: 'inset 0 0 0 1px var(--color-border)' }}
+        >
+          Build a split of my own
+        </button>
       )}
 
       <section className="flex flex-col gap-2">

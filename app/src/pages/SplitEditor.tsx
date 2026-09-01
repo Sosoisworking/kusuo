@@ -4,7 +4,14 @@ import BackLink from '../components/BackLink'
 import { listExercises } from '../db/exercises'
 import type { Exercise, Split, SplitDay, SplitEntry } from '../db/schema'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
-import { getSplit, updateSplit } from '../db/splits'
+import {
+  addSplitDay,
+  getSplit,
+  removeSplitDay,
+  renameSplitDay,
+  setSplitDayKind,
+  updateSplit,
+} from '../db/splits'
 import { formatPrescription, plannedSetCount } from '../logic/nextSession'
 
 /**
@@ -68,6 +75,7 @@ export default function SplitEditor() {
   const [rows, setRows] = useState<Row[]>([])
   const [error, setError] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
+  const [dayLabel, setDayLabel] = useState('')
 
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [swipedKey, setSwipedKey] = useState<string | null>(null)
@@ -115,9 +123,14 @@ export default function SplitEditor() {
   useEffect(() => {
     if (!day || loadedDayId.current === day.id) return
     loadedDayId.current = day.id
+    setDayLabel(day.label)
     setRows(toRows(day.entries))
     setExpandedKey(null)
     setSwipedKey(null)
+  }, [day])
+
+  useEffect(() => {
+    if (day && loadedDayId.current === day.id) setDayLabel(day.label)
   }, [day])
 
   const byId = new Map(exercises.map((e) => [e.id, e]))
@@ -235,6 +248,42 @@ export default function SplitEditor() {
     setSwipedKey(offset.dx <= -SWIPE_THRESHOLD ? key : null)
   }
 
+  async function addDay() {
+    if (!split) return
+    const created = await addSplitDay(split.id, `Day ${split.days.length + 1}`)
+    await load()
+    setParams({ day: created.id }, { replace: true })
+    setAnnouncement(`${created.label} added`)
+  }
+
+  async function saveDayLabel() {
+    if (!split || !day || dayLabel.trim() === day.label) return
+    await renameSplitDay(split.id, day.id, dayLabel)
+    await load()
+  }
+
+  async function toggleRest(target: SplitDay) {
+    if (!split) return
+    await setSplitDayKind(split.id, target.id, target.kind === 'rest' ? 'training' : 'rest')
+    await load()
+    setAnnouncement(
+      target.kind === 'rest' ? `${target.label} is a training day` : `${target.label} is a rest day`,
+    )
+  }
+
+  /**
+   * Sessions already logged against this day stay in the event log — removing
+   * it from the plan does not unmake the training.
+   */
+  async function deleteDay(target: SplitDay) {
+    if (!split || split.days.length <= 1) return
+    await removeSplitDay(split.id, target.id)
+    const remaining = split.days.filter((d) => d.id !== target.id)
+    await load()
+    setParams(remaining[0] ? { day: remaining[0].id } : {}, { replace: true })
+    setAnnouncement(`${target.label} removed`)
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center px-6">
@@ -246,13 +295,41 @@ export default function SplitEditor() {
   // hands back to the read-only screen rather than rendering a dead form.
   if (isReader) return <Navigate to="/splits" replace />
 
-  if (!split || !day) {
+  if (!split) {
     return (
       <main className="flex min-h-dvh flex-col gap-4 px-5 pb-8 pt-[max(2.5rem,env(safe-area-inset-top))]">
         <BackLink />
         <p className="text-sm text-[var(--color-text-secondary)]">
           That split is not on this device. Pick one in Splits.
         </p>
+      </main>
+    )
+  }
+
+  // A split you have just started has no days yet. That is a beginning, not a
+  // missing record, and it says so.
+  if (!day) {
+    return (
+      <main className="flex min-h-dvh flex-col gap-4 px-5 pb-8 pt-[max(2.5rem,env(safe-area-inset-top))]">
+        <div className="flex items-center justify-between gap-3">
+          <BackLink />
+          <button
+            onClick={() => navigate('/splits')}
+            className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-4 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          >
+            Done
+          </button>
+        </div>
+        <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">{split.name}</h1>
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          No days yet. Add the first one and start putting movements in it.
+        </p>
+        <button
+          onClick={addDay}
+          className="flex min-h-11 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        >
+          Add the first day
+        </button>
       </main>
     )
   }
@@ -311,6 +388,49 @@ export default function SplitEditor() {
             </button>
           )
         })}
+        <button
+          onClick={addDay}
+          aria-label="Add a day"
+          className="min-h-11 rounded-[var(--radius-sm)] px-4 text-[13px] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          style={{ border: '1px dashed var(--color-border)' }}
+        >
+          + Day
+        </button>
+      </div>
+
+      {/* Renaming, resting and removing the day you are looking at. A split you
+          cannot restructure is a template with extra steps. */}
+      <div className="flex flex-col gap-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-[var(--color-text-secondary)]">Day name</span>
+          <input
+            value={dayLabel}
+            onChange={(e) => setDayLabel(e.target.value)}
+            onBlur={saveDayLabel}
+            className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          />
+        </label>
+        <div className="flex gap-2">
+          <button
+            onClick={() => toggleRest(day)}
+            aria-pressed={day.kind === 'rest'}
+            className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            style={{
+              color: day.kind === 'rest' ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+              boxShadow: `inset 0 0 0 1px ${day.kind === 'rest' ? 'var(--color-accent)' : 'var(--color-border)'}`,
+            }}
+          >
+            Rest day
+          </button>
+          <button
+            onClick={() => deleteDay(day)}
+            disabled={split.days.length <= 1}
+            className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] text-sm text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            style={{ boxShadow: 'inset 0 0 0 1px var(--color-border)' }}
+          >
+            Remove day
+          </button>
+        </div>
       </div>
 
       <div

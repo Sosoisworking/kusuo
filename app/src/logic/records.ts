@@ -1,4 +1,4 @@
-import type { SessionEvent } from '../db/schema'
+import type { BodyweightEntry, SessionEvent } from '../db/schema'
 import { addDays } from '../lib/date'
 import { setsForExercise, volume, type LoggedSet } from './sessions'
 
@@ -167,4 +167,31 @@ export function liftRecords(events: SessionEvent[]): LiftRecord[] {
   return rows.sort(
     (a, b) => (b.records.heaviestSet?.weightKg ?? 0) - (a.records.heaviestSet?.weightKg ?? 0),
   )
+}
+
+export interface BodyweightPoint {
+  localDate: string
+  weightKg: number
+}
+
+/**
+ * One weigh-in per day, most recent first. Same last-event-wins replay as every
+ * other record: correcting a day appends, and the newest entry for that date is
+ * the one that counts.
+ */
+export function bodyweightByDate(entries: BodyweightEntry[]): BodyweightPoint[] {
+  const lastByDate = new Map<string, BodyweightEntry>()
+  for (const entry of entries) {
+    const existing = lastByDate.get(entry.localDate)
+    if (!existing || entry.timestamp > existing.timestamp) lastByDate.set(entry.localDate, entry)
+  }
+  return [...lastByDate.values()]
+    .sort((a, b) => b.localDate.localeCompare(a.localDate))
+    .map((e) => ({ localDate: e.localDate, weightKg: e.weightKg }))
+}
+
+/** Change since the earliest weigh-in, or undefined with fewer than two. */
+export function bodyweightChange(points: BodyweightPoint[]): number | undefined {
+  if (points.length < 2) return undefined
+  return points[0].weightKg - points[points.length - 1].weightKg
 }

@@ -1,7 +1,7 @@
 import { SPLIT_TEMPLATES, type SplitTemplate } from '../lib/splitTemplates'
 import { createCustomExercise } from './exercises'
 import type { SharedWorkout } from '../lib/share'
-import { db, type Split, type SplitDay, type SplitEntry } from './schema'
+import { db, type Split, type SplitDay, type SplitDayKind, type SplitEntry } from './schema'
 
 export function getSplitTemplate(templateId: string): SplitTemplate | undefined {
   return SPLIT_TEMPLATES.find((t) => t.id === templateId)
@@ -128,4 +128,61 @@ export async function importWorkoutAsDay(
   const day: SplitDay = { id: crypto.randomUUID(), label, kind: 'training', entries }
   await updateSplit(splitId, { days: [...split.days, day] })
   return day
+}
+
+/** A programme with no days in it yet, ready to be built up. */
+export async function createSplit(name: string): Promise<Split> {
+  const now = Date.now()
+  const split: Split = {
+    id: crypto.randomUUID(),
+    name: name.trim() || 'My split',
+    days: [],
+    isActive: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+  await db.splits.add(split)
+  await setActiveSplit(split.id)
+  return (await db.splits.get(split.id)) ?? split
+}
+
+export async function addSplitDay(splitId: string, label: string, kind: SplitDayKind = 'training'): Promise<SplitDay> {
+  const split = await db.splits.get(splitId)
+  if (!split) throw new Error(`Unknown split: ${splitId}`)
+  const day: SplitDay = { id: crypto.randomUUID(), label: label.trim() || 'New day', kind, entries: [] }
+  await updateSplit(splitId, { days: [...split.days, day] })
+  return day
+}
+
+export async function renameSplitDay(splitId: string, dayId: string, label: string): Promise<void> {
+  const split = await db.splits.get(splitId)
+  if (!split) return
+  await updateSplit(splitId, {
+    days: split.days.map((d) => (d.id === dayId ? { ...d, label: label.trim() || d.label } : d)),
+  })
+}
+
+/**
+ * Switches a day between training and rest. A rest day holds no exercises, so
+ * becoming one empties it — the entries are the plan, and a rest day has none.
+ */
+export async function setSplitDayKind(splitId: string, dayId: string, kind: SplitDayKind): Promise<void> {
+  const split = await db.splits.get(splitId)
+  if (!split) return
+  await updateSplit(splitId, {
+    days: split.days.map((d) =>
+      d.id === dayId ? { ...d, kind, entries: kind === 'rest' ? [] : d.entries } : d,
+    ),
+  })
+}
+
+/**
+ * Removes a day from the plan. Sessions logged against it stay in the event log
+ * untouched — the day leaving the programme does not unmake the training, so it
+ * still counts toward records and still shows on the calendar.
+ */
+export async function removeSplitDay(splitId: string, dayId: string): Promise<void> {
+  const split = await db.splits.get(splitId)
+  if (!split) return
+  await updateSplit(splitId, { days: split.days.filter((d) => d.id !== dayId) })
 }

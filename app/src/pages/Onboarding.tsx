@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router'
 import { PrimaryButton, SecondaryButton } from '../components/Button'
 import { createHabit } from '../db/habits'
 import { seedExercises } from '../db/exercises'
+import { appendBodyweight } from '../db/bodyweight'
 import { instantiateTemplate } from '../db/splits'
+import { todayLocalDate } from '../lib/date'
+import { toKg } from '../lib/units'
 import Segmented from '../components/Segmented'
 import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
 import { completeOnboarding, createSettings, getOrCreateDeviceId, getSettings, updateSettings } from '../db/settings'
@@ -48,6 +51,7 @@ export default function Onboarding() {
   const [customName, setCustomName] = useState('')
   const [customFrequency, setCustomFrequency] = useState<'daily' | 'weekly'>('daily')
   const [units, setUnits] = useState<Units>('kg')
+  const [bodyweight, setBodyweight] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -95,6 +99,10 @@ export default function Onboarding() {
       userName: skip || !trimmed ? undefined : trimmed,
       units: skip ? 'kg' : units,
     })
+    const typed = Number(bodyweight)
+    if (!skip && bodyweight.trim() && Number.isFinite(typed) && typed > 0) {
+      await appendBodyweight(todayLocalDate(), toKg(typed, units), deviceId)
+    }
     setStep('templates')
   }
 
@@ -257,6 +265,19 @@ export default function Onboarding() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
+              className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            />
+          </label>
+
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">
+              Bodyweight
+            </span>
+            <input
+              inputMode="decimal"
+              value={bodyweight}
+              onChange={(e) => setBodyweight(e.target.value)}
+              placeholder={units}
               className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
             />
           </label>

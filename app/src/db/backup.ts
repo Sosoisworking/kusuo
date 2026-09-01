@@ -10,6 +10,7 @@ import {
   type ReflectionEntry,
   type SessionEvent,
   type SessionEventAction,
+  type BodyweightEntry,
   type SessionMark,
   type SessionMarkAction,
   type Split,
@@ -30,6 +31,7 @@ export interface BackupPayload {
   splits: Split[]
   sessionEvents: SessionEvent[]
   sessionMarks: SessionMark[]
+  bodyweight: BodyweightEntry[]
 }
 
 /**
@@ -39,11 +41,12 @@ export interface BackupPayload {
  * 3 — split entries carry a rep range and days carry a kind. A version 2 file
  *     still imports: a fixed `reps` becomes a range of itself and every day is
  *     a training day, the same conversion the Dexie v4 upgrade performs.
+ * 4 — adds bodyweight. Absent means none recorded, not invalid.
  */
-const CURRENT_SCHEMA_VERSION = 3
+const CURRENT_SCHEMA_VERSION = 4
 
 export async function buildBackup(): Promise<BackupPayload> {
-  const [habits, habitEvents, goals, reflections, exercises, splits, sessionEvents, sessionMarks] =
+  const [habits, habitEvents, goals, reflections, exercises, splits, sessionEvents, sessionMarks, bodyweight] =
     await Promise.all([
       db.habits.toArray(),
       db.habitEvents.toArray(),
@@ -53,6 +56,7 @@ export async function buildBackup(): Promise<BackupPayload> {
       db.splits.toArray(),
       db.sessionEvents.toArray(),
       db.sessionMarks.toArray(),
+      db.bodyweight.toArray(),
     ])
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -65,6 +69,7 @@ export async function buildBackup(): Promise<BackupPayload> {
     splits,
     sessionEvents,
     sessionMarks,
+    bodyweight,
   }
 }
 
@@ -253,6 +258,18 @@ function isSessionEvent(x: unknown): x is SessionEvent {
   )
 }
 
+function isBodyweight(x: unknown): x is BodyweightEntry {
+  if (typeof x !== 'object' || x === null) return false
+  const b = x as Record<string, unknown>
+  return (
+    typeof b.id === 'string' &&
+    typeof b.localDate === 'string' &&
+    typeof b.weightKg === 'number' &&
+    typeof b.timestamp === 'number' &&
+    typeof b.deviceId === 'string'
+  )
+}
+
 function isSessionMark(x: unknown): x is SessionMark {
   if (typeof x !== 'object' || x === null) return false
   const m = x as Record<string, unknown>
@@ -288,6 +305,7 @@ export function parseBackup(json: string): BackupPayload {
     splits,
     sessionEvents,
     sessionMarks,
+    bodyweight,
   } = raw as Record<string, unknown>
   // Every table after habits is optional on the wire, for backward
   // compatibility with backups exported before it existed; absent means empty,
@@ -298,6 +316,7 @@ export function parseBackup(json: string): BackupPayload {
   const splitsArr = splits === undefined ? [] : splits
   const sessionEventsArr = sessionEvents === undefined ? [] : sessionEvents
   const sessionMarksArr = sessionMarks === undefined ? [] : sessionMarks
+  const bodyweightArr = bodyweight === undefined ? [] : bodyweight
   if (
     typeof schemaVersion !== 'number' ||
     typeof exportedAt !== 'number' ||
@@ -309,6 +328,7 @@ export function parseBackup(json: string): BackupPayload {
     !Array.isArray(splitsArr) ||
     !Array.isArray(sessionEventsArr) ||
     !Array.isArray(sessionMarksArr) ||
+    !Array.isArray(bodyweightArr) ||
     !habits.every(isHabit) ||
     !habitEvents.every(isHabitEvent) ||
     !goalsArr.every(isGoal) ||
@@ -316,7 +336,8 @@ export function parseBackup(json: string): BackupPayload {
     !exercisesArr.every(isExercise) ||
     !splitsArr.every(isSplit) ||
     !sessionEventsArr.every(isSessionEvent) ||
-    !sessionMarksArr.every(isSessionMark)
+    !sessionMarksArr.every(isSessionMark) ||
+    !bodyweightArr.every(isBodyweight)
   ) {
     throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
   }
@@ -331,6 +352,7 @@ export function parseBackup(json: string): BackupPayload {
     splits: splitsArr.map(normaliseSplit),
     sessionEvents: sessionEventsArr,
     sessionMarks: sessionMarksArr,
+    bodyweight: bodyweightArr,
   }
 }
 
@@ -365,6 +387,7 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
       db.splits,
       db.sessionEvents,
       db.sessionMarks,
+      db.bodyweight,
     ],
     async () => {
       await db.habits.clear()
@@ -375,6 +398,7 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
       await db.splits.clear()
       await db.sessionEvents.clear()
       await db.sessionMarks.clear()
+      await db.bodyweight.clear()
       if (payload.habits.length > 0) await db.habits.bulkAdd(payload.habits)
       if (payload.habitEvents.length > 0) await db.habitEvents.bulkAdd(payload.habitEvents)
       if (payload.goals.length > 0) await db.goals.bulkAdd(payload.goals)
@@ -383,6 +407,7 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
       if (payload.splits.length > 0) await db.splits.bulkAdd(payload.splits)
       if (payload.sessionEvents.length > 0) await db.sessionEvents.bulkAdd(payload.sessionEvents)
       if (payload.sessionMarks.length > 0) await db.sessionMarks.bulkAdd(payload.sessionMarks)
+      if (payload.bodyweight.length > 0) await db.bodyweight.bulkAdd(payload.bodyweight)
     },
   )
 }

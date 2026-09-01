@@ -177,6 +177,7 @@ export default function YourData() {
           db.splits,
           db.sessionEvents,
           db.sessionMarks,
+          db.bodyweight,
           db.settings,
         ],
         async () => {
@@ -189,6 +190,7 @@ export default function YourData() {
             db.splits.clear(),
             db.sessionEvents.clear(),
             db.sessionMarks.clear(),
+            db.bodyweight.clear(),
             db.settings.clear(),
           ])
         },
