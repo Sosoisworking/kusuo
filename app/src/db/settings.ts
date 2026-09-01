@@ -30,6 +30,7 @@ export async function createSettings(input: CreateSettingsInput): Promise<Settin
     theme: 'system',
     units: 'kg',
     weekStart: 'monday',
+    defaultSets: 3,
     schemaVersion: 1,
     onboardingComplete: false,
   }

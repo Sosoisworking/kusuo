@@ -190,6 +190,8 @@ export interface Settings {
    * renamed or archived.
    */
   trainingHabitId?: string
+  /** Sets a movement gets when it is added to a day from the directory. */
+  defaultSets: number
   lastBackupAt?: number
   schemaVersion: number
   onboardingComplete: boolean
@@ -263,6 +265,15 @@ export class KusuoDB extends Dexie {
     this.version(6)
     // Circuits. Additive and unindexed — an exercise without one is unchanged.
     this.version(7)
+    // A default set count, backfilled to the 3 the directory used to hard-code.
+    this.version(8).upgrade((tx) =>
+      tx
+        .table<Settings, string>('settings')
+        .toCollection()
+        .modify((s) => {
+          s.defaultSets ??= 3
+        }),
+    )
   }
 }
 

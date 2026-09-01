@@ -1,5 +1,27 @@
 import 'fake-indexeddb/auto'
 import '@testing-library/jest-dom'
+import { afterEach, beforeEach, vi } from 'vitest'
+
+/**
+ * Every test runs on Monday 5 January 2026.
+ *
+ * The split is a weekly schedule, so "today's session" depends on the weekday —
+ * which meant the suite passed on a Monday and failed on a Tuesday. Pinning the
+ * clock makes the day-of-week a property of the test rather than of when it
+ * happens to run. A test that needs a different day sets its own time.
+ */
+export const PINNED_NOW = new Date(2026, 0, 5, 9, 0, 0)
+
+beforeEach(() => {
+  // Only Date is faked. Faking the timers as well deadlocks userEvent and
+  // waitFor, which schedule real work between keystrokes.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(PINNED_NOW)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 // jsdom 30 no longer ships localStorage, and Kusuo keeps its deviceId there —
 // deliberately outside IndexedDB so it survives a wholesale import replace. An

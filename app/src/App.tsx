@@ -19,6 +19,7 @@ import Settings from './pages/Settings'
 import SplitEditor from './pages/SplitEditor'
 import Splits from './pages/Splits'
 import Today from './pages/Today'
+import YourData from './pages/YourData'
 import Train from './pages/Train'
 
 function App() {
@@ -60,6 +61,7 @@ function App() {
         <Route path="/progress" element={<Progress />} />
         <Route path="/habits/:id" element={<HabitDetail />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/settings/data" element={<YourData />} />
         <Route path="/reflection" element={<Reflection />} />
         <Route path="/goals" element={<Goals />} />
       </Route>

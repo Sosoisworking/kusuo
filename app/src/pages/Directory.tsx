@@ -96,6 +96,7 @@ export default function Directory() {
 
   const [loading, setLoading] = useState(true)
   const [isReader, setIsReader] = useState(false)
+  const [defaultSets, setDefaultSets] = useState(3)
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [events, setEvents] = useState<SessionEvent[]>([])
   const [split, setSplit] = useState<Split | undefined>()
@@ -117,6 +118,7 @@ export default function Directory() {
       splitId ? getSplit(splitId) : Promise.resolve(undefined),
     ])
     setIsReader(settings?.deviceRole === 'reader')
+    setDefaultSets(settings?.defaultSets ?? 3)
     setExercises(list)
     setEvents(ev)
     setSplit(found)
@@ -195,7 +197,7 @@ export default function Directory() {
     const entry =
       exercise.category === 'cardio'
         ? { exerciseId: exercise.id, sets: 1, repsMin: 0, repsMax: 0 }
-        : { exerciseId: exercise.id, sets: 3, repsMin: 8, repsMax: 12 }
+        : { exerciseId: exercise.id, sets: defaultSets, repsMin: 8, repsMax: 12 }
     const entries =
       swapIndex !== null && swapIndex >= 0 && swapIndex < day.entries.length
         ? day.entries.map((e, i) =>

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { archiveGoal, createGoal, getGoal, listActiveGoals, listAllGoals, updateGoal } from './goals'
 import { db } from './schema'
 
@@ -25,7 +25,8 @@ describe('goal CRUD', () => {
   it('updateGoal updates fields and bumps updatedAt', async () => {
     const goal = await createGoal({ title: 'Read 12 books' })
     const before = goal.updatedAt
-    await new Promise((resolve) => setTimeout(resolve, 5))
+    // The clock is pinned for the suite, so a sleep no longer moves it.
+    vi.setSystemTime(new Date(before + 5_000))
     await updateGoal(goal.id, { title: 'Read 20 books', targetDate: '2026-06-01' })
 
     const updated = await db.goals.get(goal.id)
