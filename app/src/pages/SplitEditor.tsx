@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import BackLink from '../components/BackLink'
 import { listExercises } from '../db/exercises'
-import type { Exercise, Split, SplitDay, SplitEntry } from '../db/schema'
+import type { Exercise, Split, SplitDay, SplitEntry, WeekStart } from '../db/schema'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import {
   addSplitDay,
@@ -12,7 +12,8 @@ import {
   setSplitDayKind,
   updateSplit,
 } from '../db/splits'
-import { formatPrescription, plannedSetCount } from '../logic/nextSession'
+import { todayLocalDate } from '../lib/date'
+import { dayForDate, formatPrescription, plannedSetCount } from '../logic/nextSession'
 
 /**
  * A row keyed independently of its position. Entries carry no id of their own,
@@ -44,6 +45,23 @@ function NumberField({
   min: number
   onChange: (next: number) => void
 }) {
+  /*
+    The field holds text while you are typing in it, and a number the moment you
+    leave. Clamping on every keystroke made these unusable: the floor is 1, so
+    clearing the box put a 1 straight back, and typing 12 over it gave 112. A
+    field that argues with each character is worse than one that waits.
+  */
+  const [draft, setDraft] = useState<string | null>(null)
+
+  function commit(text: string) {
+    setDraft(null)
+    const next = Number(text)
+    // Left empty, or left as something that is not a number, means the value
+    // was never really changed.
+    if (text.trim() === '' || !Number.isFinite(next)) return
+    onChange(Math.max(min, Math.trunc(next)))
+  }
+
   return (
     <label className="flex flex-1 flex-col gap-1">
       <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
@@ -53,10 +71,11 @@ function NumberField({
         type="number"
         inputMode="numeric"
         min={min}
-        value={value}
-        onChange={(e) => {
-          const next = Number(e.target.value)
-          if (Number.isFinite(next)) onChange(Math.max(min, Math.trunc(next)))
+        value={draft ?? String(value)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
         }}
         className="min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-transparent px-3 text-base text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
       />
@@ -71,11 +90,15 @@ export default function SplitEditor() {
 
   const [loading, setLoading] = useState(true)
   const [isReader, setIsReader] = useState(false)
+  const [weekStart, setWeekStart] = useState<WeekStart>('monday')
   const [split, setSplit] = useState<Split | undefined>()
   const [rows, setRows] = useState<Row[]>([])
   const [error, setError] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
   const [dayLabel, setDayLabel] = useState('')
+
+  const [undone, setUndone] = useState<{ row: Row; index: number } | null>(null)
+  const [confirmingDayRemoval, setConfirmingDayRemoval] = useState(false)
 
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [swipedKey, setSwipedKey] = useState<string | null>(null)
@@ -84,6 +107,8 @@ export default function SplitEditor() {
 
   const [exercises, setExercises] = useState<Exercise[]>([])
   const rowRefs = useRef(new Map<string, HTMLLIElement>())
+  /** Where the dragging finger last was, so the scroll loop can read it. */
+  const pointerY = useRef(0)
   const gesture = useRef<{ x: number; y: number; axis: 'none' | 'x' | 'y' } | null>(null)
 
   const dayId = params.get('day')
@@ -95,6 +120,7 @@ export default function SplitEditor() {
       listExercises(),
     ])
     setIsReader(settings?.deviceRole === 'reader')
+    setWeekStart(settings?.weekStart ?? 'monday')
     setSplit(found)
     setExercises(list)
   }, [splitId])
@@ -114,8 +140,17 @@ export default function SplitEditor() {
     }
   }, [load])
 
+  /*
+    The day you asked for, then the day you are actually due to train. Falling
+    straight to `days[0]` meant every Edit — from the card, from a chip, on a
+    Thursday — opened on day one, so the first thing the editor asked you to do
+    was find your way back to where you already were.
+  */
   const day: SplitDay | undefined =
-    split && (split.days.find((d) => d.id === dayId) ?? split.days[0])
+    split &&
+    (split.days.find((d) => d.id === dayId) ??
+      dayForDate(split, todayLocalDate(), weekStart) ??
+      split.days[0])
 
   // Rebuild the rows when the selected day changes. Keyed on the day id so
   // switching days does not carry one day's ordering into another.
@@ -127,6 +162,9 @@ export default function SplitEditor() {
     setRows(toRows(day.entries))
     setExpandedKey(null)
     setSwipedKey(null)
+    // Both belong to the day you were on, not to the one you moved to.
+    setUndone(null)
+    setConfirmingDayRemoval(false)
   }, [day])
 
   useEffect(() => {
@@ -155,24 +193,44 @@ export default function SplitEditor() {
     const next = [...rows]
     const [moved] = next.splice(from, 1)
     next.splice(to, 0, moved)
+    setUndone(null)
     void persist(next)
     const name = byId.get(moved.entry.exerciseId)?.name ?? 'Movement'
     setAnnouncement(`${name} moved to position ${to + 1} of ${next.length}`)
   }
 
+  /**
+   * Removal stays one tap and gains a way back, rather than gaining a dialog.
+   * Both routes in — the swipe and the panel button — are gestures you make
+   * while looking at the row, so the answer to a misfire is undo, not a
+   * question asked before every correct removal.
+   */
   function remove(index: number) {
     const row = rows[index]
     const name = byId.get(row.entry.exerciseId)?.name ?? 'Movement'
     setSwipedKey(null)
     setExpandedKey(null)
+    setUndone({ row, index })
     void persist(rows.filter((_, i) => i !== index))
-    setAnnouncement(`${name} removed`)
+    setAnnouncement(`${name} removed. Undo sits under the list.`)
+  }
+
+  function undoRemove() {
+    if (!undone) return
+    const name = byId.get(undone.row.entry.exerciseId)?.name ?? 'Movement'
+    const next = [...rows]
+    // Back where it was, unless the list has since grown shorter than that.
+    next.splice(Math.min(undone.index, next.length), 0, undone.row)
+    setUndone(null)
+    void persist(next)
+    setAnnouncement(`${name} put back`)
   }
 
   function setEntry(index: number, changes: Partial<SplitEntry>) {
     const next = rows.map((row, i) =>
       i === index ? { ...row, entry: { ...row.entry, ...changes } } : row,
     )
+    setUndone(null)
     void persist(next)
   }
 
@@ -182,17 +240,21 @@ export default function SplitEditor() {
 
   function startDrag(key: string, event: React.PointerEvent) {
     if (isReader) return
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+    // Deliberately no `setPointerCapture`. The capture used to be taken on the
+    // handle, and the first swap re-parents the row it lives in, which drops
+    // the capture on the floor. The window listeners below do the job instead
+    // and cannot be re-parented out from under a finger.
+    pointerY.current = event.clientY
     setSwipedKey(null)
     setSwipeOffset(null)
     setDraggingKey(key)
   }
 
-  function dragMove(event: React.PointerEvent) {
+  /** Reorders around the pointer's position on the screen. */
+  function dragTo(y: number) {
     if (!draggingKey) return
     const current = rows.findIndex((r) => r.key === draggingKey)
     if (current === -1) return
-    const y = event.clientY
     const above = rows[current - 1] && rowRefs.current.get(rows[current - 1].key)
     const below = rows[current + 1] && rowRefs.current.get(rows[current + 1].key)
     if (above) {
@@ -205,9 +267,76 @@ export default function SplitEditor() {
     }
   }
 
-  function endDrag() {
-    setDraggingKey(null)
-  }
+  // The drag effect runs for the life of one drag, so it reaches the current
+  // row order through a ref rather than by re-subscribing on every swap.
+  const dragToRef = useRef(dragTo)
+  useEffect(() => {
+    dragToRef.current = dragTo
+  })
+
+  /*
+    A drag belongs to the window, not to the handle that started it.
+
+    Wired to the handle's own pointer events, a finger lifted anywhere else —
+    over the movement's name, or in the gap between two rows — never ended the
+    drag. The row stayed marked "dragging", which disabled swipe-to-remove on
+    every row in the day, and the next pointer to pass over any handle with no
+    button held reordered the day and saved it.
+
+    While a drag is live the page also scrolls when the pointer nears an edge,
+    because on a long day the row you are aiming for is often below the fold,
+    and a drag that cannot reach it is a drag that cannot be finished.
+  */
+  useEffect(() => {
+    if (!draggingKey) return
+
+    let moved = false
+    function onMove(event: PointerEvent) {
+      event.preventDefault()
+      moved = true
+      pointerY.current = event.clientY
+      dragToRef.current(event.clientY)
+    }
+    function stop() {
+      setDraggingKey(null)
+    }
+
+    /*
+      Scrolling waits for the finger to actually move.
+
+      Started on press, a hold on a row near the bottom of the screen scrolled
+      at ~720px/s and walked the row down the list on its own — a press that was
+      never a drag reordering the day and saving it. `moved` is set by the first
+      pointermove, so a press that never becomes a drag does nothing at all.
+    */
+    let frame = 0
+    function scrollStep() {
+      if (moved) {
+        const y = pointerY.current
+        const edge = 72
+        const speed = 12
+        if (y < edge) window.scrollBy(0, -speed)
+        else if (y > window.innerHeight - edge) window.scrollBy(0, speed)
+        // The rows moved under a still finger, so ask again where it now sits.
+        dragToRef.current(y)
+      }
+      frame = requestAnimationFrame(scrollStep)
+    }
+    frame = requestAnimationFrame(scrollStep)
+
+    window.addEventListener('pointermove', onMove, { passive: false })
+    window.addEventListener('pointerup', stop)
+    window.addEventListener('pointercancel', stop)
+    // A drag interrupted by the app going away is over, not paused.
+    window.addEventListener('blur', stop)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', stop)
+      window.removeEventListener('pointercancel', stop)
+      window.removeEventListener('blur', stop)
+    }
+  }, [draggingKey])
 
   function handleKey(index: number, event: React.KeyboardEvent) {
     if (event.key === 'ArrowUp') {
@@ -277,6 +406,7 @@ export default function SplitEditor() {
    */
   async function deleteDay(target: SplitDay) {
     if (!split || split.days.length <= 1) return
+    setConfirmingDayRemoval(false)
     await removeSplitDay(split.id, target.id)
     const remaining = split.days.filter((d) => d.id !== target.id)
     await load()
@@ -297,8 +427,8 @@ export default function SplitEditor() {
 
   if (!split) {
     return (
-      <main className="flex min-h-dvh flex-col gap-4 px-5 pb-8 pt-[max(2.5rem,env(safe-area-inset-top))]">
-        <BackLink />
+      <main className="flex min-h-dvh flex-col gap-4 px-5 pb-8 pt-[var(--space-safe-top)]">
+        <BackLink to="/splits" />
         <p className="text-sm text-[var(--color-text-secondary)]">
           That split is not on this device. Pick one in Splits.
         </p>
@@ -310,9 +440,9 @@ export default function SplitEditor() {
   // missing record, and it says so.
   if (!day) {
     return (
-      <main className="flex min-h-dvh flex-col gap-4 px-5 pb-8 pt-[max(2.5rem,env(safe-area-inset-top))]">
+      <main className="flex min-h-dvh flex-col gap-4 px-5 pb-8 pt-[var(--space-safe-top)]">
         <div className="flex items-center justify-between gap-3">
-          <BackLink />
+          <BackLink to="/splits" />
           <button
             onClick={() => navigate('/splits')}
             className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-4 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
@@ -338,9 +468,9 @@ export default function SplitEditor() {
   const pickerQuery = `?splitId=${split.id}&dayId=${day.id}`
 
   return (
-    <main className="flex min-h-dvh flex-col gap-4 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(2.5rem,env(safe-area-inset-top))]">
+    <main className="flex min-h-dvh flex-col gap-4 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[var(--space-safe-top)]">
       <div className="flex items-center justify-between gap-3">
-        <BackLink />
+        <BackLink to="/splits" />
         <button
           onClick={() => navigate('/splits')}
           className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-4 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
@@ -410,27 +540,64 @@ export default function SplitEditor() {
             className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-base text-[var(--color-text-primary)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
           />
         </label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => toggleRest(day)}
-            aria-pressed={day.kind === 'rest'}
-            className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-            style={{
-              color: day.kind === 'rest' ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-              boxShadow: `inset 0 0 0 1px ${day.kind === 'rest' ? 'var(--color-accent)' : 'var(--color-border)'}`,
-            }}
-          >
-            Rest day
-          </button>
-          <button
-            onClick={() => deleteDay(day)}
-            disabled={split.days.length <= 1}
-            className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] text-sm text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        {/*
+          Removing a day takes the whole plan for it with it, and there is no
+          undo for that the way there is for a single movement — so it asks
+          first. The way out is the bordered accent button; removing is bare
+          text, which is the only hierarchy available in a palette with no red.
+        */}
+        {confirmingDayRemoval ? (
+          <div
+            className="flex flex-col gap-2 rounded-[var(--radius-md)] p-3"
             style={{ boxShadow: 'inset 0 0 0 1px var(--color-border)' }}
           >
-            Remove day
-          </button>
-        </div>
+            <p className="text-sm text-[var(--color-text-primary)]">
+              Remove {day.label} from {split.name}?
+            </p>
+            <p className="text-xs text-[var(--color-text-secondary)]">
+              {isRest
+                ? 'A rest day, so nothing is planned in it.'
+                : `${rows.length} ${rows.length === 1 ? 'movement goes' : 'movements go'} with it.`}{' '}
+              Sessions you have already logged against this day stay in your history.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmingDayRemoval(false)}
+                className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-4 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              >
+                Keep it
+              </button>
+              <button
+                onClick={() => deleteDay(day)}
+                className="flex min-h-11 min-w-0 flex-1 items-center justify-center truncate px-4 text-sm text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              >
+                Remove {day.label}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => toggleRest(day)}
+              aria-pressed={day.kind === 'rest'}
+              className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              style={{
+                color: day.kind === 'rest' ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                boxShadow: `inset 0 0 0 1px ${day.kind === 'rest' ? 'var(--color-accent)' : 'var(--color-border)'}`,
+              }}
+            >
+              Rest day
+            </button>
+            <button
+              onClick={() => setConfirmingDayRemoval(true)}
+              disabled={split.days.length <= 1}
+              className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] text-sm text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              style={{ boxShadow: 'inset 0 0 0 1px var(--color-border)' }}
+            >
+              Remove day
+            </button>
+          </div>
+        )}
       </div>
 
       <div
@@ -494,9 +661,6 @@ export default function SplitEditor() {
                         data-no-swipe
                         aria-label={`Reorder ${name}. Position ${index + 1} of ${rows.length}. Use the up and down arrow keys.`}
                         onPointerDown={(e) => startDrag(row.key, e)}
-                        onPointerMove={dragMove}
-                        onPointerUp={endDrag}
-                        onPointerCancel={endDrag}
                         onKeyDown={(e) => handleKey(index, e)}
                         className="flex h-11 w-11 shrink-0 cursor-grab items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
                         style={{
@@ -644,6 +808,25 @@ export default function SplitEditor() {
             })}
           </ul>
 
+          {undone && (
+            <div
+              className="flex items-center justify-between gap-2 rounded-[var(--radius-md)] pl-3"
+              style={{ boxShadow: 'inset 0 0 0 1px var(--color-border)' }}
+            >
+              <span className="min-w-0 truncate text-xs text-[var(--color-text-secondary)]">
+                Removed {byId.get(undone.row.entry.exerciseId)?.name ?? 'Movement'}
+              </span>
+              {/* No timer on it. It waits until you do something else, because
+                  a countdown is one more thing running while you are editing. */}
+              <button
+                onClick={undoRemove}
+                className="min-h-11 shrink-0 px-4 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+              >
+                Undo
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => navigate(`/exercises${pickerQuery}`)}
             className="flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
@@ -659,7 +842,7 @@ export default function SplitEditor() {
         style={{ borderLeft: '1px solid var(--color-accent-800)', paddingLeft: '10px' }}
       >
         Drag the handle to reorder, or focus it and use the arrow keys. Swipe a row left to remove
-        it. Your edits stay with this split.
+        it — Undo appears under the list. Your edits stay with this split.
       </p>
     </main>
   )

@@ -11,10 +11,15 @@ interface ScreenProps {
  * Shared page frame. Owns the things every screen must get right and none
  * should restate: dynamic viewport height, the safe-area insets top and bottom,
  * and enough bottom padding to clear the six-tab bar.
+ *
+ * The top padding is `--space-safe-top` rather than a per-screen `max()`: the
+ * insets differ between Safari and the installed app, and every screen guessing
+ * its own minimum is how the headings ended up on different lines. What scrolls
+ * *past* the top is masked in shell.css, which padding cannot do.
  */
 export default function Screen({ title, eyebrow, action, children }: ScreenProps) {
   return (
-    <main className="flex min-h-dvh flex-col gap-6 px-5 pb-28 pt-[max(2.5rem,env(safe-area-inset-top))]">
+    <main className="flex min-h-dvh flex-col gap-6 pb-28 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[var(--space-safe-top)]">
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           {eyebrow && (

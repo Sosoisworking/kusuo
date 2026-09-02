@@ -4,12 +4,33 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0e0f12" />
+    <meta name="theme-color" content="#161826" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Kusuo" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <title>Kusuo</title>
+    <script>
+      /*
+        The other half of public/404.html. A cold load of /kusuo/splits arrives
+        here as /kusuo/?/splits; this puts the real path back on the address bar
+        before React Router reads the location, so the router mounts the screen
+        that was asked for and the user never sees the query form.
+
+        A classic inline script in <head> runs ahead of the deferred module
+        bundle, which is what makes "before the router reads it" true.
+
+        replaceState, not pushState: the query form is a transport detail, not a
+        place the user has been.
+      */
+      ;(function (l) {
+        if (l.search.charAt(1) !== '/') return
+        var parts = l.search.slice(1).split('&')
+        var route = parts.shift().replace(/~and~/g, '&')
+        var query = parts.length ? '?' + parts.join('&') : ''
+        window.history.replaceState(null, '', l.pathname.replace(/\/+$/, '') + route + query + l.hash)
+      })(window.location)
+    </script>
   </head>
   <body>
     <div id="root"></div>

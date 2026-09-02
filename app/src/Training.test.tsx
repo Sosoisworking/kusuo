@@ -228,9 +228,12 @@ describe('the session flow', () => {
     // "Log set 2" exists before the log lands, so waiting on it gates nothing.
     // Set 1 flipping to its logged state is what says the write went through.
     await screen.findByRole('button', { name: 'Set 1 logged — remove it' })
+    // Set 2 offers what set 1 held, behind the field rather than in it: the
+    // set has not happened yet, and a filled-in field says it has.
     await waitFor(() =>
-      expect(screen.getByLabelText('Weight for set 2 in kg')).toHaveValue('80'),
+      expect(screen.getByLabelText('Weight for set 2 in kg')).toHaveAttribute('placeholder', '80'),
     )
+    expect(screen.getByLabelText('Weight for set 2 in kg')).toHaveValue('')
   })
 
   it('corrects a set instead of duplicating it', async () => {
@@ -512,6 +515,92 @@ describe('moving on carries what you typed', () => {
     expect(sets[0]).toMatchObject({ setIndex: 0, weightKg: 80, reps: 6 })
   })
 
+  it('removes a movement from the day without leaving the one you are on', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    const before = (await db.splits.get(split.id))!.days[0].entries.length
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove Incline dumbbell press from this day' }),
+    )
+
+    await waitFor(async () => {
+      expect((await db.splits.get(split.id))!.days[0].entries.length).toBe(before - 1)
+    })
+    // Still standing where you were: removing something further down the list
+    // is not a reason to be moved.
+    expect(screen.getByRole('heading', { name: 'Barbell bench press', level: 1 })).toBeInTheDocument()
+  })
+
+  it('keeps a typed set when the session is finished from the last movement', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    await typeSet('80', '6')
+    // Finishing is a way out of a movement, so it has to carry what was typed.
+    await userEvent.click(screen.getByRole('button', { name: /Finish and log the session/ }))
+
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
+    expect(liveSets(await allSessionEvents())[0]).toMatchObject({ weightKg: 80, reps: 6 })
+  })
+
+  it('keeps a typed set when another movement is tapped in the list', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    await typeSet('80', '6')
+    await userEvent.click(screen.getByRole('button', { name: /^Incline dumbbell press/ }))
+
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
+    expect(liveSets(await allSessionEvents())[0]).toMatchObject({ weightKg: 80, reps: 6 })
+  })
+
+  it('does not put a removed set back when you move on', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    await typeSet('80', '6')
+    await userEvent.click(screen.getByRole('button', { name: /Log set 1/ }))
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
+
+    // Touch the field so a draft exists that matches what is stored, then take
+    // the set back out. The draft used to survive the void and re-log it.
+    const weight = await screen.findByRole('textbox', { name: /Weight for set 1/ })
+    await userEvent.type(weight, '0')
+    await userEvent.clear(weight)
+    await userEvent.type(weight, '80')
+    await userEvent.click(await screen.findByRole('button', { name: /Set 1 logged — remove it/ }))
+    await waitFor(async () => expect(liveSets(await allSessionEvents())).toHaveLength(0))
+
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'Barbell bench press', level: 1 })).toBeNull(),
+    )
+    expect(liveSets(await allSessionEvents())).toHaveLength(0)
+  })
+
+  it('does not turn an effort score alone into a set', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    // Set 1 is real; set 2 gets an RPE and nothing else. The suggestion behind
+    // set 2 is set 1's numbers, so committing it would log a set nobody did.
+    await typeSet('80', '6')
+    const rpe = screen.getByRole('textbox', { name: /RPE for set 2/ })
+    await userEvent.type(rpe, '8')
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
+    const sets = liveSets(await allSessionEvents())
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toMatchObject({ setIndex: 0, weightKg: 80, reps: 6 })
+  })
+
   it('holds you there when a set has a weight but no reps', async () => {
     const split = await withPpl()
     renderAt(`/train/session/${split.days[0].id}`)
@@ -549,6 +638,95 @@ describe('moving on carries what you typed', () => {
   })
 })
 
+describe('a suggestion is not a set', () => {
+  /** Bench is 4 × 6 on the Push day, and last week's session gives every row something to offer. */
+  async function withLastWeek() {
+    const split = await withPpl()
+    await logSet(
+      { localDate: '2026-01-01', splitDayId: split.days[0].id, exerciseId: BENCH, setIndex: 0 },
+      { weightKg: 60, reps: 10 },
+      DEVICE_ID,
+    )
+    return split
+  }
+
+  it('logs only the row that was typed into, not the rows showing what to aim for', async () => {
+    const split = await withLastWeek()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    await typeSet('60', '10')
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+
+    expect(await screen.findByRole('heading', { level: 1 })).not.toHaveTextContent(
+      'Barbell bench press',
+    )
+    const sets = liveSets(await allSessionEvents()).filter((s) => s.localDate === todayLocalDate())
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toMatchObject({ setIndex: 0, weightKg: 60, reps: 10 })
+  })
+
+  it('shows the suggestion behind the field rather than in it', async () => {
+    const split = await withLastWeek()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    const weight = await screen.findByLabelText('Weight for set 1 in kg')
+    expect(weight).toHaveValue('')
+    expect(weight).toHaveAttribute('placeholder', '60')
+    expect(screen.getByLabelText('Reps for set 1')).toHaveAttribute('placeholder', '10')
+  })
+
+  it('takes the suggestion when the row is ticked — that is what the tick is for', async () => {
+    const split = await withLastWeek()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Log set 1' }))
+
+    await screen.findByRole('button', { name: 'Set 1 logged — remove it' })
+    const sets = liveSets(await allSessionEvents()).filter((s) => s.localDate === todayLocalDate())
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toMatchObject({ setIndex: 0, weightKg: 60, reps: 10 })
+  })
+
+  it('fills in the fields left empty on a row that was typed into', async () => {
+    const split = await withLastWeek()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    // Same weight as last week, one rep more: the weight stays a suggestion.
+    const reps = await screen.findByLabelText('Reps for set 1')
+    await userEvent.type(reps, '11')
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+
+    await waitFor(async () => expect(await db.sessionEvents.count()).toBe(2))
+    const sets = liveSets(await allSessionEvents()).filter((s) => s.localDate === todayLocalDate())
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toMatchObject({ setIndex: 0, weightKg: 60, reps: 11 })
+  })
+})
+
+describe('taking a set back out', () => {
+  it('offers the removal back rather than erasing it on one tap', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await typeSet('80', '6')
+    await userEvent.click(await screen.findByRole('button', { name: 'Log set 1' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Set 1 logged — remove it' }))
+
+    expect(await screen.findByText('Set 1 removed.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+    await screen.findByRole('button', { name: 'Set 1 logged — remove it' })
+    expect(screen.queryByText('Set 1 removed.')).toBeNull()
+    // Log, void, log — the void stays in the log where it happened.
+    const history = (await allSessionEvents()).sort((a, b) => a.timestamp - b.timestamp)
+    expect(history.map((e) => e.action)).toEqual(['log', 'void', 'log'])
+    const sets = liveSets(await allSessionEvents())
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toMatchObject({ setIndex: 0, weightKg: 80, reps: 6 })
+  })
+})
+
 describe('editing the day from inside the session', () => {
   it('drops a movement and keeps the sets already logged against it', async () => {
     const split = await withPpl()
@@ -560,7 +738,7 @@ describe('editing the day from inside the session', () => {
     await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
 
     const before = (await db.splits.get(split.id))?.days[0].entries.length ?? 0
-    await userEvent.click(screen.getByRole('button', { name: 'Drop this movement' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove from this day' }))
 
     await waitFor(async () =>
       expect((await db.splits.get(split.id))?.days[0].entries.length).toBe(before - 1),
@@ -576,6 +754,27 @@ describe('editing the day from inside the session', () => {
     const add = await screen.findByRole('link', { name: 'Add a movement' })
     expect(add.getAttribute('href')).toContain(`splitId=${split.id}`)
     expect(add.getAttribute('href')).toContain('return=')
+  })
+
+  it('comes back to the movement you were on, and says what was added', async () => {
+    const split = await withPpl()
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    // Two movements in: Overhead press is third on the Push day.
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
+    await userEvent.click(await screen.findByRole('button', { name: /Next movement/ }))
+    await screen.findByRole('heading', { name: 'Overhead press', level: 1 })
+
+    await userEvent.click(screen.getByRole('link', { name: 'Add a movement' }))
+    const search = await screen.findByRole('searchbox', { name: 'Search exercises' })
+    await userEvent.type(search, 'Preacher curl')
+    await userEvent.click(await screen.findByRole('button', { name: 'Add Preacher curl' }))
+
+    expect(await screen.findByRole('heading', { name: 'Overhead press', level: 1 }))
+      .toBeInTheDocument()
+    expect(screen.getByText('Preacher curl added to the end of Push.')).toBeInTheDocument()
+    expect((await db.splits.get(split.id))?.days[0].entries).toHaveLength(6)
   })
 
   it('calls reopening a session what it is', async () => {
@@ -610,8 +809,23 @@ describe('a kettlebell circuit in a session', () => {
     expect(within(rounds).getByText('Six curl + press')).toBeInTheDocument()
     expect(within(rounds).getByText(/20 min · 1 min break after every 2 rounds/)).toBeInTheDocument()
 
-    // Logged by time, and the field already holds the circuit's own length.
-    expect(screen.getByRole('textbox', { name: /Minutes for set 1/ })).toHaveValue('20')
+    // Logged by time, with the circuit's own length offered behind the field.
+    const minutes = screen.getByRole('textbox', { name: /Minutes for set 1/ })
+    expect(minutes).toHaveAttribute('placeholder', '20')
+    expect(minutes).toHaveValue('')
     expect(screen.queryByRole('textbox', { name: /Weight for set 1/ })).toBeNull()
+  })
+
+  it('states the circuit as the time it runs for, the way Splits does', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-batman-7')
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Incline barbell press', level: 1 })
+    // The row itself, not the remove control beside it.
+    const rest = screen.getByRole('button', { name: /^Kettlebell 1/ })
+    expect(within(rest).getByText('20 min')).toBeInTheDocument()
+    expect(screen.queryByText('time')).toBeNull()
   })
 })

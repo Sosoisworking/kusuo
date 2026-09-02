@@ -1,3 +1,4 @@
+import { seedExercises } from './exercises'
 import {
   db,
   type Exercise,
@@ -17,13 +18,27 @@ import {
   type SplitDay,
   type SplitDayKind,
   type SplitEntry,
+  type Units,
+  type WeekStart,
 } from './schema'
-import { updateSettings } from './settings'
-import { recordTables } from './tables'
+import {
+  applyRecordPreferences,
+  getOrCreateDeviceId,
+  getSettings,
+  recordPreferences,
+  updateSettings,
+  type RecordPreferences,
+} from './settings'
+import { recordTableNames, recordTables } from './tables'
 
 export interface BackupPayload {
   schemaVersion: number
   exportedAt: number
+  /**
+   * The preferences that belong to the record. Absent in files written before
+   * version 5, which means "this device keeps its own" — not invalid.
+   */
+  preferences?: RecordPreferences
   habits: Habit[]
   habitEvents: HabitEvent[]
   goals: Goal[]
@@ -33,6 +48,12 @@ export interface BackupPayload {
   sessionEvents: SessionEvent[]
   sessionMarks: SessionMark[]
   bodyweight: BodyweightEntry[]
+  /**
+   * A table this build has not been told about travels through untouched. The
+   * parser used to rebuild its result from a hand-written list of names, which
+   * dropped anything not on it — the same bug tables.ts was written to end.
+   */
+  [table: string]: unknown
 }
 
 /**
@@ -43,16 +64,28 @@ export interface BackupPayload {
  *     still imports: a fixed `reps` becomes a range of itself and every day is
  *     a training day, the same conversion the Dexie v4 upgrade performs.
  * 4 — adds bodyweight. Absent means none recorded, not invalid.
+ * 5 — carries the preferences that belong to the record: your name, units,
+ *     week start, default sets, and which habit a finished session ticks. A
+ *     version 4 file still imports and leaves this device's own in place.
+ *
+ * Older files import. Newer ones are refused: a file from a build this one has
+ * never seen may carry tables and fields it cannot round-trip, and importing it
+ * would quietly replace the record with less than the file held.
  */
-const CURRENT_SCHEMA_VERSION = 4
+const CURRENT_SCHEMA_VERSION = 5
 
 export async function buildBackup(): Promise<BackupPayload> {
   const tables = recordTables()
   const rows = await Promise.all(tables.map((table) => table.toArray()))
   const record = Object.fromEntries(tables.map((table, i) => [table.name, rows[i]]))
+  const settings = await getSettings(getOrCreateDeviceId())
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     exportedAt: Date.now(),
+    // Never deviceId, deviceRole or theme: those describe the phone, and a
+    // file that carried them could let the Mac import itself into being the
+    // writer.
+    preferences: settings ? recordPreferences(settings) : undefined,
     ...record,
   } as BackupPayload
 }
@@ -69,6 +102,25 @@ const EVENT_ACTIONS: HabitEventAction[] = ['complete', 'uncomplete']
 const EXERCISE_CATEGORIES: ExerciseCategory[] = ['push', 'pull', 'legs', 'abs', 'cardio']
 const SESSION_EVENT_ACTIONS: SessionEventAction[] = ['log', 'void']
 const SESSION_MARK_ACTIONS: SessionMarkAction[] = ['complete', 'uncomplete']
+const UNITS: Units[] = ['kg', 'lb']
+const WEEK_STARTS: WeekStart[] = ['monday', 'sunday']
+
+function isPreferences(x: unknown): x is RecordPreferences {
+  if (typeof x !== 'object' || x === null) return false
+  const p = x as Record<string, unknown>
+  return (
+    UNITS.includes(p.units as Units) &&
+    WEEK_STARTS.includes(p.weekStart as WeekStart) &&
+    // Bounded, not merely numeric: this is the one field the version gate lets
+    // through to be written straight into settings, and a split entry built
+    // from a hostile `1e9` asks the session screen to render a billion rows.
+    Number.isInteger(p.defaultSets) &&
+    (p.defaultSets as number) >= 1 &&
+    (p.defaultSets as number) <= 10 &&
+    (p.userName === undefined || typeof p.userName === 'string') &&
+    (p.trainingHabitId === undefined || typeof p.trainingHabitId === 'string')
+  )
+}
 
 function isHabit(x: unknown): x is Habit {
   if (typeof x !== 'object' || x === null) return false
@@ -268,77 +320,122 @@ function isSessionMark(x: unknown): x is SessionMark {
   )
 }
 
+/**
+ * How each table on the wire is checked. Keyed by table name so the parser asks
+ * the same question of every table rather than naming them one by one — a table
+ * added to the schema and forgotten here is carried through unvalidated, which
+ * is a far smaller failure than being silently dropped between the file and the
+ * database.
+ */
+const ROW_VALIDATORS: Record<string, (row: unknown) => boolean> = {
+  habits: isHabit,
+  habitEvents: isHabitEvent,
+  goals: isGoal,
+  reflections: isReflectionEntry,
+  exercises: isExercise,
+  splits: isSplit,
+  sessionEvents: isSessionEvent,
+  sessionMarks: isSessionMark,
+  bodyweight: isBodyweight,
+}
+
+/** The two tables every version of the format has had. Absent means malformed. */
+const REQUIRED_TABLES = ['habits', 'habitEvents']
+
 /** Parses and structurally validates a backup file. Throws InvalidBackupError on any malformed shape. */
 export function parseBackup(json: string): BackupPayload {
-  let raw: unknown
+  let parsed: unknown
   try {
-    raw = JSON.parse(json)
+    parsed = JSON.parse(json)
   } catch {
     throw new InvalidBackupError('That file is not valid JSON.')
   }
-  if (typeof raw !== 'object' || raw === null) {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
   }
-  const {
-    schemaVersion,
-    exportedAt,
-    habits,
-    habitEvents,
-    goals,
-    reflections,
-    exercises,
-    splits,
-    sessionEvents,
-    sessionMarks,
-    bodyweight,
-  } = raw as Record<string, unknown>
-  // Every table after habits is optional on the wire, for backward
-  // compatibility with backups exported before it existed; absent means empty,
-  // not invalid. Present-but-malformed is still rejected outright.
-  const goalsArr = goals === undefined ? [] : goals
-  const reflectionsArr = reflections === undefined ? [] : reflections
-  const exercisesArr = exercises === undefined ? [] : exercises
-  const splitsArr = splits === undefined ? [] : splits
-  const sessionEventsArr = sessionEvents === undefined ? [] : sessionEvents
-  const sessionMarksArr = sessionMarks === undefined ? [] : sessionMarks
-  const bodyweightArr = bodyweight === undefined ? [] : bodyweight
-  if (
-    typeof schemaVersion !== 'number' ||
-    typeof exportedAt !== 'number' ||
-    !Array.isArray(habits) ||
-    !Array.isArray(habitEvents) ||
-    !Array.isArray(goalsArr) ||
-    !Array.isArray(reflectionsArr) ||
-    !Array.isArray(exercisesArr) ||
-    !Array.isArray(splitsArr) ||
-    !Array.isArray(sessionEventsArr) ||
-    !Array.isArray(sessionMarksArr) ||
-    !Array.isArray(bodyweightArr) ||
-    !habits.every(isHabit) ||
-    !habitEvents.every(isHabitEvent) ||
-    !goalsArr.every(isGoal) ||
-    !reflectionsArr.every(isReflectionEntry) ||
-    !exercisesArr.every(isExercise) ||
-    !splitsArr.every(isSplit) ||
-    !sessionEventsArr.every(isSessionEvent) ||
-    !sessionMarksArr.every(isSessionMark) ||
-    !bodyweightArr.every(isBodyweight)
-  ) {
+  const raw = parsed as Record<string, unknown>
+  const { schemaVersion, exportedAt, preferences } = raw
+
+  if (typeof schemaVersion !== 'number' || typeof exportedAt !== 'number') {
     throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
   }
+  // A file from a build this one has never seen may hold tables and fields it
+  // cannot round-trip. Importing it would replace the record with less than the
+  // file carried, under a success message — so it is refused, and says why.
+  if (schemaVersion > CURRENT_SCHEMA_VERSION) {
+    throw new InvalidBackupError(
+      'That backup was written by a newer version of Kusuo. Update this device first.',
+    )
+  }
+  if (preferences !== undefined && !isPreferences(preferences)) {
+    throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
+  }
+  for (const name of REQUIRED_TABLES) {
+    if (!Array.isArray(raw[name])) {
+      throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
+    }
+  }
+
+  /*
+    Every table this build holds, whether or not the file mentions it: absent
+    means empty, which is what an export written before that table existed
+    means. Anything else the file carries is left on the payload untouched — the
+    parser is no longer the one link in the chain with a hand-written list.
+  */
+  const tables: Record<string, unknown[]> = {}
+  for (const name of new Set([...recordTableNames(), ...Object.keys(ROW_VALIDATORS)])) {
+    const value = raw[name] === undefined ? [] : raw[name]
+    if (!Array.isArray(value)) {
+      throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
+    }
+    const isValidRow = ROW_VALIDATORS[name]
+    if (isValidRow && !value.every(isValidRow)) {
+      throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
+    }
+    tables[name] = value
+  }
+
   return {
+    ...raw,
+    ...tables,
     schemaVersion,
     exportedAt,
-    habits,
-    habitEvents,
-    goals: goalsArr,
-    reflections: reflectionsArr,
-    exercises: exercisesArr,
-    splits: splitsArr.map(normaliseSplit),
-    sessionEvents: sessionEventsArr,
-    sessionMarks: sessionMarksArr,
-    bodyweight: bodyweightArr,
+    preferences: preferences as RecordPreferences | undefined,
+    splits: (tables.splits as unknown[]).map(normaliseSplit),
+  } as BackupPayload
+}
+
+/**
+ * When this device last wrote something of its own.
+ *
+ * Every append-only row carries a `timestamp`; the tables that are edited in
+ * place carry an `updatedAt`. Asking each row rather than naming the tables
+ * keeps this honest as the schema grows — this used to read `habitEvents`
+ * alone, so a week of logged sets, finished sessions, weigh-ins and reflections
+ * counted for nothing if no habit happened to be ticked.
+ *
+ * The seeded exercise library is skipped: it is written at first launch on
+ * every device, so counting it would make a brand new phone look like it held
+ * work newer than any backup. A movement you added yourself is yours and counts.
+ */
+async function lastLocalWrite(): Promise<number> {
+  const tables = recordTables()
+  const rows = await Promise.all(tables.map((table) => table.toArray()))
+  let latest = 0
+  for (const [i, table] of tables.entries()) {
+    for (const row of rows[i] as Record<string, unknown>[]) {
+      if (table.name === 'exercises' && row.isCustom === false) continue
+      // A split that came in from a template and has not been edited since is
+      // the same kind of thing as the seeded movement library: something every
+      // device writes at setup, and nobody authored. Counting it would make a
+      // phone that has only been through onboarding look like it held work
+      // newer than any backup.
+      if (table.name === 'splits' && row.seededFrom && row.updatedAt === row.createdAt) continue
+      const at = typeof row.timestamp === 'number' ? row.timestamp : row.updatedAt
+      if (typeof at === 'number' && at > latest) latest = at
+    }
   }
+  return latest
 }
 
 /**
@@ -347,18 +444,13 @@ export function parseBackup(json: string): BackupPayload {
  * this as an explicit warning, not a silent no-op or auto-skip.
  */
 export async function isReverseImport(payload: BackupPayload): Promise<boolean> {
-  const events = await db.habitEvents.toArray()
-  const latestLocal = events.reduce((max, e) => Math.max(max, e.timestamp), 0)
-  return latestLocal > payload.exportedAt
+  return (await lastLocalWrite()) > payload.exportedAt
 }
 
 /**
- * Wholesale replace of every user table. Settings (incl. deviceId, deviceRole,
- * theme, units) are never touched — they describe this device, not the record.
- *
- * Importing a version 1 file empties the exercise table; `seedExercises()` on
- * next launch refills the directory, so the movements come back even though the
- * old file never carried them.
+ * Wholesale replace of every user table, in one transaction: it lands whole or
+ * not at all. This device's identity — deviceId, deviceRole, theme — is never
+ * touched, because it describes the phone rather than the record.
  */
 export async function importBackup(payload: BackupPayload): Promise<void> {
   const tables = recordTables()
@@ -372,6 +464,34 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
       if (rows.length > 0) await table.bulkAdd(rows)
     }
   })
+
+  /*
+    Both of these follow the replace rather than joining it, so a failure here
+    can never leave a half-imported record behind.
+
+    A file written before version 5 carried no exercise library, and one written
+    before version 5 carried no preferences. Seeding is keyed by id and adds only
+    what is missing, so it refills a directory the import emptied and does
+    nothing at all to a file that brought its own. Without it the movements come
+    back only after the app is killed and relaunched, and until then every split
+    entry reads "Unknown movement".
+  */
+  await seedExercises()
+  if (payload.preferences) {
+    /*
+      A training habit that the file did not carry cannot be pointed at. Left
+      dangling, finishing a session would append a habit event against a habit
+      row that does not exist — and in an append-only log that orphan is
+      permanent, because no later event can take it back.
+    */
+    const habits = new Set((payload.habits ?? []).map((h) => h.id))
+    const { trainingHabitId, ...rest } = payload.preferences
+    await applyRecordPreferences(
+      trainingHabitId && habits.has(trainingHabitId)
+        ? payload.preferences
+        : { ...rest, trainingHabitId: undefined },
+    )
+  }
 }
 
 

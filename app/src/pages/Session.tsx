@@ -1,7 +1,7 @@
 import { CaretLeft,
   CaretRight, Check } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router'
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import SectionHeading from '../components/SectionHeading'
 import { listExercises } from '../db/exercises'
 import type {
@@ -18,6 +18,7 @@ import {
   allSessionMarks,
   finishSession,
   logSet,
+  type SetValues,
   unfinishSession,
   voidSet,
 } from '../db/sessions'
@@ -25,7 +26,7 @@ import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { findSplitDay, updateSplit } from '../db/splits'
 import { todayLocalDate } from '../lib/date'
 import { toKg, weightValue } from '../lib/units'
-import { formatPrescription, plannedSetCount } from '../logic/nextSession'
+import { describePrescription, plannedSetCount } from '../logic/nextSession'
 import { isSessionComplete, setsForExercise, setsOnDate, type LoggedSet } from '../logic/sessions'
 import { lastSessionSets, summariseSets } from '../logic/trainingHistory'
 
@@ -40,6 +41,13 @@ const EMPTY_DRAFT: Draft = { weight: '', reps: '', rpe: '' }
 function parse(value: string): number | undefined {
   const n = Number(value.trim().replace(',', '.'))
   return value.trim() === '' || Number.isNaN(n) ? undefined : n
+}
+
+/** A whole number carried in the URL, or null when it says nothing usable. */
+function whole(value: string | null): number | null {
+  if (value === null || value.trim() === '') return null
+  const n = Number(value)
+  return Number.isInteger(n) && n >= 0 ? n : null
 }
 
 interface Loaded {
@@ -82,14 +90,25 @@ const NOTHING: Loaded = { exercises: [], events: [], marks: [], readAt: 0 }
 export default function Session() {
   const navigate = useNavigate()
   const { dayId } = useParams<{ dayId: string }>()
+  const [params] = useSearchParams()
 
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<Loaded>(NOTHING)
   const [today] = useState(todayLocalDate)
 
-  const [exerciseIndex, setExerciseIndex] = useState(0)
+  // Read once, at the mount the directory sends us back to: where the session
+  // was when it left, and how many movements the day held before the directory
+  // wrote to it. Coming back to exercise 1 loses your place mid-workout.
+  const [exerciseIndex, setExerciseIndex] = useState(() => whole(params.get('resume')) ?? 0)
+  const [addedSince, setAddedSince] = useState<number | null>(() => whole(params.get('had')))
   const [chosenIndex, setChosenIndex] = useState<number | null>(null)
+  /**
+   * What has been typed, by row. A row absent from here is one nobody has
+   * touched: whatever its fields show is a suggestion, and a suggestion is not
+   * a set that happened.
+   */
   const [drafts, setDrafts] = useState<Record<number, Draft>>({})
+  const [undone, setUndone] = useState<{ row: number; values: SetValues } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -177,17 +196,32 @@ export default function Session() {
   const previous = lastSessionSets(setsForExercise(events, entry.exerciseId), today)
   const repTarget =
     entry.repsMin === entry.repsMax ? `${entry.repsMin}` : `${entry.repsMin}-${entry.repsMax}`
+  // Anything the directory appended while we were away. Named on return, so a
+  // movement added mid-session is confirmed rather than left to be found at
+  // the bottom of the list.
+  const added =
+    addedSince === null
+      ? []
+      : day.entries.slice(addedSince).map((e) => byId.get(e.exerciseId)?.name ?? 'a movement')
 
-  /** What an untouched field shows: this set if it exists, else the set before it, else last time. */
-  function defaultsFor(target: number): Draft {
+  /** The set logged for a row, in the fields' own terms. Absent means unlogged. */
+  function storedFor(target: number): Draft | undefined {
     const own = loggedByIndex.get(target)
-    if (own) {
-      return {
-        weight: isCardio ? '' : weightValue(own.weightKg, units),
-        reps: isCardio ? String(Math.round((own.durationSec ?? 0) / 60)) : String(own.reps),
-        rpe: own.rpe === undefined ? '' : String(own.rpe),
-      }
+    if (!own) return undefined
+    return {
+      weight: isCardio ? '' : weightValue(own.weightKg, units),
+      reps: isCardio ? String(Math.round((own.durationSec ?? 0) / 60)) : String(own.reps),
+      rpe: own.rpe === undefined ? '' : String(own.rpe),
     }
+  }
+
+  /**
+   * What an empty field offers behind it: the set before this one, else this
+   * set last time, else the length a circuit states. It shows as a placeholder
+   * and never as a value, because a guess that looks like a typed number is a
+   * guess that gets logged as one.
+   */
+  function suggestionFor(target: number): Draft {
     const before =
       logged.filter((s) => s.setIndex < target).at(-1) ??
       previous.find((s) => s.setIndex === target) ??
@@ -209,20 +243,39 @@ export default function Session() {
    * Every row is editable, always. A set table you can only type into one row
    * at a time is a form pretending to be a table — you cannot fix set 2 while
    * standing on set 4, which is exactly when you notice set 2 was wrong.
+   *
+   * A field holds what was typed into it or what is logged for it, and nothing
+   * else. Anything the screen is merely suggesting sits behind it.
    */
   function valueFor(row: number): Draft {
-    return drafts[row] ?? defaultsFor(row)
+    return drafts[row] ?? storedFor(row) ?? EMPTY_DRAFT
+  }
+
+  /**
+   * What ticking a row commits: what you typed, and behind each field left
+   * empty, the suggestion showing in it. What is on the screen is what gets
+   * logged — one tap still logs a straight repeat of the set before.
+   */
+  function committedValue(row: number): Draft {
+    const held = valueFor(row)
+    const hint = suggestionFor(row)
+    return {
+      weight: held.weight.trim() || hint.weight,
+      reps: held.reps.trim() || hint.reps,
+      // Never guessed: last set's effort is not this set's effort.
+      rpe: held.rpe,
+    }
   }
 
   function setRow(row: number, next: Draft) {
     setDrafts((current) => ({ ...current, [row]: next }))
   }
 
-  /** True once a row's fields differ from what is stored for it. */
+  /** True once a row's fields differ from the set stored for it. */
   function isDirty(row: number): boolean {
     const held = drafts[row]
     if (!held) return false
-    const stored = defaultsFor(row)
+    const stored = storedFor(row) ?? EMPTY_DRAFT
     return held.weight !== stored.weight || held.reps !== stored.reps || held.rpe !== stored.rpe
   }
 
@@ -236,11 +289,16 @@ export default function Session() {
     setChosenIndex(null)
     setDrafts({})
     setError(null)
+    setUndone(null)
+    setAddedSince(null)
+    // The new movement's header and its first rows sit above wherever you were
+    // reading, so a switch that leaves the scroll alone reads as a dead tap.
+    if (window.scrollY > 0) window.scrollTo({ top: 0 })
   }
 
   async function log(row: number, options: { advance?: boolean } = {}) {
     if (busy && options.advance !== false) return
-    const value = valueFor(row)
+    const value = committedValue(row)
     const reps = parse(value.reps)
     if (reps === undefined || reps <= 0) {
       setError(isCardio ? 'Give it a time in minutes.' : 'Give it a rep count.')
@@ -262,6 +320,7 @@ export default function Session() {
         deviceId,
       )
       setData(await loadSession(dayId))
+      setUndone(null)
       // The row's draft is dropped so it falls back to what is now stored, and
       // the choice is cleared so focus lands on the first set still to do.
       setDrafts((current) => {
@@ -278,21 +337,47 @@ export default function Session() {
   }
 
   /**
-   * Moving on commits what you typed. Anything filled in but not ticked is
+   * Moving on commits what you typed. Anything typed in but not ticked is
    * logged first; a row with a weight and no reps (or the other way round) is
-   * an accident, so it holds you there and says which one. A row left entirely
-   * blank is a set you did not do, and that is allowed.
+   * an accident, so it holds you there and says which one.
+   *
+   * A row nobody typed into is not logged, whatever it is showing. The rows
+   * carry the values a set would most likely take, and treating a suggestion as
+   * a set that happened writes sets that were never performed — three logged
+   * sets out of one typed row, wrong records and a wrong volume behind them.
+   * Ticking a row is how a suggestion becomes a set; walking past it is not.
    */
-  async function handleNext() {
-    if (busy) return
+  /**
+   * Commits every row that was typed into and not ticked, and says whether it
+   * got through.
+   *
+   * Leaving a movement has to mean one thing. This used to live inside
+   * "Next movement", so the same typed set survived that button and was thrown
+   * away by Finish, or by tapping another movement in the list — the mirror of
+   * the phantom-set bug, losing work you did instead of inventing work you
+   * didn't. Every way out of a movement now goes through here.
+   *
+   * Returns false when a row is half-filled: the caller stops, the error names
+   * the set, and the screen stays where the fixing has to happen.
+   */
+  async function commitTyped(): Promise<boolean> {
+    if (busy) return false
     const pending: number[] = []
     for (const row of rows) {
+      const typed = drafts[row]
+      if (!typed) continue
       if (loggedByIndex.has(row) && !isDirty(row)) continue
-      const value = valueFor(row)
+      // Typed in and then cleared out is a set you did not do, and that is allowed.
+      //
+      // An effort with no weight and no reps behind it is the same: RPE rates a
+      // set, it does not assert one. Committing it would let the suggestion
+      // supply both real numbers, which is the phantom set arriving through a
+      // narrower door. Ticking the row still logs it, because a tick is the
+      // moment you say the set happened.
+      if (!typed.weight.trim() && !typed.reps.trim()) continue
+      const value = committedValue(row)
       const reps = parse(value.reps)
       const weight = parse(value.weight)
-      const blank = reps === undefined && weight === undefined && !value.rpe.trim()
-      if (blank) continue
       if (reps === undefined || reps <= 0) {
         setChosenIndex(row)
         setError(
@@ -300,19 +385,28 @@ export default function Session() {
             ? `Set ${row + 1} has no time on it.`
             : `Set ${row + 1} has a weight but no reps.`,
         )
-        return
+        return false
       }
       if (!isCardio && weight === undefined) {
         setChosenIndex(row)
         setError(`Set ${row + 1} has reps but no weight — bodyweight is 0.`)
-        return
+        return false
       }
       pending.push(row)
     }
 
     setError(null)
     for (const row of pending) await log(row, { advance: false })
-    openExercise(index + 1)
+    return true
+  }
+
+  async function handleNext() {
+    if (await commitTyped()) openExercise(index + 1)
+  }
+
+  /** Leaving for another movement in the list commits first, like moving on does. */
+  async function goToExercise(next: number) {
+    if (await commitTyped()) openExercise(next)
   }
 
   /**
@@ -320,16 +414,31 @@ export default function Session() {
    * the event log — the exercise leaving the plan does not unmake the work —
    * so they still count toward records and still show on the calendar.
    */
-  async function dropMovement() {
+  /**
+   * Takes a movement out of the day. Any movement, not only the one you are
+   * standing on — the machine you cannot get to is rarely the one in front of
+   * you, and walking to a movement in order to delete it is a strange errand.
+   *
+   * Sets already logged against it stay in the record: this edits the plan, not
+   * the history, and the two are different things.
+   */
+  async function removeMovement(target: number) {
     if (busy || day.entries.length <= 1) return
     setBusy(true)
     setError(null)
     try {
-      const entries = day.entries.filter((_, i) => i !== index)
+      const entries = day.entries.filter((_, i) => i !== target)
       const days = split.days.map((d) => (d.id === day.id ? { ...d, entries } : d))
       await updateSplit(split.id, { days })
       setData(await loadSession(dayId))
-      openExercise(Math.min(index, entries.length - 1))
+      if (target === index) {
+        // The movement you were on is gone, and so is anything typed into it.
+        openExercise(Math.max(0, Math.min(index, entries.length - 1)))
+      } else {
+        // Editing the plan elsewhere is not a reason to lose what you typed
+        // here. Only the index shifts, and only when the list closed up above.
+        setExerciseIndex(target < index ? index - 1 : index)
+      }
     } catch {
       setError("Couldn't change the day — try that again.")
     } finally {
@@ -337,18 +446,38 @@ export default function Session() {
     }
   }
 
+  /**
+   * Takes a set back out. The tick that does it is a 44pt target under a tired
+   * thumb, so the removal is offered back rather than confirmed first — a
+   * dialog between sets is worse than a way back afterwards.
+   */
   async function remove(target: number) {
     const existing = loggedByIndex.get(target)
     if (!existing || busy) return
     setError(null)
     setBusy(true)
+    const values: SetValues = {
+      weightKg: existing.weightKg,
+      reps: existing.reps,
+      rpe: existing.rpe,
+      durationSec: existing.durationSec,
+    }
     try {
       await voidSet(
         { localDate: today, splitDayId: day.id, exerciseId: entry.exerciseId, setIndex: target },
-        { weightKg: existing.weightKg, reps: existing.reps, rpe: existing.rpe, durationSec: existing.durationSec },
+        values,
         deviceId,
       )
       setData(await loadSession(dayId))
+      // The draft that matched the set goes with it. Left behind, the next
+      // "Next movement" would see a typed row on an unlogged set and write the
+      // set straight back — the deletion undone by the walk away from it.
+      setDrafts((current) => {
+        const next = { ...current }
+        delete next[target]
+        return next
+      })
+      setUndone({ row: target, values })
       moveTo(target)
     } catch {
       setError("Couldn't remove that set — try again.")
@@ -357,8 +486,38 @@ export default function Session() {
     }
   }
 
+  /**
+   * Puts back the set the last tick removed, by logging it again. The void
+   * stays in the log where it happened — the way to undo an event is another
+   * event, never a rewrite of the one before it.
+   */
+  async function restore() {
+    if (!undone || busy) return
+    const { row, values } = undone
+    setError(null)
+    setBusy(true)
+    try {
+      await logSet(
+        { localDate: today, splitDayId: day.id, exerciseId: entry.exerciseId, setIndex: row },
+        values,
+        deviceId,
+      )
+      setData(await loadSession(dayId))
+      setUndone(null)
+      moveTo(row)
+    } catch {
+      setError("Couldn't put that set back — try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function finish() {
     if (busy) return
+    // Finishing is the last way out of a movement, so it commits what is typed
+    // first. A set entered and not ticked used to vanish here, silently, with
+    // the screen gone before anyone could notice.
+    if (!(await commitTyped())) return
     setBusy(true)
     try {
       await finishSession(today, day.id, deviceId, trainingHabitId)
@@ -386,7 +545,7 @@ export default function Session() {
   const columns = isCardio ? '34px 1fr 44px' : '34px 1fr 1fr 46px 44px'
   const cell = 'bg-[var(--color-bg)] px-3 py-2.5 grid items-center gap-2'
   const inputClass =
-    'min-h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-accent-700)] bg-[var(--color-bg)] px-2 text-base text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]'
+    'min-h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-accent-700)] bg-[var(--color-bg)] px-2 text-base text-[var(--color-text-primary)] placeholder:italic placeholder:text-[var(--color-text-hint)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]'
 
   return (
     <main className="flex min-h-dvh flex-col gap-4 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(3.5rem,env(safe-area-inset-top))]">
@@ -402,6 +561,12 @@ export default function Session() {
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
               {day.label} · exercise {index + 1} of {day.entries.length}
+            </span>
+            {/* The bar underneath fills by sets. An exercise count on its own
+                beside it reads as one broken fact — "exercise 3 of 12" over a
+                bar at 6% — so the number the bar is drawing is stated too. */}
+            <span className="shrink-0 text-[11px] tabular-nums text-[var(--color-text-secondary)]">
+              {daySets.length} of {planned} sets
             </span>
           </div>
           <div
@@ -430,7 +595,9 @@ export default function Session() {
             exercise?.muscleGroup?.toLowerCase(),
             previous.length > 0
               ? `last time ${summariseSets(previous, units, isCardio)}`
-              : 'no history yet',
+              : // Today's own sets are right there in the table, and may well
+                // be a record. What is missing is a session before this one.
+                'no earlier session',
           ]
             .filter(Boolean)
             .join(' · ')}
@@ -471,6 +638,12 @@ export default function Session() {
         </p>
       )}
 
+      {added.length > 0 && (
+        <p role="status" className="text-xs text-[var(--color-text-secondary)]">
+          {added.join(' and ')} added to the end of {day.label}.
+        </p>
+      )}
+
       <div
         className="flex flex-col gap-px overflow-hidden rounded-[var(--radius-md)]"
         style={{ background: 'var(--color-divider)' }}
@@ -502,6 +675,8 @@ export default function Session() {
         {rows.map((row) => {
           const done = loggedByIndex.get(row)
           const isActive = row === activeIndex
+          const value = valueFor(row)
+          const hint = suggestionFor(row)
           return (
             <div
               key={row}
@@ -522,16 +697,19 @@ export default function Session() {
               </span>
 
               {/* Fields, on every row. A logged row shows what it holds and
-                  can be corrected in place; an unlogged one carries the values
-                  it would most likely take. */}
+                  can be corrected in place. An unlogged one is empty, with the
+                  values it would most likely take showing behind it — the tick
+                  takes them, moving on never does, and the two states do not
+                  look alike. */}
               {!isCardio && (
                 <input
                   ref={isActive ? firstFieldRef : undefined}
                   inputMode="decimal"
                   aria-label={`Weight for set ${row + 1} in ${units}`}
-                  value={valueFor(row).weight}
+                  placeholder={hint.weight}
+                  value={value.weight}
                   onFocus={() => setChosenIndex(row)}
-                  onChange={(e) => setRow(row, { ...valueFor(row), weight: e.target.value })}
+                  onChange={(e) => setRow(row, { ...value, weight: e.target.value })}
                   className={inputClass}
                 />
               )}
@@ -539,19 +717,19 @@ export default function Session() {
                 ref={isCardio && isActive ? firstFieldRef : undefined}
                 inputMode="numeric"
                 aria-label={isCardio ? `Minutes for set ${row + 1}` : `Reps for set ${row + 1}`}
-                placeholder={isCardio ? 'min' : repTarget}
-                value={valueFor(row).reps}
+                placeholder={hint.reps || (isCardio ? 'min' : repTarget)}
+                value={value.reps}
                 onFocus={() => setChosenIndex(row)}
-                onChange={(e) => setRow(row, { ...valueFor(row), reps: e.target.value })}
+                onChange={(e) => setRow(row, { ...value, reps: e.target.value })}
                 className={inputClass}
               />
               {!isCardio && (
                 <input
                   inputMode="decimal"
                   aria-label={`RPE for set ${row + 1}, optional`}
-                  value={valueFor(row).rpe}
+                  value={value.rpe}
                   onFocus={() => setChosenIndex(row)}
-                  onChange={(e) => setRow(row, { ...valueFor(row), rpe: e.target.value })}
+                  onChange={(e) => setRow(row, { ...value, rpe: e.target.value })}
                   className={`${inputClass} border-[var(--color-border)]`}
                 />
               )}
@@ -596,6 +774,24 @@ export default function Session() {
         })}
       </div>
 
+      {undone && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] py-1 pl-4 pr-2"
+        >
+          <span className="text-sm text-[var(--color-text-secondary)]">
+            Set {undone.row + 1} removed.
+          </span>
+          <button
+            onClick={() => void restore()}
+            disabled={busy}
+            className="flex min-h-11 items-center px-3 text-sm font-medium text-[var(--color-accent)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+          >
+            Undo
+          </button>
+        </div>
+      )}
+
       {/* Rows carry their own log, save and remove now, so the only thing
           left for the bar is making a row that is not prescribed. */}
       <button
@@ -623,17 +819,19 @@ export default function Session() {
 
       <div className="flex gap-2">
           <Link
-            to={`/exercises?splitId=${split.id}&dayId=${day.id}&return=${encodeURIComponent(`/train/session/${day.id}`)}`}
+            to={`/exercises?splitId=${split.id}&dayId=${day.id}&return=${encodeURIComponent(
+              `/train/session/${day.id}?resume=${index}&had=${day.entries.length}`,
+            )}`}
             className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
           >
             Add a movement
           </Link>
           <button
-            onClick={dropMovement}
+            onClick={() => removeMovement(index)}
             disabled={busy || day.entries.length <= 1}
             className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 text-sm text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
           >
-            Drop this movement
+            Remove from this day
           </button>
       </div>
       <section className="flex flex-col gap-2">
@@ -645,11 +843,14 @@ export default function Session() {
             const otherSets = setsFor(other)
             const otherDone = otherSets.length >= other.sets
             return (
-              <li key={`${other.exerciseId}-${i}`}>
+              <li
+                key={`${other.exerciseId}-${i}`}
+                className="flex items-center gap-1"
+                style={{ borderBottom: '1px solid var(--color-divider)' }}
+              >
                 <button
-                  onClick={() => openExercise(i)}
-                  className="flex min-h-11 w-full items-center gap-3 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
-                  style={{ borderBottom: '1px solid var(--color-divider)' }}
+                  onClick={() => goToExercise(i)}
+                  className="flex min-h-11 flex-1 items-center gap-3 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                 >
                   <span
                     className="flex-1 text-sm"
@@ -662,8 +863,20 @@ export default function Session() {
                   </span>
                   <span className="text-[11px] text-[var(--color-text-secondary)]">
                     {otherSets.length > 0
-                      ? `${otherSets.length} sets`
-                      : formatPrescription(other, otherExercise?.category) || 'time'}
+                      ? `${otherSets.length} ${otherSets.length === 1 ? 'set' : 'sets'}`
+                      : describePrescription(other, otherExercise)}
+                  </span>
+                </button>
+                {/* The machine you cannot get to is rarely the movement you are
+                    standing on, so every row can leave the day from here. */}
+                <button
+                  onClick={() => removeMovement(i)}
+                  disabled={busy || day.entries.length <= 1}
+                  aria-label={`Remove ${otherExercise?.name ?? 'this movement'} from this day`}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--color-text-secondary)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                >
+                  <span aria-hidden="true" className="text-base leading-none">
+                    −
                   </span>
                 </button>
               </li>

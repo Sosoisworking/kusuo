@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#161826" />
+    <title>Kusuo</title>
+    <style>
+      /* Painted in the app's own ground so the hand-off is a beat, not a flash
+         of white. Hard-coded rather than tokenised: this file is copied
+         verbatim out of public/ and never sees the stylesheet. */
+      html {
+        background: #161826;
+      }
+    </style>
+    <script>
+      /*
+        GitHub Pages serves static files and nothing else — there is no rewrite
+        rule to point /kusuo/splits at index.html. Every in-app URL except the
+        root therefore answers 404 on a cold load: a bookmark, a shared link,
+        and — the one that actually bit — a pull-to-refresh on any screen but
+        Today, which reloads the address bar's URL, not the app.
+
+        This page is what GitHub serves instead. It folds the requested path
+        into the query string of the one URL that does exist, and the decoder in
+        index.html unfolds it before React Router reads the location, so the
+        router lands on the screen that was asked for.
+
+        Once the service worker is installed it answers navigations from the
+        precache and this file is never reached, so there is no loop between
+        the two: only one of them is ever in play.
+
+        replace(), not assign(): a 404 must not become a history entry, or Back
+        walks straight back into it.
+      */
+      ;(function (l) {
+        // The first path segment is the Pages project root — /kusuo — and is
+        // the same value as `base` in vite.config.ts. Read rather than written
+        // so the two cannot drift apart.
+        var root = l.pathname.split('/').slice(0, 2).join('/')
+        var rest = l.pathname.slice(root.length).replace(/^\//, '')
+        if (!rest) {
+          // No route to carry. Sending the query form here would hand the
+          // decoder an empty path and bounce it above the router's basename.
+          l.replace(l.origin + root + '/' + l.search + l.hash)
+          return
+        }
+        l.replace(
+          l.origin +
+            root +
+            '/?/' +
+            rest.replace(/&/g, '~and~') +
+            (l.search ? '&' + l.search.slice(1) : '') +
+            l.hash,
+        )
+      })(window.location)
+    </script>
+  </head>
+  <body></body>
+</html>

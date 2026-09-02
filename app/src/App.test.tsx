@@ -7,13 +7,14 @@ import { seedExercises } from './db/exercises'
 import { appendHabitEvent } from './db/events'
 import { createHabit } from './db/habits'
 import { resetDatabase } from './test/setup'
-import { db } from './db/schema'
+import { db, type Habit } from './db/schema'
 import { createSettings } from './db/settings'
 import { archiveGoal, completeGoal, createGoal } from './db/goals'
 import { appendReflection } from './db/reflections'
 import { finishSession, logSet } from './db/sessions'
 import { instantiateTemplate } from './db/splits'
 import { addDays, todayLocalDate } from './lib/date'
+import { dayForDate, plannedSetCount } from './logic/nextSession'
 
 const DEVICE_ID = 'test-device'
 
@@ -96,14 +97,13 @@ describe('Today', () => {
     await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
     renderAt('/')
 
-    // Exact name, because the row's sibling edit button is "Edit Reading".
-    const row = await screen.findByRole('button', { name: 'Reading' })
-    expect(row).toHaveAttribute('aria-pressed', 'false')
-    await userEvent.click(row)
+    // Exact name, because the row's sibling name button is "Open Reading".
+    const tick = await screen.findByRole('button', { name: 'Reading' })
+    expect(tick).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(tick)
 
     await waitFor(() => expect(screen.getByText('1 of 1 done today')).toBeInTheDocument())
-    // Completing it adds the "1d" subtitle, so the name grows.
-    expect(screen.getByRole('button', { name: /^Reading/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Reading' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('folds Reflect and Goals into cards instead of tabs', async () => {
@@ -140,6 +140,43 @@ describe('Today', () => {
     expect(screen.queryByText('Next up')).toBeNull()
   })
 
+  it('opens the habit when its name is tapped, and ticks nothing', async () => {
+    await onboard()
+    await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
+    renderAt('/')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Reading' }))
+
+    expect(await screen.findByRole('heading', { name: 'Reading', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('Daily')).toBeInTheDocument()
+    // The reason this row was split in two: reading a habit must not log one.
+    expect(await db.habitEvents.count()).toBe(0)
+  })
+
+  it('lists habits oldest first, with names breaking a tie', async () => {
+    await onboard()
+    // The exact shape of the fresh install that read Japanese, Fitness,
+    // Reading: onboarding wrote the batch inside one millisecond, so createdAt
+    // tied and Dexie handed them back in primary-key order. The keys are
+    // written out here so key order and the order Today owes are provably
+    // different — nothing about this can pass by luck.
+    function seeded(id: string, name: string, createdAt: number): Habit {
+      return { id, name, frequencyType: 'daily', frequencyValue: 1, isActive: true, createdAt, updatedAt: createdAt }
+    }
+    await db.habits.bulkAdd([
+      seeded('habit-1', 'Japanese', 100),
+      seeded('habit-2', 'Fitness', 100),
+      seeded('habit-3', 'Reading', 200),
+    ])
+    renderAt('/')
+
+    await screen.findByRole('button', { name: 'Open Fitness' })
+    const order = screen
+      .getAllByRole('button', { name: /^Open / })
+      .map((button) => button.getAttribute('aria-label'))
+    expect(order).toEqual(['Open Fitness', 'Open Japanese', 'Open Reading'])
+  })
+
   it('counts this week in the strip', async () => {
     await onboard()
     const habit = await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
@@ -148,6 +185,140 @@ describe('Today', () => {
 
     const strip = await screen.findByRole('region', { name: 'This week' })
     expect(within(strip).getByText('1')).toBeInTheDocument()
+  })
+
+  it('does not spend the calendar dot on a day with nothing on it', async () => {
+    await onboard()
+    await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
+    renderAt('/')
+
+    const strip = await screen.findByRole('region', { name: 'This week' })
+    // The calendar spends '·' to mean a habit was done; zero cannot use it too.
+    expect(within(strip).queryByText('·')).toBeNull()
+    expect(within(strip).getAllByText(/of 1 done$/)).toHaveLength(7)
+  })
+})
+
+describe('Today and the day that is already under way', () => {
+  async function activeSplitDay() {
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const day = dayForDate(split, todayLocalDate())
+    if (!day) throw new Error('the seeded split has no day for today')
+    return day
+  }
+
+  it('says a session is under way once sets are logged', async () => {
+    await onboard()
+    const day = await activeSplitDay()
+    const today = todayLocalDate()
+    await logSet(
+      { localDate: today, splitDayId: day.id, exerciseId: day.entries[0].exerciseId, setIndex: 0 },
+      { weightKg: 60, reps: 10 },
+      DEVICE_ID,
+    )
+
+    renderAt('/')
+
+    // Train said "Continue session · 3 of 32 logged" while Today still said
+    // "Next up". Both now replay the same log.
+    expect(await screen.findByText('In progress')).toBeInTheDocument()
+    expect(screen.getByText(`1 of ${plannedSetCount(day)} sets logged`)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Continue the session' })).toHaveAttribute(
+      'href',
+      '/train',
+    )
+  })
+
+  it('says the session is done once it is finished', async () => {
+    await onboard()
+    const day = await activeSplitDay()
+    const today = todayLocalDate()
+    await logSet(
+      { localDate: today, splitDayId: day.id, exerciseId: day.entries[0].exerciseId, setIndex: 0 },
+      { weightKg: 60, reps: 10 },
+      DEVICE_ID,
+    )
+    await finishSession(today, day.id, DEVICE_ID)
+
+    renderAt('/')
+
+    expect(await screen.findByText('Done today')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review the session' })).toBeInTheDocument()
+  })
+
+  it('states a rest day instead of offering a session', async () => {
+    await onboard()
+    // One rest day repeats across the whole week, so today is a rest day
+    // whichever day the suite runs on.
+    await db.splits.add({
+      id: 'split-rest-only',
+      name: 'Deload',
+      days: [{ id: 'rest-day', label: 'Rest', kind: 'rest', entries: [] }],
+      isActive: true,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    renderAt('/')
+
+    expect(await screen.findByText('A day in the split, not a gap in it.')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /session/i })).toBeNull()
+  })
+
+  it('stops saying a session is up next once the training habit is ticked', async () => {
+    await onboard()
+    const habit = await createHabit({ name: 'Fitness', frequencyType: 'daily', frequencyValue: 1 })
+    await db.settings.update(DEVICE_ID, { trainingHabitId: habit.id })
+    const day = await activeSplitDay()
+
+    renderAt('/')
+
+    expect(await screen.findByText(`Up next · ${day.label}`)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Fitness' }))
+
+    await waitFor(() => expect(screen.queryByText(`Up next · ${day.label}`)).toBeNull())
+    expect(screen.getByText('1d')).toBeInTheDocument()
+  })
+})
+
+describe('the screens that had no way in', () => {
+  it('sends the retired /progress path home', async () => {
+    await onboard()
+    renderAt('/progress')
+
+    expect(await screen.findByRole('link', { name: /Reflect/ })).toBeInTheDocument()
+  })
+
+  it('sends an unknown path home rather than rendering nothing', async () => {
+    await onboard()
+    renderAt('/does-not-exist')
+
+    // The SPA fallback now delivers unknown paths to the router, so "nothing
+    // matched" has to mean something.
+    expect(await screen.findByRole('link', { name: /Reflect/ })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument()
+  })
+
+  it('lets a real route outrank the catch-all', async () => {
+    await onboard()
+    for (const [path, title] of [
+      ['/records', 'Records'],
+      ['/splits', 'Splits'],
+      ['/exercises', 'Directory'],
+    ] as const) {
+      const view = renderAt(path)
+      expect(await screen.findByRole('heading', { name: title, level: 1 })).toBeInTheDocument()
+      view.unmount()
+    }
+  })
+
+  it('still sends an un-onboarded device to onboarding from an unknown path', async () => {
+    renderAt('/does-not-exist')
+
+    expect(
+      await screen.findByText(/Habits, and the training that goes with them/i),
+    ).toBeInTheDocument()
   })
 })
 
@@ -250,6 +421,30 @@ describe('Calendar', () => {
     const cell = await screen.findByLabelText(new RegExp(`^${today}:`))
     expect(cell.getAttribute('aria-label')).not.toMatch(/trained/)
   })
+
+  it('marks a day with sets logged and no finish, without calling it trained', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const today = todayLocalDate()
+    await logSet(
+      {
+        localDate: today,
+        splitDayId: split.days[0].id,
+        exerciseId: 'ex-barbell-bench-press',
+        setIndex: 0,
+      },
+      { weightKg: 80, reps: 6 },
+      DEVICE_ID,
+    )
+
+    renderAt('/calendar')
+
+    // The grid was blank for this day while the detail below held the sets.
+    const cell = await screen.findByLabelText(new RegExp(`^${today}:`))
+    expect(cell.getAttribute('aria-label')).toMatch(/sets logged, session not finished$/)
+    expect(cell.getAttribute('aria-label')).not.toMatch(/trained/)
+  })
 })
 
 describe('Goals and reflections have somewhere to live', () => {
@@ -260,6 +455,7 @@ describe('Goals and reflections have somewhere to live', () => {
 
     renderAt('/calendar')
     await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+    await userEvent.click(await screen.findByRole('tab', { name: 'Reflection' }))
 
     expect(await screen.findByText('Slept badly, trained anyway.')).toBeInTheDocument()
   })
@@ -270,22 +466,33 @@ describe('Goals and reflections have somewhere to live', () => {
 
     renderAt('/calendar')
     await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+    await userEvent.click(await screen.findByRole('tab', { name: 'Reflection' }))
 
     expect(await screen.findByText('Nothing written that day.')).toBeInTheDocument()
   })
 
-  it('keeps goals on the calendar behind a bar that expands', async () => {
+  it('holds a day\'s training, reflection and goals in three tabs', async () => {
     await onboard()
+    const today = todayLocalDate()
     await createGoal({ title: 'Read 24 books', description: 'Two a month', targetDate: '2026-12-31' })
 
     renderAt('/calendar')
-    const bar = await screen.findByRole('button', { name: /Goals/ })
-    expect(bar).toHaveAttribute('aria-expanded', 'false')
+    // The tabs belong to a day, so they appear once one is chosen.
+    expect(screen.queryByRole('tab', { name: 'Goals' })).toBeNull()
+    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+
+    // Training leads, and each answer is whole rather than stacked behind another.
+    expect(await screen.findByRole('tab', { name: 'Training' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(await screen.findByText('No sets logged that day.')).toBeInTheDocument()
     expect(screen.queryByText('Read 24 books')).toBeNull()
 
-    await userEvent.click(bar)
+    await userEvent.click(screen.getByRole('tab', { name: 'Goals' }))
     expect(await screen.findByText('Read 24 books')).toBeInTheDocument()
     expect(screen.getByText('Two a month')).toBeInTheDocument()
+    expect(screen.queryByText('No sets logged that day.')).toBeNull()
   })
 
   it('moves a reached goal into Records, and leaves an abandoned one out', async () => {
@@ -342,7 +549,11 @@ describe('Reflection', () => {
 
     const note = await screen.findByRole('textbox', { name: 'Anything else' })
     expect(note).toHaveValue('First pass.')
-    expect(screen.getByRole('button', { name: 'Update today' })).toBeInTheDocument()
+    // Saved and unchanged says so in words. The button comes back — reading
+    // "Update today" — the moment an answer differs from what was stored.
+    expect(screen.getByText('Saved for today. Change an answer to update it.')).toBeInTheDocument()
+    await userEvent.type(note, ' Second thought.')
+    expect(await screen.findByRole('button', { name: 'Update today' })).toBeInTheDocument()
   })
 
   it('refuses to save nothing', async () => {
@@ -368,11 +579,13 @@ describe('the calendar day detail', () => {
     await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
 
     // Summary: 80x6 + 80x5 = 880 kg across 2 sets of 1 movement. It appears
-    // twice — once as the day total, once as this movement's own volume.
+    // twice — once as the day total, once as this movement's own volume. The
+    // summary stays above the tabs; Training is the tab a day opens on.
     expect(await screen.findAllByText('880kg')).toHaveLength(2)
-    expect(screen.getByText('What you did')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Training' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Barbell bench press')).toBeInTheDocument()
-    expect(screen.getByText('80 × 6 · 80 × 5')).toBeInTheDocument()
+    // Every weight on the screen carries its unit, the set lines included.
+    expect(screen.getByText('80kg × 6 · 80kg × 5')).toBeInTheDocument()
   })
 
   it('shows a circuit as time rather than as a weight', async () => {
@@ -399,7 +612,9 @@ describe('the calendar day detail', () => {
     renderAt('/calendar')
     await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
 
-    await screen.findByText('Nothing written that day.')
-    expect(screen.queryByText('What you did')).toBeNull()
+    // The tab is still there — a day with no sets says so rather than hiding
+    // the question, which is what made an empty day ambiguous before.
+    await screen.findByText('No sets logged that day.')
+    expect(screen.queryByText('Barbell bench press')).toBeNull()
   })
 })

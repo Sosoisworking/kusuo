@@ -1,0 +1,64 @@
+/*
+  Kusuo — the shell the device imposes.
+
+  Rules here belong to no screen in particular: they are what the hardware and
+  the display mode demand of every screen at once. Kept out of tokens.css,
+  which declares values and paints nothing, and reached through its @import so
+  a single stylesheet still enters the app.
+*/
+
+/*
+  The status-bar mask.
+
+  index.html asks for `apple-mobile-web-app-status-bar-style: black-translucent`
+  and `viewport-fit=cover`, which is what lets the app own the full screen when
+  it is installed. The cost is that the page also scrolls *under* the clock and
+  the Dynamic Island: Safari's own chrome was hiding it, and once installed
+  there is nothing up there but the page. Section headings were arriving on top
+  of the time.
+
+  So the app paints its own mask, once, for every screen — a page's top padding
+  positions its first line but says nothing about what scrolls past it later.
+
+  The height is the inset itself, which is also the switch: iOS reports a
+  non-zero `safe-area-inset-top` to an installed app and zero to a Safari tab in
+  portrait, where the browser's toolbar already covers that band. No
+  display-mode query is needed — where there is no inset there is no mask.
+
+  Above the tab bar (z-10) and the reader banner (z-20) because it masks both.
+  pointer-events: none, because it must never take a tap meant for the page.
+*/
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  z-index: 30;
+  background: var(--color-bg);
+  pointer-events: none;
+}
+
+/*
+  The sensor housing, in landscape.
+
+  Every inset the app read was top or bottom, which is the portrait half of the
+  problem. Turned sideways, `safe-area-inset-left` or `-right` is about 47pt of
+  screen that the housing sits on top of, and each screen setting its own `px-5`
+  gutter of 20pt put content — and taps — underneath it.
+
+  Padded here rather than on each `<main>` for the same reason as the mask
+  above: there are seventeen screens and only one pair of insets. In portrait
+  both resolve to zero and nothing moves. In landscape the gutter becomes the
+  page's own 20pt *plus* the housing, which is what it should be — the housing
+  is not a margin, it is missing screen.
+
+  This cannot reach the fixed furniture: a fixed box is laid out against the
+  viewport, not against this padding, so the tab bar and the reader banner ask
+  for the insets themselves.
+*/
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}

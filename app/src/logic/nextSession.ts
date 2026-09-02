@@ -1,4 +1,4 @@
-import type { ExerciseCategory, Split, SplitDay, SplitEntry, WeekStart } from '../db/schema'
+import type { Exercise, ExerciseCategory, Split, SplitDay, SplitEntry, WeekStart } from '../db/schema'
 import { weekdayIndex } from '../lib/date'
 
 /**
@@ -35,4 +35,20 @@ export function formatPrescription(entry: SplitEntry, category?: ExerciseCategor
   if (category === 'cardio') return ''
   const reps = entry.repsMin === entry.repsMax ? `${entry.repsMin}` : `${entry.repsMin}-${entry.repsMax}`
   return `${entry.sets} × ${reps}`
+}
+
+/**
+ * The same question with the movement in hand, so the cardio gap has an answer:
+ * a circuit reads as the time it runs for, and cardio with no stated length
+ * says what it is. Splits and the session screen were each filling that gap
+ * themselves and disagreeing about it — one showed "20 min", the other "time".
+ */
+export function describePrescription(
+  entry: SplitEntry,
+  exercise?: Pick<Exercise, 'category' | 'circuit'>,
+): string {
+  return (
+    formatPrescription(entry, exercise?.category) ||
+    (exercise?.circuit ? `${exercise.circuit.durationMin} min` : 'cardio')
+  )
 }

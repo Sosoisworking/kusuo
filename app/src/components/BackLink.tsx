@@ -1,15 +1,40 @@
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
+
+interface BackLinkProps {
+  label?: string
+  /**
+   * Where to go when there is no history to go back to. Today is the safe
+   * default — it exists on every device and every role — but a screen that
+   * sits under another one should name its parent, so a deep link lands the
+   * user where the chevron promised rather than at the top of the app.
+   */
+  to?: string
+}
 
 /**
  * Back for the screens that are not tabs. The tab bar is how you move between
  * the six main surfaces; anything reached by tapping into something needs a way
  * out that is not the browser chrome, because an installed PWA has none.
+ *
+ * `navigate(-1)` alone was that way out only when the user had arrived by
+ * tapping. On a cold load — a bookmark, a shared link, a relaunch from the home
+ * screen, or a pull-to-refresh — the entry below this one belongs to whatever
+ * the browser was showing before Kusuo, so Back left the app. React Router
+ * gives the entry an app is loaded on the key `default`, and that is the proof:
+ * nothing of ours is behind it, so go to a route instead of into history.
  */
-export default function BackLink({ label = 'Back' }: { label?: string }) {
+export default function BackLink({ label = 'Back', to = '/' }: BackLinkProps) {
   const navigate = useNavigate()
+  const { key } = useLocation()
+
+  function goBack() {
+    if (key === 'default') navigate(to, { replace: true })
+    else navigate(-1)
+  }
+
   return (
     <button
-      onClick={() => navigate(-1)}
+      onClick={goBack}
       aria-label={label}
       className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
     >

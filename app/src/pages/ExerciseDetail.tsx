@@ -26,6 +26,11 @@ const BAR_STEPS = [
   'var(--color-accent)',
 ]
 
+/** Categories are stored lowercase; beside "Back" and "Cable" that read as a typo. */
+function capitalise(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1)
+}
+
 function Tag({ children, accent = false }: { children: React.ReactNode; accent?: boolean }) {
   return (
     <span
@@ -105,12 +110,12 @@ export default function ExerciseDetail() {
 
   const units = settings?.units ?? 'kg'
   const shell =
-    'flex min-h-dvh flex-col gap-4 px-5 pb-28 pt-[max(2.5rem,env(safe-area-inset-top))]'
+    'flex min-h-dvh flex-col gap-4 px-5 pb-28 pt-[var(--space-safe-top)]'
 
   if (!exercise) {
     return (
       <main className={shell}>
-        <BackLink />
+        <BackLink to="/exercises" />
         <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">Movement not found</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">
           It may have been removed from the directory.
@@ -130,7 +135,7 @@ export default function ExerciseDetail() {
   return (
     <main className={shell}>
       <div className="flex items-center justify-between gap-3">
-        <BackLink />
+        <BackLink to="/exercises" />
         {exercise.referenceUrl && (
           <a
             href={exercise.referenceUrl}
@@ -149,7 +154,7 @@ export default function ExerciseDetail() {
           {exercise.name}
         </h1>
         <div className="flex flex-wrap gap-1.5">
-          <Tag accent>{exercise.category}</Tag>
+          <Tag accent>{capitalise(exercise.category)}</Tag>
           <Tag>{exercise.muscleGroup}</Tag>
           <Tag>{exercise.equipment}</Tag>
           {exercise.isCustom && <Tag>Yours</Tag>}
@@ -215,26 +220,48 @@ export default function ExerciseDetail() {
           {!isCardio && peak > 0 && (
             <section className="flex flex-col gap-2">
               <SectionHeading>Top set, twelve weeks</SectionHeading>
-              <div
-                role="img"
-                aria-label={`Heaviest set in each of the last ${WEEKS} weeks, peaking at ${weightValue(peak, units)} ${units}`}
-                className="flex h-14 items-end gap-[3px]"
-              >
-                {weeks.map((week) => {
-                  const ratio = week.topKg / peak
-                  const step = BAR_STEPS[Math.min(BAR_STEPS.length - 1, Math.floor(ratio * BAR_STEPS.length))]
-                  return (
-                    <span
-                      key={week.weekStart}
-                      className="flex-1 rounded-[2px]"
-                      style={{
-                        // An empty week keeps its column and shows a hairline.
-                        height: week.topKg > 0 ? `${Math.max(6, ratio * 100)}%` : '1px',
-                        background: week.topKg > 0 ? step : 'var(--color-border)',
-                      }}
-                    />
-                  )
-                })}
+              {/*
+                Bars alone told you a shape and nothing else: one logged week
+                drew a single column hard against the right edge, reading as a
+                chart that had been cut off rather than a fact. The scale gives
+                it a number, the rule under it gives it a floor, and the column
+                on the right keeps the newest week off the edge.
+              */}
+              <div className="flex items-start gap-3">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div
+                    role="img"
+                    aria-label={`Heaviest set in each of the last ${WEEKS} weeks, peaking at ${weightValue(peak, units)} ${units}`}
+                    className="flex h-14 items-end gap-[3px]"
+                    style={{ borderBottom: '1px solid var(--color-border)' }}
+                  >
+                    {weeks.map((week) => {
+                      const ratio = week.topKg / peak
+                      const step = BAR_STEPS[Math.min(BAR_STEPS.length - 1, Math.floor(ratio * BAR_STEPS.length))]
+                      return (
+                        <span
+                          key={week.weekStart}
+                          className="flex-1 rounded-[2px]"
+                          style={{
+                            // An empty week keeps its column and shows a hairline.
+                            height: week.topKg > 0 ? `${Math.max(6, ratio * 100)}%` : '1px',
+                            background: week.topKg > 0 ? step : 'var(--color-border)',
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+                  <div className="flex justify-between text-[10px] text-[var(--color-text-secondary)]">
+                    <span>{formatShortDate(weeks[0].weekStart)}</span>
+                    <span>this week</span>
+                  </div>
+                </div>
+                <div className="flex h-14 w-14 shrink-0 flex-col justify-between text-right">
+                  <span className="text-[11px] text-[var(--color-text-primary)]">
+                    {weightValue(peak, units)} {units}
+                  </span>
+                  <span className="text-[10px] text-[var(--color-text-secondary)]">0</span>
+                </div>
               </div>
             </section>
           )}

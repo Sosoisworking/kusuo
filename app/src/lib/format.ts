@@ -40,8 +40,15 @@ export function formatRelativeDay(localDate: string, today: string): string {
 /**
  * Time-of-day greeting. States the time of day and the name; it does not
  * cheer, congratulate, or comment on the record.
+ *
+ * The small hours belong to the evening that hasn't ended yet: at 01:29 the
+ * clock has turned over but the night has not, and "Good morning" is a claim
+ * about the day that isn't true. Only the greeting bends here — the day
+ * boundary stays local midnight (`todayLocalDate`), so a habit ticked at 01:29
+ * still counts against the date the calendar shows it under.
  */
 export function greeting(hour: number): string {
+  if (hour < 5) return 'Good evening'
   if (hour < 12) return 'Good morning'
   if (hour < 18) return 'Good afternoon'
   return 'Good evening'

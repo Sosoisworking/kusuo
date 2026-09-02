@@ -1,5 +1,6 @@
 import type { Table } from 'dexie'
 import { db } from './schema'
+import { forgetRestoredPreferences } from './settings'
 
 /**
  * The one place that knows what tables exist.
@@ -49,4 +50,7 @@ export async function clearEverything(): Promise<void> {
   await db.transaction('rw', tables, async () => {
     await Promise.all(tables.map((t) => t.clear()))
   })
+  // Preferences an import parked but no settings row ever took up. They belong
+  // to the record being erased, not to the phone.
+  forgetRestoredPreferences()
 }

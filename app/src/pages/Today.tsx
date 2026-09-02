@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { allHabitEvents, appendHabitEvent } from '../db/events'
 import { listActiveHabits } from '../db/habits'
-import type { Habit, HabitEvent, Settings, Split, SplitDay } from '../db/schema'
+import type { Habit, HabitEvent, SessionEvent, SessionMark, Settings, Split } from '../db/schema'
+import { allSessionEvents, allSessionMarks } from '../db/sessions'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { getActiveSplit } from '../db/splits'
 import ProfileMenu from '../components/ProfileMenu'
-import { WEEKDAY_INITIALS, formatLongDate, greeting } from '../lib/format'
+import { WEEKDAY_INITIALS, formatLongDate, formatShortDate, greeting } from '../lib/format'
 import { todayLocalDate } from '../lib/date'
 import { completedDatesForHabit } from '../logic/derive'
 import { dayForDate, plannedSetCount } from '../logic/nextSession'
+import { isSessionComplete, setsOnDate } from '../logic/sessions'
 import { countInWeekOf, completionsByDate, weekDays } from '../logic/week'
 import { dailyStreak } from '../logic/streaks'
 
@@ -23,16 +25,21 @@ interface Row {
  * The line under a habit's name. Daily habits show the run they are on, N-per-week
  * habits show progress against this week's target, and the training habit says
  * which session is next instead — a plain fact in each case, never a nudge.
+ *
+ * `trainingNote` is only passed for the training habit, and only while there is
+ * genuinely a session waiting. Once the habit is ticked there is nothing up
+ * next, so the row falls back to the run it is on rather than keeping a
+ * promise it has already kept.
  */
 function subtitleFor(
   habit: Habit,
   completedDates: Set<string>,
   today: string,
   weekStart: Settings['weekStart'],
-  trainingDay: SplitDay | undefined,
-  isTrainingHabit: boolean,
+  isDone: boolean,
+  trainingNote: string | null,
 ): string | null {
-  if (isTrainingHabit && trainingDay) return `Up next · ${trainingDay.label}`
+  if (trainingNote && !isDone) return trainingNote
   if (habit.frequencyType === 'daily') {
     const streak = dailyStreak(completedDates, today)
     return streak > 0 ? `${streak}d` : null
@@ -88,53 +95,73 @@ function HabitRow({
   onOpen: () => void
 }) {
   const { habit, isDone, subtitle } = row
-  const body = (
-    <>
-      <CheckMark isDone={isDone} isNext={isNext} />
-      <span className="flex flex-1 flex-col text-left">
-        <span
-          className="text-base font-medium"
-          style={{
-            color: isDone ? 'var(--color-text-done)' : 'var(--color-text-primary)',
-            textDecoration: isDone ? 'line-through' : 'none',
-          }}
-        >
-          {habit.name}
-        </span>
-        {subtitle && <span className="text-xs text-[var(--color-text-secondary)]">{subtitle}</span>}
+  const name = (
+    <span className="flex flex-1 flex-col text-left">
+      <span
+        className="text-base font-medium"
+        style={{
+          color: isDone ? 'var(--color-text-done)' : 'var(--color-text-primary)',
+          textDecoration: isDone ? 'line-through' : 'none',
+        }}
+      >
+        {habit.name}
       </span>
-    </>
+      {subtitle && <span className="text-xs text-[var(--color-text-secondary)]">{subtitle}</span>}
+    </span>
   )
 
   const rule = { borderBottom: '1px solid var(--color-divider)' }
+  // The tick sits in its own 44pt column, flush left, so the mark keeps the
+  // list's left edge while the target reaches past it.
+  const tickColumn = 'flex h-11 w-11 shrink-0 items-center justify-start'
 
   if (readOnly) {
     return (
       <div className="flex min-h-11 items-center gap-3 py-2" style={rule}>
-        {body}
+        <span className={tickColumn}>
+          <CheckMark isDone={isDone} isNext={isNext} />
+        </span>
+        {name}
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-2" style={rule}>
+    // Two targets, two intentions. Tapping a habit's name used to tick it, so
+    // reading the list changed it; the tick is now its own control and the name
+    // opens the habit. The tick stays first and full height, because the
+    // morning tap is the one that has to stay fast.
+    <div className="flex items-center gap-3" style={rule}>
       <button
         onClick={onToggle}
         aria-pressed={isDone}
-        className="flex min-h-11 flex-1 items-center gap-3 py-2 text-left transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+        aria-label={habit.name}
+        className={`${tickColumn} transition-transform duration-100 active:scale-[0.94] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]`}
       >
-        {body}
+        <CheckMark isDone={isDone} isNext={isNext} />
       </button>
       <button
         onClick={onOpen}
-        aria-label={`Edit ${habit.name}`}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+        aria-label={`Open ${habit.name}`}
+        className="flex min-h-11 flex-1 items-center py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
       >
-        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6}>
-          <path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5z" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        {name}
       </button>
     </div>
+  )
+}
+
+/**
+ * The order the list reads in. Dexie returns habits in primary-key order and
+ * the keys are UUIDs, so without this the list is shuffled — a fresh install
+ * read Japanese, Fitness, Reading, which is not the order onboarding offered
+ * them in. Oldest first, so a habit keeps its place for good and a new one
+ * joins the end; name breaks the ties, which is every habit created in the
+ * same millisecond during onboarding.
+ */
+function orderedHabits(habits: Habit[]): Habit[] {
+  return [...habits].sort(
+    (a, b) => a.createdAt - b.createdAt || a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
   )
 }
 
@@ -163,6 +190,8 @@ export default function Today() {
   const [habits, setHabits] = useState<Habit[]>([])
   const [events, setEvents] = useState<HabitEvent[]>([])
   const [split, setSplit] = useState<Split | undefined>()
+  const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([])
+  const [marks, setMarks] = useState<SessionMark[]>([])
   const [today, setToday] = useState(todayLocalDate)
   const [error, setError] = useState<string | null>(null)
 
@@ -191,16 +220,23 @@ export default function Today() {
 
   async function load() {
     const deviceId = getOrCreateDeviceId()
-    const [s, h, e, sp] = await Promise.all([
+    // The session log is read here for the same reason Train reads it: a
+    // half-logged session is a fact about today, and Today is the screen that
+    // is supposed to say what today is.
+    const [s, h, e, sp, se, m] = await Promise.all([
       getSettings(deviceId),
       listActiveHabits(),
       allHabitEvents(),
       getActiveSplit(),
+      allSessionEvents(),
+      allSessionMarks(),
     ])
     setSettings(s)
     setHabits(h)
     setEvents(e)
     setSplit(sp)
+    setSessionEvents(se)
+    setMarks(m)
   }
 
   async function toggle(habit: Habit, isDone: boolean) {
@@ -228,26 +264,38 @@ export default function Today() {
   const weekStart = settings.weekStart
   const trainingDay = split ? dayForDate(split, today, weekStart) : undefined
 
-  const rows: Row[] = habits.map((habit) => {
+  // Today's training state, derived from the same two logs Train replays, so
+  // the two screens cannot disagree about whether a session is under way.
+  const isRestDay = trainingDay?.kind === 'rest'
+  const plannedSets = trainingDay ? plannedSetCount(trainingDay) : 0
+  const loggedSets = trainingDay
+    ? setsOnDate(sessionEvents, today).filter((s) => s.splitDayId === trainingDay.id).length
+    : 0
+  const sessionFinished = trainingDay ? isSessionComplete(marks, today, trainingDay.id) : false
+  const sessionWaiting = Boolean(trainingDay) && !isRestDay && !sessionFinished
+  const trainingNote = sessionWaiting && trainingDay ? `Up next · ${trainingDay.label}` : null
+
+  const rows: Row[] = orderedHabits(habits).map((habit) => {
     const completedDates = completedDatesForHabit(events, habit.id)
+    const isDone = completedDates.has(today)
     return {
       habit,
-      isDone: completedDates.has(today),
+      isDone,
       subtitle: subtitleFor(
         habit,
         completedDates,
         today,
         weekStart,
-        trainingDay,
-        habit.id === settings.trainingHabitId,
+        isDone,
+        habit.id === settings.trainingHabitId ? trainingNote : null,
       ),
     }
   })
   const doneCount = rows.filter((r) => r.isDone).length
   const remaining = rows.length - doneCount
-  // The accent ring marks the habit with a session waiting — the same row that
-  // reads "Up next · Push". One signal, not two competing ones.
-  const queuedHabitId = trainingDay ? settings.trainingHabitId : undefined
+  // The accent ring marks the habit with a session still waiting — the same row
+  // that reads "Up next · Push". One signal, not two competing ones.
+  const queuedHabitId = sessionWaiting ? settings.trainingHabitId : undefined
 
   const days = weekDays(today, weekStart)
   const dayCounts = completionsByDate(habits, events, days)
@@ -284,16 +332,23 @@ export default function Today() {
               className="flex flex-col items-center gap-1 rounded-[var(--radius-sm)] py-1.5"
               style={{ background: isToday ? 'var(--color-surface)' : 'transparent' }}
             >
+              {/* A day with nothing on it reads as a hairline, not a dot: the
+                  calendar spends a dot to mean a habit was done, and the same
+                  mark cannot also mean none were. */}
               <span
+                aria-hidden="true"
                 className="text-sm"
                 style={{
                   color: count > 0 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                 }}
               >
-                {count > 0 ? count : '·'}
+                {count > 0 ? count : '–'}
               </span>
-              <span className="text-[10px] text-[var(--color-text-secondary)]">
+              <span aria-hidden="true" className="text-[10px] text-[var(--color-text-secondary)]">
                 {WEEKDAY_INITIALS[weekStart][index]}
+              </span>
+              <span className="sr-only">
+                {formatShortDate(date)}: {count} of {rows.length} done
               </span>
             </div>
           )
@@ -302,20 +357,36 @@ export default function Today() {
 
       {trainingDay && (
         <section className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-4">
-          <span className="text-xs text-[var(--color-text-secondary)]">Next up</span>
+          <span className="text-xs text-[var(--color-text-secondary)]">
+            {isRestDay ? 'Today' : sessionFinished ? 'Done today' : loggedSets > 0 ? 'In progress' : 'Next up'}
+          </span>
           <h2 className="text-lg font-medium text-[var(--color-text-primary)]">
             {split?.name} · {trainingDay.label}
           </h2>
           <p className="text-xs text-[var(--color-text-secondary)]">
-            {trainingDay.entries.length} exercises · {plannedSetCount(trainingDay)} sets
-            {settings.trainingHabitId ? ' · logging it ticks the habit' : ''}
+            {isRestDay
+              ? 'A day in the split, not a gap in it.'
+              : loggedSets > 0 || sessionFinished
+                ? `${loggedSets} of ${plannedSets} sets logged`
+                : `${trainingDay.entries.length} exercises · ${plannedSets} sets${
+                    settings.trainingHabitId ? ' · logging it ticks the habit' : ''
+                  }`}
           </p>
-          <Link
-            to="/train"
-            className="mt-1 flex min-h-11 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 py-3 text-sm text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-          >
-            Open the session
-          </Link>
+          {/* A rest day is a day in the split, so it is worth saying — but the
+              only thing to do about it is on Train, and Today does not need a
+              second door to the same write. */}
+          {!isRestDay && (
+            <Link
+              to="/train"
+              className="mt-1 flex min-h-11 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 py-3 text-sm text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            >
+              {sessionFinished
+                ? 'Review the session'
+                : loggedSets > 0
+                  ? 'Continue the session'
+                  : 'Open the session'}
+            </Link>
+          )}
         </section>
       )}
 
@@ -342,9 +413,9 @@ export default function Today() {
               key={row.habit.id}
               row={row}
               readOnly={isReader}
-              isNext={row.habit.id === queuedHabitId}
+              isNext={row.habit.id === queuedHabitId && !row.isDone}
               onToggle={() => toggle(row.habit, row.isDone)}
-              onOpen={() => navigate(`/habits/${row.habit.id}/edit`)}
+              onOpen={() => navigate(`/habits/${row.habit.id}`)}
             />
           ))}
           {!isReader && (

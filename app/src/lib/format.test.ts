@@ -27,8 +27,12 @@ describe('greeting', () => {
     expect(greeting(23)).toBe('Good evening')
   })
 
-  it('treats midnight as morning', () => {
-    expect(greeting(0)).toBe('Good morning')
+  // The app said "Good morning, Soso" at 01:29 on a real device. The clock had
+  // turned over; the night had not.
+  it('keeps the small hours in the evening', () => {
+    expect(greeting(0)).toBe('Good evening')
+    expect(greeting(4)).toBe('Good evening')
+    expect(greeting(5)).toBe('Good morning')
   })
 })
 

@@ -16,6 +16,10 @@
      below is the step that actually clears 4.5:1 on its own ground.
 */
 
+/* The shell the device imposes — see shell.css. Pulled in from here so index.css
+   still reaches all of Kusuo's own CSS through one import. */
+@import './shell.css';
+
 :root {
   color-scheme: dark;
 
@@ -57,6 +61,23 @@
     24px or above. It must never carry a label, a count, or a tab caption.
   */
   --color-text-secondary: color-mix(in srgb, var(--color-text) 55%, transparent);
+
+  /*
+    A suggestion, not a value.
+
+    The set table shows what a set would most likely take behind every empty
+    field, and which numbers are real must never be in doubt — a placeholder
+    that read like a typed number is how three sets nobody performed used to get
+    logged.
+
+    The first attempt at this said it with weakness, at 38% / 3.14:1, which put
+    the app's least readable text on the one number a tick commits. Difference in
+    *kind* carries it instead: the placeholder is italic, which no entered value
+    ever is. The colour only has to be quieter than primary, so it sits at
+    4.50:1 here and 4.68:1 on the light ground — above the 4.5 floor, where a
+    number you are about to commit belongs.
+  */
+  --color-text-hint: color-mix(in srgb, var(--color-text) 50%, transparent);
 
   /* Hairlines, not lines. 12% for containers and controls, 9% for row rules. */
   --color-border: color-mix(in srgb, var(--color-text) 12%, transparent);
@@ -104,6 +125,15 @@
   --space-7: 48px;
   --space-8: 64px;
 
+  /*
+    Where a screen's first line may start. In Safari the inset is zero and this
+    is the 2.5rem the screens already used; installed, it is the status-bar
+    inset plus a 12px breath, so a heading clears the clock and the Dynamic
+    Island instead of sitting flush against them. One value, so every screen
+    starts its content on the same line rather than each guessing a minimum.
+  */
+  --space-safe-top: max(2.5rem, calc(env(safe-area-inset-top) + 12px));
+
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 320ms;
@@ -138,6 +168,7 @@
     --color-accent: var(--color-accent-700); /* 6.23:1 */
 
     --color-text-secondary: color-mix(in srgb, var(--color-text) 70%, transparent); /* 5.11:1 */
+    --color-text-hint: color-mix(in srgb, var(--color-text) 67%, transparent); /* 4.68:1 */
     --color-border: color-mix(in srgb, var(--color-text) 14%, transparent);
     --color-divider: color-mix(in srgb, var(--color-text) 10%, transparent);
 
@@ -163,6 +194,7 @@
   --color-accent: var(--color-accent-700);
 
   --color-text-secondary: color-mix(in srgb, var(--color-text) 70%, transparent);
+  --color-text-hint: color-mix(in srgb, var(--color-text) 67%, transparent);
   --color-border: color-mix(in srgb, var(--color-text) 14%, transparent);
   --color-divider: color-mix(in srgb, var(--color-text) 10%, transparent);
 
@@ -186,6 +218,7 @@
   --color-accent: #9184d9;
 
   --color-text-secondary: color-mix(in srgb, var(--color-text) 55%, transparent);
+  --color-text-hint: color-mix(in srgb, var(--color-text) 50%, transparent);
   --color-border: color-mix(in srgb, var(--color-text) 12%, transparent);
   --color-divider: color-mix(in srgb, var(--color-text) 9%, transparent);
 

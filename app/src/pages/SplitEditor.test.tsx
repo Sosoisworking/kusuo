@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { seedExercises } from '../db/exercises'
 import { resetDatabase } from '../test/setup'
@@ -134,12 +134,35 @@ describe('the split editor', () => {
     expect(first).toHaveAttribute('aria-hidden', 'true')
   })
 
+  it('lets you clear a number field and type a new one', async () => {
+    const split = await openEditor()
+    await userEvent.click(await screen.findByRole('button', { name: /^Barbell bench press/ }))
+
+    // Clearing used to snap straight back to the floor of 1, so typing 12 over
+    // an emptied field gave 112.
+    const sets = screen.getByLabelText('Sets')
+    fireEvent.change(sets, { target: { value: '' } })
+    expect(sets).toHaveValue(null)
+    fireEvent.change(sets, { target: { value: '12' } })
+    fireEvent.blur(sets)
+
+    await waitFor(async () => {
+      expect((await db.splits.get(split.id))?.days[0].entries[0].sets).toBe(12)
+    })
+  })
+
   it('sets both ends of a rep range', async () => {
     const split = await openEditor()
     await userEvent.click(await screen.findByRole('button', { name: /^Barbell bench press/ }))
 
-    fireEvent.change(screen.getByLabelText('Reps from'), { target: { value: '5' } })
-    fireEvent.change(screen.getByLabelText('Reps to'), { target: { value: '9' } })
+    // Typed, then left — the field holds text while you are in it and commits
+    // a number when you leave, so a floor of 1 cannot fight you mid-keystroke.
+    const from = screen.getByLabelText('Reps from')
+    fireEvent.change(from, { target: { value: '5' } })
+    fireEvent.blur(from)
+    const to = screen.getByLabelText('Reps to')
+    fireEvent.change(to, { target: { value: '9' } })
+    fireEvent.blur(to)
 
     await waitFor(async () => {
       const entry = (await db.splits.get(split.id))?.days[0].entries[0]
@@ -169,6 +192,81 @@ describe('the split editor', () => {
   it('counts the day as it stands', async () => {
     await openEditor()
     expect(await screen.findByText('5 exercises · 16 sets')).toBeInTheDocument()
+  })
+
+  it('opens on the day the date calls for, not on day one', async () => {
+    // The suite is pinned to a Monday, where day one is also the day due — the
+    // two answers have to differ for this to mean anything, so this one runs on
+    // the Wednesday, when a 3-day split is on Legs.
+    vi.setSystemTime(new Date(2026, 0, 7, 9, 0, 0))
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+
+    renderAt(`/splits/${split.id}/edit`)
+
+    expect(await screen.findByRole('heading', { name: 'Edit Legs', level: 1 })).toBeInTheDocument()
+  })
+
+  it('opens on the day it was asked for', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+
+    renderAt(`/splits/${split.id}/edit?day=${split.days[1].id}`)
+
+    expect(await screen.findByRole('heading', { name: 'Edit Pull', level: 1 })).toBeInTheDocument()
+  })
+
+  it('puts a removed movement back where it was', async () => {
+    const split = await openEditor()
+    await userEvent.click(await screen.findByRole('button', { name: /^Barbell bench press/ }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove from Push' }))
+    await waitFor(async () => {
+      expect(entryIds(await db.splits.get(split.id))).not.toContain('ex-barbell-bench-press')
+    })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+
+    await waitFor(async () => {
+      expect(entryIds(await db.splits.get(split.id))[0]).toBe('ex-barbell-bench-press')
+    })
+    expect(entryIds(await db.splits.get(split.id))).toHaveLength(5)
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+  })
+
+  it('offers the same undo after a swipe', async () => {
+    const split = await openEditor()
+    const remove = await screen.findByLabelText('Remove Barbell bench press')
+    const row = remove.closest('li')
+    if (!row) throw new Error('row missing')
+    fireEvent.pointerDown(row, { clientX: 300, clientY: 100 })
+    fireEvent.pointerMove(row, { clientX: 230, clientY: 100 })
+    fireEvent.pointerUp(row, { clientX: 230, clientY: 100 })
+    await waitFor(() => expect(remove).toHaveAttribute('aria-hidden', 'false'))
+    await userEvent.click(remove)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+
+    await waitFor(async () => {
+      expect(entryIds(await db.splits.get(split.id))).toContain('ex-barbell-bench-press')
+    })
+  })
+
+  it('asks before it takes a day out of the split', async () => {
+    const split = await openEditor()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove day' }))
+    expect((await db.splits.get(split.id))?.days).toHaveLength(3)
+    expect(screen.getByText('Remove Push from Push / Pull / Legs?')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Keep it' }))
+    expect((await db.splits.get(split.id))?.days).toHaveLength(3)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove day' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Push' }))
+
+    await waitFor(async () => expect((await db.splits.get(split.id))?.days).toHaveLength(2))
   })
 })
 

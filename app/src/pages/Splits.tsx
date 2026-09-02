@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import Screen, { EmptyState } from '../components/Screen'
 import type { Exercise, Settings, Split } from '../db/schema'
@@ -8,7 +8,7 @@ import { createSplit, instantiateTemplate, listSplits, setActiveSplit } from '..
 import { todayLocalDate } from '../lib/date'
 import { formatShortDate } from '../lib/format'
 import { SPLIT_TEMPLATES, type SplitTemplate } from '../lib/splitTemplates'
-import { dayForDate, formatPrescription, plannedSetCount } from '../logic/nextSession'
+import { dayForDate, describePrescription, plannedSetCount } from '../logic/nextSession'
 
 /**
  * One line per programme, saying what makes it different rather than selling
@@ -64,6 +64,7 @@ export default function Splits() {
   const [splits, setSplits] = useState<Split[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [openDay, setOpenDay] = useState<string | null>(null)
+  const openPanel = useRef<HTMLElement | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -77,6 +78,20 @@ export default function Splits() {
     setSplits(all)
     setExercises(list)
   }, [])
+
+  /*
+    The panel opens below the whole grid, so on a seven-day split it opened off
+    the bottom of the screen and the tap read as nothing having happened.
+    Bringing it into view is what makes the chip feel connected to it.
+  */
+  useEffect(() => {
+    if (!openDay) return
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    openPanel.current?.scrollIntoView?.({
+      block: 'nearest',
+      behavior: reduced ? 'auto' : 'smooth',
+    })
+  }, [openDay])
 
   useEffect(() => {
     let cancelled = false
@@ -177,8 +192,11 @@ export default function Splits() {
               </span>
             </div>
             {!isReader && (
+              /* Editing continues from the day you have open. With none open the
+                 editor picks the day you are due to train, which is the same
+                 question answered in the one place that owns it. */
               <Link
-                to={`/splits/${active.id}/edit`}
+                to={`/splits/${active.id}/edit${openDay ? `?day=${openDay}` : ''}`}
                 className="flex min-h-11 shrink-0 items-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
               >
                 Edit
@@ -236,6 +254,7 @@ export default function Splits() {
               how much is coming but never what it is. */}
           {openedDay && (
             <section
+              ref={openPanel}
               aria-label={`${openedDay.label} exercises`}
               className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-bg)] p-3"
             >
@@ -260,8 +279,7 @@ export default function Splits() {
                           {exercise?.name ?? 'Unknown movement'}
                         </span>
                         <span className="text-xs text-[var(--color-text-secondary)]">
-                          {formatPrescription(entry, exercise?.category) ||
-                            (exercise?.circuit ? `${exercise.circuit.durationMin} min` : 'cardio')}
+                          {describePrescription(entry, exercise)}
                         </span>
                       </li>
                     )

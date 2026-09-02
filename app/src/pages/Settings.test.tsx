@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { seedExercises } from '../db/exercises'
 import { createHabit } from '../db/habits'
@@ -12,6 +12,7 @@ import { createSettings } from '../db/settings'
 import { logSet } from '../db/sessions'
 import { instantiateTemplate } from '../db/splits'
 import { encodeWorkout } from '../lib/share'
+import { todayLocalDate } from '../lib/date'
 
 const DEVICE_ID = 'test-device'
 
@@ -32,6 +33,29 @@ function renderAt(path: string) {
       <App />
     </MemoryRouter>,
   )
+}
+
+/**
+ * The share sheet the phone actually uses. jsdom has no Web Share API, so the
+ * two outcomes that matter — handed over, and dismissed — are stood up here.
+ */
+function stubShareSheet(share: (data: ShareData) => Promise<void>) {
+  Object.defineProperty(navigator, 'canShare', { value: () => true, configurable: true })
+  Object.defineProperty(navigator, 'share', { value: share, configurable: true })
+}
+
+afterEach(() => {
+  Reflect.deleteProperty(navigator, 'canShare')
+  Reflect.deleteProperty(navigator, 'share')
+  Reflect.deleteProperty(navigator, 'standalone')
+})
+
+/** Stands up the object URLs jsdom does not implement, for the anchor path. */
+function stubObjectUrls() {
+  const createObjectURL = vi.fn(() => 'blob:kusuo')
+  Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true })
+  Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true })
+  return createObjectURL
 }
 
 describe('Settings', () => {
@@ -159,6 +183,114 @@ describe('Your data', () => {
     expect(screen.queryByRole('button', { name: /Reset all data/ })).toBeNull()
     // Exporting is a read, so a Mac keeps it.
     expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeInTheDocument()
+  })
+})
+
+describe('exporting a copy', () => {
+  it('records the export only once the file has been handed over', async () => {
+    await onboard()
+    await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
+    let handed: File | undefined
+    stubShareSheet(async (data) => {
+      handed = data.files?.[0]
+    })
+    renderAt('/settings/data')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Export as JSON' }))
+
+    await waitFor(async () =>
+      expect((await db.settings.get(DEVICE_ID))?.lastBackupAt).toBeDefined(),
+    )
+    expect(handed?.name).toBe(`kusuo-backup-${todayLocalDate()}.json`)
+    expect(await screen.findByText(/^Last copy exported/)).toBeInTheDocument()
+  })
+
+  it('records nothing when the share sheet is dismissed', async () => {
+    await onboard()
+    stubShareSheet(() => Promise.reject(new DOMException('cancelled', 'AbortError')))
+    renderAt('/settings/data')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Export as JSON' }))
+
+    // The defect this replaces: the date was stamped from the tap, so an
+    // untouched iOS prompt left the app claiming a backup that never existed.
+    expect(await screen.findByText('Nothing was saved, so nothing was recorded.')).toBeInTheDocument()
+    expect((await db.settings.get(DEVICE_ID))?.lastBackupAt).toBeUndefined()
+    expect(screen.getByText('No copy has been exported from this device.')).toBeInTheDocument()
+  })
+
+  it('still records a plain browser download, which writes the file itself', async () => {
+    await onboard()
+    const createObjectURL = stubObjectUrls()
+    renderAt('/settings/data')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Export as JSON' }))
+
+    await waitFor(async () =>
+      expect((await db.settings.get(DEVICE_ID))?.lastBackupAt).toBeDefined(),
+    )
+    expect(createObjectURL).toHaveBeenCalled()
+  })
+
+  it('promises no download in the installed app, and records none', async () => {
+    await onboard()
+    // The home-screen app with no share sheet: the anchor opens a preview with
+    // "Open in…" and saves nothing, which is the state the old copy called a
+    // download and the old stamp called a backup.
+    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true })
+    stubObjectUrls()
+    renderAt('/settings/data')
+
+    expect(
+      await screen.findByText(/Opens the file\. This device gives no way to confirm it was kept/),
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Export as JSON' }))
+
+    expect(await screen.findByText(/has not recorded an export/)).toBeInTheDocument()
+    expect((await db.settings.get(DEVICE_ID))?.lastBackupAt).toBeUndefined()
+  })
+
+  it('tells the reset screen the truth about the last copy', async () => {
+    await onboard()
+    renderAt('/settings/data')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Reset all data…' }))
+    expect(screen.getByText('No copy has been exported from this device.')).toBeInTheDocument()
+  })
+})
+
+describe('logging out', () => {
+  it('asks first, then forgets the device and keeps the record', async () => {
+    await onboard()
+    await createHabit({ name: 'Reading', frequencyType: 'daily', frequencyValue: 1 })
+    renderAt('/settings')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Log out' }))
+    // Opening the question signs nothing out.
+    expect(await db.settings.get(DEVICE_ID)).toBeDefined()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await waitFor(async () => expect(await db.settings.get(DEVICE_ID)).toBeUndefined())
+    // Log out is not reset: the history stays, and so does the device id, which
+    // names the hardware on every event already logged.
+    expect(await db.habits.count()).toBe(1)
+    expect(localStorage.getItem('kusuo-device-id')).toBe(DEVICE_ID)
+    expect(
+      await screen.findByRole('heading', { name: /Habits, and the training that goes with them/ }),
+    ).toBeInTheDocument()
+  })
+
+  it('can be backed out of', async () => {
+    await onboard()
+    renderAt('/settings')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Log out' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Stay logged in' }))
+
+    expect(await db.settings.get(DEVICE_ID)).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
   })
 })
 

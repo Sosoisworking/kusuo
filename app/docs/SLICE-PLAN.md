@@ -181,6 +181,108 @@ and e2e before anything deploys.
 
 ### Carried debt, open
 
-- **Nothing has run on a physical iPhone.** The closest automated coverage is
-  Playwright's WebKit at iPhone 13 size — the same engine, not the same device.
-  The iOS Simulator is closer still and needs Xcode on this Mac.
+- **Nothing has run on a physical iPhone.** Everything below was found and
+  verified on the iOS Simulator (iPhone 17, iOS 26.3), which is the real engine
+  on real iOS but still not Soso's own handset. Playwright's WebKit at iPhone 13
+  size covers the same engine at the same size in CI.
+
+---
+
+## The defect sweep — 1 and 2 September 2026
+
+A screen-by-screen sweep on the Simulator found 33 defects; a separate hardening
+pass on the five areas the sweep had not touched — offline, backup import, drag
+reorder, landscape, text scaling — found 11 more. All of them are fixed except
+the three decisions recorded at the end. 453 unit tests across 30 files and 13
+Playwright paths; one Playwright test is deliberately skipped and says why.
+
+### What the sweep changed
+
+- **A set that was never performed could be logged.** Typing one set and tapping
+  *Next movement* wrote all three, because the suggestion behind an untouched row
+  was a value rather than a placeholder and "not blank" was mistaken for "typed
+  in". A field now holds only what was typed or what is logged; a suggestion is a
+  ghost you can see through, and moving on commits only rows you touched. An RPE
+  on its own is not a set either. This corrupted records, 1RM, volume and the
+  calendar, and is the reason the sweep happened.
+- **Deep links and reloads went to GitHub's 404 page.** `public/404.html` folds
+  the path into the query and `index.html` unfolds it before the bundle runs, so
+  a bookmark, a shared link or a pull-to-refresh reaches the router.
+- **Offline did not work unless Settings had been opened.** The service worker
+  was registered only by a hook inside `Settings.tsx`; it is now injected at
+  build time and installs on load.
+- **Backups could lose data quietly.** Schema 5 carries the record's preferences,
+  refuses a file from a newer version, parses tables from `db/tables.ts` rather
+  than a hand-written list, re-seeds the movement library after an old import,
+  and asks every table — not just habit events — whether this device holds newer
+  work before replacing it.
+- **A drag that ended off the handle never ended**, leaving the split rewritable
+  by a passing pointer. The drag now lives on the window for its own lifetime.
+- **One throw took the whole app down** with no way back. There is an error
+  boundary, and its escape route is Your data and an export.
+- **Two screens were unreachable.** Habit detail gained a way in from Today's
+  habit name; Progress was retired, because the week strip, Calendar, Records and
+  Habit detail carry what it showed.
+- **Log out** exists: this device forgets its role, name and preferences and asks
+  the first-run questions again. The record is untouched — erasing that is still
+  Your data › Reset all data, behind a typed RESET.
+- **Onboarding can restore.** A device that has a backup imports it before it has
+  a record, which is the only bridge across iOS's separate storage for an
+  installed home-screen app — and the app now says that plainly rather than
+  looking empty and unexplained.
+- Smaller: a day on the calendar answers three questions in tabs (training,
+  reflection, goals) instead of stacking them; the month grid stops growing when
+  the phone turns sideways; the split editor's number fields no longer fight you
+  mid-keystroke; every movement can leave a day from the list rather than only
+  the one you are standing on; the tab bar keeps clear of the notch housing in
+  landscape.
+
+### What the peer review then found
+
+An adversarial review of the whole diff found three more paths that lose or
+invent data, all of them in the same place the sweep had already been:
+
+- **Leaving a movement meant three different things.** Only "Next movement"
+  committed a typed set. Finishing the session from the last movement, or
+  tapping another movement in the list, threw it away — the mirror of the
+  phantom-set bug, losing work you did rather than inventing work you did not.
+  Every way out of a movement now commits through one function.
+- **A removed set came back.** Voiding a set left the draft that matched it
+  behind, so the next "Next movement" wrote the set straight back and the log
+  carried `log → void → log` for a set performed once.
+- **Removing a movement from the list cleared the drafts on the movement in
+  front of you.** Editing the plan elsewhere is not a reason to lose what you
+  typed here.
+
+And three that were wrong in a different way:
+
+- **A waiting update applied itself.** `registerType` was `prompt` and nothing
+  prompted: the page reloaded under a half-typed name, and because the reload
+  beat the check's own wait, "You're up to date" was the only message the button
+  could ever show. A new version is now an offer with a button.
+- **The suggestion token was 3.14:1** — the app's least readable text on the one
+  number a tick commits. Difference in *kind* carries it now: the placeholder is
+  italic, at 4.50:1 dark and 4.68:1 light.
+- **The drag's auto-scroll started on press**, so a hold near the bottom of a long
+  day scrolled and reordered on its own. It waits for the finger to move.
+
+Also from the review: `theme-color` and the manifest still named the
+pre-Nocturne ground; `defaultSets` was the one imported preference the version
+gate let through unbounded; a `trainingHabitId` naming a habit the file never
+carried would have been written anyway; an untouched template split made a
+freshly onboarded phone look like it held work newer than any backup; the
+calendar's tabs had half the ARIA pattern and none of the keyboard behaviour;
+and the landscape cap used `vh` where the SPEC calls for `dvh`.
+
+### Decided, not fixed
+
+- **Dynamic Type.** iOS applies it to native apps, never to web content — not in
+  Safari and not in an installed home-screen app — so making the type scale
+  answer to the root font size would change nothing on the only device this app
+  runs on, while rewriting a scale six tabs at 402pt were designed around. The
+  test sits skipped, ready for the day that stops being true.
+- **The installed app's separate storage.** Not fixable from the web; carried by
+  copy and by the restore step instead.
+- **Export in the installed app** opens iOS's preview with *Open in…* rather than
+  saving a file. The copy says what each route actually does instead of promising
+  a download.

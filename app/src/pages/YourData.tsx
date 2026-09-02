@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
 import BackLink from '../components/BackLink'
 import { PrimaryButton, SecondaryButton } from '../components/Button'
@@ -23,6 +23,88 @@ function formatBackupDate(ts: number): string {
   return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/**
+ * What became of the file.
+ *
+ * Only `saved` may be recorded. It means the platform told us the hand-off
+ * finished — not that the file still exists, which nothing here can know.
+ * `cancelled` is the share sheet dismissed, and `unconfirmed` is a download the
+ * browser reports nothing back about: on iOS its prompt can still be sitting
+ * there unanswered, which is how the app came to claim a backup that was never
+ * written.
+ */
+type ExportOutcome = 'saved' | 'cancelled' | 'unconfirmed'
+
+function backupFile(payload: BackupPayload): File {
+  return new File([serializeBackup(payload)], `kusuo-backup-${todayLocalDate()}.json`, {
+    type: 'application/json',
+  })
+}
+
+/**
+ * How the file can leave this device.
+ *
+ * `share` hands it to the OS and resolves only once the hand-off finished —
+ * Save to Files included. `download` is a desktop browser, where the anchor
+ * writes the file itself. `preview` is the installed app with no share sheet:
+ * the same anchor opens an in-app preview with "Open in…", saves nothing on
+ * its own, and reports nothing back, so it must never be promised as a
+ * download or recorded as a backup.
+ */
+type Delivery = 'share' | 'download' | 'preview'
+
+/** True in the installed home-screen app, where a download is not a download. */
+function isStandalone(): boolean {
+  return (
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  )
+}
+
+function deliveryFor(file: File): Delivery {
+  if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+    return 'share'
+  }
+  return isStandalone() ? 'preview' : 'download'
+}
+
+function downloadFile(file: File): void {
+  const url = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+async function deliverBackup(file: File): Promise<ExportOutcome> {
+  const route = deliveryFor(file)
+  if (route !== 'share') {
+    downloadFile(file)
+    // A desktop download is the file being written. A preview is not.
+    return route === 'download' ? 'saved' : 'unconfirmed'
+  }
+  try {
+    await navigator.share({ files: [file], title: file.name })
+    return 'saved'
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled'
+    // The share sheet exists and refused. A download is still a way out, but on
+    // this device it is the preview that saves nothing, so it is never recorded.
+    downloadFile(file)
+    return 'unconfirmed'
+  }
+}
+
+/** What the app can honestly say about the last copy that left this device. */
+function lastExportLine(lastBackupAt: number | undefined): string {
+  return lastBackupAt
+    ? `Last copy exported ${formatBackupDate(lastBackupAt)}.`
+    : 'No copy has been exported from this device.'
+}
+
 function deviceRoleText(role: SettingsType['deviceRole']): string {
   return role === 'writer'
     ? 'Where you log. Your Mac only reads.'
@@ -41,6 +123,7 @@ export default function YourData() {
   const [error, setError] = useState<string | null>(null)
 
   const [exporting, setExporting] = useState(false)
+  const [exportNote, setExportNote] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importSuccess, setImportSuccess] = useState<string | null>(null)
@@ -52,6 +135,17 @@ export default function YourData() {
   const [resetOpen, setResetOpen] = useState(false)
   const [resetTyped, setResetTyped] = useState('')
   const [resetting, setResetting] = useState(false)
+
+  /*
+    Probed once, from a file the shape of a real backup: what Export does — and
+    what it is able to promise afterwards — differs between Safari and the
+    installed app, and the copy has to say which one you are in.
+  */
+  const delivery = useMemo(
+    () => deliveryFor(new File([''], 'kusuo-backup.json', { type: 'application/json' })),
+    [],
+  )
+  const standalone = useMemo(isStandalone, [])
 
   useEffect(() => {
     let cancelled = false
@@ -65,23 +159,29 @@ export default function YourData() {
     }
   }, [])
 
+  /**
+   * The export date is stamped from the outcome, never from the tap. It is the
+   * line you read before erasing everything, so it may understate — it may
+   * never overstate.
+   */
   async function handleExport() {
     if (!settings) return
     setExporting(true)
     setError(null)
+    setExportNote(null)
     try {
-      const payload = await buildBackup()
-      const blob = new Blob([serializeBackup(payload)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `kusuo-backup-${todayLocalDate()}.json`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-      await recordBackupExported(settings.deviceId)
-      setSettings((s) => (s ? { ...s, lastBackupAt: Date.now() } : s))
+      const outcome = await deliverBackup(backupFile(await buildBackup()))
+      if (outcome === 'saved') {
+        await recordBackupExported(settings.deviceId)
+        setSettings((s) => (s ? { ...s, lastBackupAt: Date.now() } : s))
+        setExportNote('Exported.')
+      } else if (outcome === 'cancelled') {
+        setExportNote('Nothing was saved, so nothing was recorded.')
+      } else {
+        setExportNote(
+          "Sent the file to your browser. Kusuo can't tell whether it was saved, so it has not recorded an export.",
+        )
+      }
     } catch {
       setError("Couldn't export — give it another tap.")
     } finally {
@@ -189,7 +289,7 @@ export default function YourData() {
 
   if (pendingImport) {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-6 pb-28 pt-[max(3rem,env(safe-area-inset-top))] text-center">
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-6 px-6 pb-28 pt-[var(--space-safe-top)] text-center">
         <h1 className="text-2xl font-medium text-[var(--color-text-primary)]">
           This device has newer data
         </h1>
@@ -214,9 +314,11 @@ export default function YourData() {
     )
   }
 
+  const armed = resetTyped.trim() === 'RESET'
+
   if (resetOpen) {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-5 px-6 pb-28 pt-[max(3rem,env(safe-area-inset-top))] text-center">
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-5 px-6 pb-28 pt-[var(--space-safe-top)] text-center">
         <svg
           viewBox="0 0 24 24"
           className="h-7 w-7 text-[var(--color-accent)]"
@@ -233,10 +335,35 @@ export default function YourData() {
           Deletes every habit, session, record and reflection on this device. There is no backup
           unless you exported one. This cannot be undone.
         </p>
+        <p className="max-w-xs text-xs text-[var(--color-text-secondary)]">
+          {settings.lastBackupAt
+            ? `You exported a copy on ${formatBackupDate(settings.lastBackupAt)}. Kusuo cannot check that the file is still there.`
+            : 'No copy has been exported from this device.'}
+        </p>
         <div className="flex w-full max-w-xs flex-col gap-3">
           <SecondaryButton onClick={handleExport} disabled={exporting}>
             {exporting ? 'Exporting…' : 'Export first'}
           </SecondaryButton>
+          {exportNote && (
+            <p role="status" className="text-xs text-[var(--color-text-secondary)]">
+              {exportNote}
+            </p>
+          )}
+          {/*
+            Nocturne holds no red, so the weight goes the other way: the way out
+            is the one filled button on the screen, and erasing everything is
+            bare text that stays dimmed until RESET is typed. Two identical
+            outlined buttons made the two choices look interchangeable, which is
+            the one thing they are not.
+          */}
+          <PrimaryButton
+            onClick={() => {
+              setResetOpen(false)
+              setResetTyped('')
+            }}
+          >
+            Keep my data
+          </PrimaryButton>
           <label className="flex flex-col gap-1 text-left text-sm text-[var(--color-text-secondary)]">
             Type RESET to confirm
             <input
@@ -248,28 +375,23 @@ export default function YourData() {
               className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-base text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
             />
           </label>
-          <SecondaryButton
+          <button
+            type="button"
             onClick={handleReset}
-            disabled={resetTyped.trim() !== 'RESET' || resetting}
+            disabled={!armed || resetting}
+            className="min-h-11 text-sm disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            style={{ color: armed ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
           >
             {resetting ? 'Erasing…' : 'Reset all data'}
-          </SecondaryButton>
-          <SecondaryButton
-            onClick={() => {
-              setResetOpen(false)
-              setResetTyped('')
-            }}
-          >
-            Keep my data
-          </SecondaryButton>
+          </button>
         </div>
       </main>
     )
   }
 
   return (
-    <main className="flex min-h-dvh flex-col gap-6 px-5 pb-28 pt-[max(3rem,env(safe-area-inset-top))]">
-      <BackLink label="Back to Settings" />
+    <main className="flex min-h-dvh flex-col gap-6 px-5 pb-28 pt-[var(--space-safe-top)]">
+      <BackLink label="Back to Settings" to="/settings" />
 
       <header className="flex flex-col gap-0.5">
         <span className="text-xs text-[var(--color-text-secondary)]">Export, import, reset</span>
@@ -287,14 +409,24 @@ export default function YourData() {
           <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Export as JSON</h2>
           <p className="text-xs text-[var(--color-text-secondary)]">
             Habits, sessions, records and reflections.{' '}
-            {settings.lastBackupAt
-              ? `Last export ${formatBackupDate(settings.lastBackupAt)}.`
-              : 'Never exported.'}
+            {delivery === 'share'
+              ? 'Opens the share sheet — choose Save to Files to keep it.'
+              : delivery === 'download'
+                ? 'Downloads a file.'
+                : 'Opens the file. This device gives no way to confirm it was kept, so nothing is recorded.'}
+          </p>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            {lastExportLine(settings.lastBackupAt)}
           </p>
         </div>
         <PrimaryButton onClick={handleExport} disabled={exporting}>
           {exporting ? 'Exporting…' : 'Export as JSON'}
         </PrimaryButton>
+        {exportNote && (
+          <p role="status" className="text-xs text-[var(--color-text-secondary)]">
+            {exportNote}
+          </p>
+        )}
       </section>
 
       {isWriter && (
@@ -380,12 +512,23 @@ export default function YourData() {
         </span>
       </Link>
 
+      {/*
+        iOS gives an installed home-screen app a storage partition of its own, so
+        the copy in Safari and the copy in the installed app are two records that
+        never meet. Someone who installs Kusuo and finds it empty will think the
+        history is gone; it is not, and this is the only screen that can say so.
+      */}
       <section className="flex flex-col gap-1">
         <h2 className="text-sm font-medium text-[var(--color-text-primary)]">
           {isWriter ? 'This iPhone' : 'This Mac'}
         </h2>
         <p className="text-xs text-[var(--color-text-secondary)]">
           {deviceRoleText(settings.deviceRole)}
+        </p>
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          {standalone
+            ? 'You are in the installed app, which iOS keeps separate from Safari. Anything you logged in Safari stays there — export it from Safari and import it here.'
+            : 'You are in Safari. Adding Kusuo to the home screen gives it separate storage, and it opens empty — export here first, then import it there.'}
         </p>
       </section>
 

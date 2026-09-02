@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { seedExercises } from '../db/exercises'
 import { resetDatabase } from '../test/setup'
@@ -30,6 +30,12 @@ function renderAt(path: string) {
     </MemoryRouter>,
   )
 }
+
+afterEach(() => {
+  // Put jsdom back where it was: nothing else in the suite expects an Element
+  // that can scroll itself.
+  Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+})
 
 describe('the Splits screen', () => {
   it('leads with the active split and its days', async () => {
@@ -103,6 +109,46 @@ describe('the Splits screen', () => {
 })
 
 describe('opening a day', () => {
+  it('brings the panel it opens into view', async () => {
+    // jsdom does not implement scrollIntoView, so the call itself is the
+    // evidence: on the seven-day split the panel lands below the fold, and
+    // without this the tap looked like nothing had happened.
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    await onboard()
+    await seedExercises()
+    await instantiateTemplate('split-batman-7')
+    renderAt('/splits')
+
+    await userEvent.click(await screen.findByRole('button', { name: /Chest \/ Shoulders \/ Biceps/ }))
+
+    const panel = await screen.findByRole('region', { name: 'Chest / Shoulders / Biceps exercises' })
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    expect(scrollIntoView.mock.instances[0]).toBe(panel)
+  })
+
+  it('carries the day you have open into the editor', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    renderAt('/splits')
+
+    const card = await screen.findByRole('region', { name: 'Active split' })
+    // With nothing open the link stays bare: the editor answers "which day"
+    // from the date, and two places answering it is how they disagree.
+    expect(within(card).getByRole('link', { name: 'Edit' })).toHaveAttribute(
+      'href',
+      `/splits/${split.id}/edit`,
+    )
+
+    await userEvent.click(within(card).getByRole('button', { name: /^Legs/ }))
+
+    expect(within(card).getByRole('link', { name: 'Edit' })).toHaveAttribute(
+      'href',
+      `/splits/${split.id}/edit?day=${split.days[2].id}`,
+    )
+  })
+
   it('expands into that day\'s exercises', async () => {
     await onboard()
     await seedExercises()

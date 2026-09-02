@@ -31,6 +31,8 @@ Not a general habit-tracking product. It is calm, local-first, and personally ow
 - No connectivity assumed or required; fully local-first via IndexedDB.
 - Cross-device transfer/backup in v1 is manual JSON export/import (wholesale replace with validation and a reverse-import guard), not automatic sync.
 - iOS PWA constraints apply throughout: no background sync/fetch, storage eviction risk, `100dvh`/safe-area-aware layout, 44×44pt minimum tap targets, and a deliberate reload path for sticky service-worker updates.
+- **The installed home-screen app has storage of its own, separate from Safari.** iOS partitions it, so the two are two records that never meet. Nothing in the web platform can join them; export-then-import is the bridge, and the app says so on first run and in Your data rather than opening empty and unexplained.
+- **iOS does not apply Dynamic Type to web content**, in Safari or installed. Page Zoom is the only lever a reader has, and it scales layout as well as text. The type scale is therefore fixed by design rather than responsive to a setting the platform never sends.
 
 ## Capabilities and Constraints
 
@@ -40,7 +42,9 @@ Not a general habit-tracking product. It is calm, local-first, and personally ow
 - No backend, no authentication, no AI features, no telemetry/analytics, no gamification (no XP, levels, achievements, badges).
 - No reminders or notifications. Confirmed four times, most recently 1 September 2026 after being told the technical position: an iOS PWA has no scheduled local notifications, and a real 11pm push would need a server, which the product refuses.
 - Data model is an append-only event log: habit completions (and any future reflections) are immutable events with UUIDs, never mutable boolean flags and never auto-increment integer IDs — this is what keeps a future multi-writer merge (set union by id) trivial and is treated as a hard architectural rule, not a style preference.
-- JSON export/import is in v1 scope (not deferred); it is both the backup mechanism and the only cross-device transfer mechanism for now.
+- JSON export/import is in v1 scope (not deferred); it is both the backup mechanism and the only cross-device transfer mechanism for now. A backup carries the record **and** the preferences that belong to it — name, units, week start, default sets, training habit — but never this device's identity or role. Onboarding can import one before a record exists, so a fresh install can be a restore rather than a fresh start.
+- **Logging out is not resetting.** Log out makes this device forget its role, name and preferences and ask the first-run questions again; every habit, session, goal and reflection stays. Erasing the record is Your data › Reset all data, behind a typed RESET.
+- A suggested value and a recorded one must never look alike. The set table offers what a set would most likely take as a placeholder behind an empty field; only what you type or tick is written. A guess that reads like a fact eventually gets logged as one.
 - Terminology: "habit" (a tracked recurring behavior), "completion" (an event marking a habit done on a date), "streak" (derived from completions by replay, never stored as state), "split" (a weekly training programme), "split day" (one day of it), "circuit" (a named round of movements logged by time), "record" (a fact derived by replaying the session log, never stored).
 - Sharing is one-way and inert: a session can be exported as plain text with an optional `KUS2` code. An imported workout arrives as a **new** split day and overwrites nothing.
 

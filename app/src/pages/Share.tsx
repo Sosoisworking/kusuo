@@ -90,7 +90,7 @@ export default function Share() {
 
   return (
     <main className="flex min-h-dvh flex-col gap-5 px-5 pb-28 pt-[max(3rem,env(safe-area-inset-top))]">
-      <BackLink label="Back to your data" />
+      <BackLink label="Back to your data" to="/settings/data" />
 
       <header className="flex flex-col gap-0.5">
         <span className="text-xs text-[var(--color-text-secondary)]">A session, as text</span>

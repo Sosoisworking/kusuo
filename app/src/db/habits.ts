@@ -1,3 +1,4 @@
+import { nextTimestamp } from './clock'
 import { db, type Habit, type FrequencyType } from './schema'
 
 export interface CreateHabitInput {
@@ -9,7 +10,10 @@ export interface CreateHabitInput {
 }
 
 export async function createHabit(input: CreateHabitInput): Promise<Habit> {
-  const now = Date.now()
+  // Onboarding writes its whole batch inside one millisecond, so Date.now()
+  // ties and the order the habits were offered in is lost before Today can
+  // read it back. The shared monotonic clock keeps creation order recoverable.
+  const now = nextTimestamp()
   const habit: Habit = {
     id: crypto.randomUUID(),
     name: input.name,

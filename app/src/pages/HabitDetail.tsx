@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router'
-import { PrimaryButton, SecondaryButton } from '../components/Button'
+import { PrimaryButton } from '../components/Button'
 import { eventsForHabit } from '../db/events'
 import { getHabit } from '../db/habits'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
-import type { Habit, HabitEvent, Settings } from '../db/schema'
-import { todayLocalDate } from '../lib/date'
+import type { Habit, HabitEvent, Settings, WeekStart } from '../db/schema'
+import { todayLocalDate, weekdayIndex } from '../lib/date'
+import { WEEKDAY_INITIALS } from '../lib/format'
 import { completedDatesForHabit } from '../logic/derive'
 import { dailyStreak, weeklyStreak } from '../logic/streaks'
 
@@ -26,9 +27,9 @@ function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate()
 }
 
-/** Monday-start 6-week grid; leading/trailing cells outside the month are null. */
-function monthGrid(year: number, month: number): (string | null)[] {
-  const firstWeekday = (new Date(year, month - 1, 1).getDay() + 6) % 7
+/** Month grid; leading/trailing cells outside the month are null. */
+function monthGrid(year: number, month: number, weekStart: WeekStart): (string | null)[] {
+  const firstWeekday = weekdayIndex(localDate(year, month, 1), weekStart)
   const total = daysInMonth(year, month)
   const cells: (string | null)[] = []
   for (let i = 0; i < firstWeekday; i++) cells.push(null)
@@ -53,8 +54,6 @@ function shiftMonth(cursor: MonthCursor, delta: number): MonthCursor {
   }
   return { year, month }
 }
-
-const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 export default function HabitDetail() {
   const navigate = useNavigate()
@@ -114,17 +113,20 @@ export default function HabitDetail() {
 
   const todayStr = todayLocalDate()
   const completedDates = completedDatesForHabit(events, habit.id)
+  // A weekly streak counts calendar weeks, so it has to use the same week
+  // boundary the rest of the app does — omitting it silently fell back to
+  // Monday and disagreed with a Sunday-start calendar.
   const streak =
     habit.frequencyType === 'daily'
       ? dailyStreak(completedDates, todayStr)
-      : weeklyStreak(completedDates, habit.frequencyValue, todayStr)
+      : weeklyStreak(completedDates, habit.frequencyValue, todayStr, settings.weekStart)
   const streakText =
     streak === 0 ? null : habit.frequencyType === 'daily' ? `${streak}-day streak` : `${streak}-week streak`
   const frequencyText = habit.frequencyType === 'daily' ? 'Daily' : `${habit.frequencyValue}×/week`
 
   const [todayYear, todayMonth] = todayStr.split('-').map(Number)
   const isCurrentMonth = cursor.year === todayYear && cursor.month === todayMonth
-  const grid = monthGrid(cursor.year, cursor.month)
+  const grid = monthGrid(cursor.year, cursor.month, settings.weekStart)
 
   return (
     <main className="flex min-h-dvh flex-col items-center gap-6 px-6 pb-28 pt-[max(3rem,env(safe-area-inset-top))] text-center">
@@ -168,7 +170,7 @@ export default function HabitDetail() {
             type="button"
             aria-label="Previous month"
             onClick={() => setCursor((c) => shiftMonth(c, -1))}
-            className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
           >
             ‹
           </button>
@@ -180,14 +182,14 @@ export default function HabitDetail() {
             aria-label="Next month"
             disabled={isCurrentMonth}
             onClick={() => setCursor((c) => shiftMonth(c, 1))}
-            className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
           >
             ›
           </button>
         </div>
 
         <div className="grid grid-cols-7 gap-1.5">
-          {WEEKDAY_LABELS.map((label, i) => (
+          {WEEKDAY_INITIALS[settings.weekStart].map((label, i) => (
             <span key={i} className="text-xs text-[var(--color-text-secondary)]" aria-hidden="true">
               {label}
             </span>
@@ -215,7 +217,6 @@ export default function HabitDetail() {
 
       <div className="flex w-full max-w-xs flex-col gap-3">
         <PrimaryButton onClick={() => navigate(`/habits/${habit.id}/edit`)}>Edit habit</PrimaryButton>
-        <SecondaryButton onClick={() => navigate('/progress')}>Back to Progress</SecondaryButton>
       </div>
     </main>
   )

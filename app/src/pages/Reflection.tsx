@@ -43,10 +43,17 @@ function Scale({
               aria-label={`${label}: ${n} of 5`}
               onClick={() => onChange(chosen ? undefined : n)}
               className="flex h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+              /*
+                The same three tokens a ticked habit uses — filled, ringed,
+                bright glyph. A surface-coloured square with accent digits was
+                barely a step away from an unchosen one, and on the phone the
+                scale read as five identical buttons.
+              */
               style={{
-                color: chosen ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                color: chosen ? 'var(--color-complete-mark)' : 'var(--color-text-secondary)',
                 boxShadow: `inset 0 0 0 1px ${chosen ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                background: chosen ? 'var(--color-surface)' : 'transparent',
+                background: chosen ? 'var(--color-complete-fill)' : 'transparent',
+                fontWeight: chosen ? 500 : 400,
               }}
             >
               {n}
@@ -68,7 +75,10 @@ export default function Reflection() {
   const [entries, setEntries] = useState<ReflectionEntry[]>([])
   const [answers, setAnswers] = useState<ReflectionAnswers>({})
   const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  // Only failures are announced. A save that worked is stated by the line under
+  // the form, which stays true afterwards — a one-off "Saved." said the same
+  // thing twice and then went stale.
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const today = todayLocalDate()
 
@@ -132,26 +142,25 @@ export default function Reflection() {
 
   function set(patch: Partial<ReflectionAnswers>) {
     setAnswers((current) => ({ ...current, ...patch }))
-    setStatus(null)
+    setSaveError(null)
   }
 
   async function handleSave() {
     if (!settings || isBlank(answers)) return
     setSaving(true)
-    setStatus(null)
+    setSaveError(null)
     try {
       await appendReflection(today, answers, settings.deviceId)
       setEntries(await allReflections())
-      setStatus({ type: 'success', message: 'Saved.' })
     } catch {
-      setStatus({ type: 'error', message: "Couldn't save that — give it another tap." })
+      setSaveError("Couldn't save that — give it another tap.")
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <main className="flex min-h-dvh flex-col gap-6 px-5 pb-28 pt-[max(3rem,env(safe-area-inset-top))]">
+    <main className="flex min-h-dvh flex-col gap-6 px-5 pb-28 pt-[var(--space-safe-top)]">
       <BackLink />
 
       <header className="flex flex-col gap-1">
@@ -161,7 +170,7 @@ export default function Reflection() {
         </h1>
         {isWriter && (
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Four questions. Answer the ones that apply and leave the rest.
+            Five questions. Answer the ones that apply and leave the rest.
           </p>
         )}
       </header>
@@ -207,15 +216,21 @@ export default function Reflection() {
             />
           </label>
 
-          <PrimaryButton onClick={handleSave} disabled={saving || isBlank(answers) || !dirty}>
-            {saving ? 'Saving…' : saved ? 'Update today' : 'Save'}
-          </PrimaryButton>
-          {status && (
-            <p
-              role={status.type === 'error' ? 'alert' : 'status'}
-              className="text-xs text-[var(--color-text-secondary)]"
-            >
-              {status.message}
+          {saved && !dirty ? (
+            /* Saved, and nothing has changed since. A dimmed "Update today"
+               reads as a control that has stopped working; what is actually
+               true is that there is nothing left to save, so it says that. */
+            <p role="status" className="text-sm text-[var(--color-text-secondary)]">
+              Saved for today. Change an answer to update it.
+            </p>
+          ) : (
+            <PrimaryButton onClick={handleSave} disabled={saving || isBlank(answers) || !dirty}>
+              {saving ? 'Saving…' : saved ? 'Update today' : 'Save'}
+            </PrimaryButton>
+          )}
+          {saveError && (
+            <p role="alert" className="text-xs text-[var(--color-text-secondary)]">
+              {saveError}
             </p>
           )}
         </div>

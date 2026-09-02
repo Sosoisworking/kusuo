@@ -241,7 +241,7 @@ export default function Directory() {
   return (
     <main className="flex min-h-dvh flex-col gap-3 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(2.5rem,env(safe-area-inset-top))]">
       <div className="flex items-center justify-between gap-3">
-        <BackLink />
+        <BackLink to="/train" />
         <button
           onClick={() => setSheetOpen(true)}
           className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-3.5 text-sm font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"

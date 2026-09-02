@@ -18,11 +18,11 @@ It is a PWA installed to the iPhone home screen. All data is local. There are no
 
 Sixteen commits, slices 0 through 11 plus the training data model (`902eeff`), all on `main` and deployed.
 
-**Screens** (14): Onboarding, Today, Train, Session, Exercise detail, Splits, Split editor, Directory, Calendar, Records, Progress, Habit detail, Habit form, Goals, Reflection, Settings.
+**Screens** (15): Onboarding, Today, Train, Session, Exercise detail, Splits, Split editor, Directory, Calendar, Records, Habit detail, Habit form, Goals, Reflection, Settings. Progress was retired once Calendar and Records absorbed what it showed; `/progress` redirects to Today.
 
-**Goals** carry a title, an optional description and an optional target date. Reaching one (`completeGoal`) is distinct from putting it away (`archiveGoal`): only a goal actually reached appears in Records. Reflections are read back on the Calendar under the day they were written, and listed in Records.
+**Goals** carry a title, an optional description and an optional target date. Reaching one (`completeGoal`) is distinct from putting it away (`archiveGoal`): only a goal actually reached appears in Records. Reflections are read back on the Calendar under the day they were written — a chosen day answers three questions in tabs, what you lifted, what you wrote and what you are working towards — and are listed in Records.
 
-**Data** — Dexie/IndexedDB, database `kusuo`, schema at **version 3**:
+**Data** — Dexie/IndexedDB, database `kusuo`, schema at **version 9**. `src/db/tables.ts` is the one place that knows which tables exist: reset, backup and every test's setup ask it rather than keeping their own lists, so a table added to the schema joins all three by construction.
 
 | Table | Shape |
 |---|---|
@@ -30,19 +30,20 @@ Sixteen commits, slices 0 through 11 plus the training data model (`902eeff`), a
 | `habitEvents` | **append-only** — habitId, localDate, action `complete`\|`uncomplete`, timestamp, deviceId |
 | `goals` | mutable entity |
 | `reflections` | **append-only** — localDate, text, timestamp |
-| `exercises` | name, category `push`\|`pull`\|`legs`\|`abs`, muscleGroup, equipment, isCustom |
+| `exercises` | name, category `push`\|`pull`\|`legs`\|`abs`\|`cardio`, muscleGroup, equipment, isCustom, optional `circuit` |
 | `splits` | name, days `SplitDay[]`, seededFrom, isActive |
 | `sessionEvents` | **append-only** — localDate, splitDayId, exerciseId, setIndex, weightKg, reps, rpe, action `log`\|`void`, deviceId. `localDate` is indexed and load-bearing: the calendar, the week strip and the training-habit tick are calendar-day questions, and re-deriving a day from a UTC instant is wrong across DST and travel. Do not remove it — `REDESIGN-PROMPT.md` omits it, and that omission is the error |
 | `sessionMarks` | **append-only** — session complete/uncomplete per day |
-| `settings` | deviceId PK, deviceRole `writer`\|`reader`, units, weekStart, theme, trainingHabitId, lastBackupAt |
+| `settings` | deviceId PK, deviceRole `writer`\|`reader`, units, weekStart, theme, defaultSets, trainingHabitId, lastBackupAt. This row describes the phone, not the record: a backup never carries it, an import never replaces it, and logging out deletes it alone |
+| `bodyweight` | **append-only** — localDate, weightKg, timestamp, deviceId |
 
 State is **derived by replaying events**, last-event-wins. Never stored as a flag. `src/db/clock.ts` guarantees strictly ordered timestamps so replay is deterministic.
 
-**Logic implemented:** `derive.ts` (completion by replay), `streaks.ts` (daily and weekly; takes a `weekStart`, but defaults to `monday` and **no UI call site passes it yet** — `Today.tsx`, `Progress.tsx` and `HabitDetail.tsx` all omit the argument, so the setting is inert until a later slice threads it), `sessions.ts` (set replay, volume, training dates), `records.ts` (Epley 1RM, per-exercise records, best volume, best streak, best month), `reflection.ts`, `backup.ts` (real JSON export/import with validation and reverse-import detection).
+**Logic implemented:** `derive.ts` (completion by replay), `streaks.ts` (daily and weekly; `weeklyStreak` takes a `weekStart` and every call site now passes it, so the setting is live — `dailyStreak` takes none, because a daily run does not care where the week begins), `sessions.ts` (set replay, volume, training dates), `records.ts` (Epley 1RM, per-exercise records, best volume, best streak, best month), `reflection.ts`, `backup.ts` (JSON export/import at schema **version 5**, all-or-nothing in one transaction, refusing a file from a newer build, carrying the record's own preferences but never this device's identity, and asking every table — not only habit events — whether this device holds work newer than the file).
 
 **Training already exists at the data and logic layer** — exercises, splits, seeded templates, set-by-set session events, derived records. Finishing a session writes a real `HabitEvent` against `settings.trainingHabitId`, so training ticks its habit once rather than in two places.
 
-**Tests:** 15 files across `db/`, `lib/`, `logic/` — CRUD, v1→v3 migration, backup round-trip, streaks, records, session replay. **No component or route tests.** That is the real gap.
+**Tests:** 453 across 30 files — CRUD, migrations, backup round-trip and hardening, streaks, records, session replay, and component and route tests for every screen. Thirteen Playwright paths run on WebKit at iPhone 13 size, covering what the component suite cannot: a real IndexedDB, a real service worker, real reloads, offline, and a real pointer drag.
 
 **Palette in the code today:** **Nocturne**, shipped in slice I. `--color-bg #161826`, `--color-surface #232532`, `--color-text #e9e9ed`, `--color-accent #9184d9`, plus the neutral and accent ramps, in `src/styles/tokens.css`. The warm terracotta set is gone.
 

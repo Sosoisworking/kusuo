@@ -277,7 +277,7 @@ describe('backup across schema versions', () => {
     await finishSession('2026-01-10', split.days[0].id, 'dev1')
 
     const payload = await buildBackup()
-    expect(payload.schemaVersion).toBe(4)
+    expect(payload.schemaVersion).toBe(5)
 
     const restored = parseBackup(serializeBackup(payload))
     expect(restored).toEqual(payload)
@@ -319,7 +319,7 @@ describe('backup across schema versions', () => {
     expect(() => parseBackup(JSON.stringify(broken))).toThrow(InvalidBackupError)
   })
 
-  it('clears the training tables when the payload has none', async () => {
+  it('clears what the payload does not carry, and refills the movement library', async () => {
     await seedExercises()
     await instantiateTemplate('split-ppl-3')
 
@@ -337,8 +337,12 @@ describe('backup across schema versions', () => {
       bodyweight: [],
     })
 
-    expect(await db.exercises.count()).toBe(0)
     expect(await db.splits.count()).toBe(0)
+    // The library is not the user's record: an import that arrives without one
+    // gets the seeded movements back straight away, because a split entry whose
+    // exercise is missing reads "Unknown movement" until it does.
+    expect(await db.exercises.count()).toBeGreaterThan(0)
+    expect((await db.exercises.toArray()).every((e) => !e.isCustom)).toBe(true)
   })
 })
 

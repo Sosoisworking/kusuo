@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Split } from '../db/schema'
-import { dayForDate, formatPrescription, plannedSetCount } from './nextSession'
+import { dayForDate, describePrescription, formatPrescription, plannedSetCount } from './nextSession'
 
 function split(labels: string[]): Split {
   return {
@@ -96,5 +96,28 @@ describe('formatPrescription', () => {
 
   it('says nothing for cardio, which has no sets or reps to state', () => {
     expect(formatPrescription({ exerciseId: 'a', sets: 1, repsMin: 0, repsMax: 0 }, 'cardio')).toBe('')
+  })
+})
+
+describe('describePrescription', () => {
+  const CARDIO = { exerciseId: 'a', sets: 1, repsMin: 0, repsMax: 0 }
+
+  it('reads a circuit as the time it runs for', () => {
+    expect(
+      describePrescription(CARDIO, {
+        category: 'cardio',
+        circuit: { durationMin: 20, restNote: '1 min break', steps: [] },
+      }),
+    ).toBe('20 min')
+  })
+
+  it('says what cardio with no stated length is', () => {
+    expect(describePrescription(CARDIO, { category: 'cardio' })).toBe('cardio')
+  })
+
+  it('leaves a lifting entry to formatPrescription', () => {
+    expect(
+      describePrescription({ exerciseId: 'a', sets: 3, repsMin: 6, repsMax: 8 }, { category: 'pull' }),
+    ).toBe('3 × 6-8')
   })
 })

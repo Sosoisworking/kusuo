@@ -26,7 +26,11 @@ export default function Layout() {
       {isReader && (
         <p
           role="status"
-          className="fixed inset-x-0 top-0 z-20 bg-[var(--color-surface)] px-5 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] text-center text-xs text-[var(--color-text-secondary)]"
+          // Offset by the inset rather than padded through it, so the banner
+          // begins where the status-bar mask in shell.css ends. Padding would
+          // have put its own surface colour behind the mask's ground colour and
+          // shown a seam on any device with a real inset.
+          className="fixed inset-x-0 top-[env(safe-area-inset-top)] z-20 bg-[var(--color-surface)] px-5 py-1.5 text-center text-xs text-[var(--color-text-secondary)]"
         >
           Viewing only — log on your iPhone.
         </p>
