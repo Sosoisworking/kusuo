@@ -105,6 +105,36 @@ describe('Train', () => {
     expect(within(list as HTMLElement).getByText('1 sets · 480 kg')).toBeInTheDocument()
   })
 
+  it('offers any day of the split, so a day you missed can be done today', async () => {
+    const split = await withPpl()
+    renderAt('/train')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Do a different session' }))
+    const legs = await screen.findByText(`Day 3 · ${split.days[2].label}`)
+    const row = legs.closest('li') as HTMLElement
+    await userEvent.click(within(row).getByRole('button', { name: 'Do this' }))
+
+    // The session opens on that day, against today's date.
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(/./)
+    expect(screen.getByText(new RegExp(split.days[2].label))).toBeInTheDocument()
+  })
+
+  it('keeps showing the day you started, not the one the schedule names', async () => {
+    const split = await withPpl()
+    const today = todayLocalDate()
+    // Monday's schedule says Push; Legs is what actually got done.
+    await logSet(
+      { localDate: today, splitDayId: split.days[2].id, exerciseId: split.days[2].entries[0].exerciseId, setIndex: 0 },
+      { weightKg: 100, reps: 5 },
+      DEVICE_ID,
+    )
+    renderAt('/train')
+
+    expect(await screen.findByRole('heading', { name: split.days[2].label, level: 2 })).toBeInTheDocument()
+    expect(screen.getByText(`Doing this instead of ${split.days[0].label} today.`)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Continue session/ })).toBeInTheDocument()
+  })
+
   it('says what to do when no split is chosen', async () => {
     await onboard()
     renderAt('/train')

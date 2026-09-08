@@ -14,7 +14,12 @@ import ProfileMenu from '../components/ProfileMenu'
 import { formatRelativeDay } from '../lib/format'
 import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
 import { weightValue } from '../lib/units'
-import { formatPrescription, dayForDate, plannedSetCount } from '../logic/nextSession'
+import {
+  formatPrescription,
+  dayForDate,
+  plannedSetCount,
+  sessionDayOn,
+} from '../logic/nextSession'
 import { isSessionComplete, setsForExercise, setsOnDate, volume } from '../logic/sessions'
 import { lastCompletedDate, lastSessionSets, recentSessions } from '../logic/trainingHistory'
 
@@ -123,7 +128,21 @@ export default function Train() {
   const units = settings?.units ?? 'kg'
   const weekStart = settings?.weekStart ?? 'monday'
   const today = todayLocalDate()
-  const day: SplitDay | undefined = split ? dayForDate(split, today, weekStart) : undefined
+  const scheduled: SplitDay | undefined = split ? dayForDate(split, today, weekStart) : undefined
+  /*
+    Days with work recorded against today — sets that survived replay, or a
+    session marked done. This is what lets a swapped-in session stick: pick
+    Monday's shoulders on a Wednesday, log one set, and Train keeps showing
+    shoulders instead of snapping back to what the calendar says.
+  */
+  const workedToday = new Set<string>(setsOnDate(events, today).map((s) => s.splitDayId))
+  for (const d of split?.days ?? []) {
+    if (isSessionComplete(marks, today, d.id)) workedToday.add(d.id)
+  }
+  const day: SplitDay | undefined = split
+    ? sessionDayOn(split, today, weekStart, workedToday)
+    : undefined
+  const swapped = Boolean(day && scheduled && day.id !== scheduled.id)
   const dayNumber = split && day ? split.days.findIndex((d) => d.id === day.id) + 1 : 0
   const byId = new Map(exercises.map((e) => [e.id, e]))
   const dayById = new Map(splits.flatMap((s) => s.days.map((d) => [d.id, d] as const)))
@@ -196,6 +215,13 @@ export default function Train() {
           <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
             {day.kind === 'rest' ? 'A day in the split, not a gap in it.' : meta.join(' · ')}
           </p>
+          {/* Say which day the schedule wanted, so a swap never looks like the
+              app losing track of where it is in the week. */}
+          {swapped && scheduled && (
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+              Doing this instead of {scheduled.label} today.
+            </p>
+          )}
 
           {!isReader && (
             <div className="mt-3 flex gap-2">
@@ -225,13 +251,80 @@ export default function Train() {
               <button
                 onClick={() => setPickerOpen((open) => !open)}
                 aria-expanded={pickerOpen}
-                aria-label="Switch split"
+                aria-label="Do a different session"
                 className="flex min-h-12 w-12 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
               >
                 <ArrowsLeftRight size={16} aria-hidden="true" />
               </button>
             </div>
           )}
+        </section>
+      )}
+
+      {/*
+        Any day of the split, done today.
+
+        The schedule answers "what is today"; it cannot answer "I missed Monday
+        and I want to do it now", which is the ordinary way a week actually goes.
+        The session itself was always addressable — /train/session/:dayId takes
+        any day and logs against today's date — so this is the door to a room
+        that already existed. A rest day gets one too: deciding to lift on a rest
+        day left you with no route to a session at all.
+      */}
+      {pickerOpen && !isReader && split && (
+        <section className="flex flex-col gap-2">
+          <SectionHeading>Do a different day</SectionHeading>
+          <ul className="flex flex-col">
+            {split.days.map((d, index) => {
+              const isCurrent = d.id === day?.id
+              const done = isSessionComplete(marks, today, d.id)
+              const logged = setsOnDate(events, today).filter((s) => s.splitDayId === d.id).length
+              const detail =
+                d.kind === 'rest'
+                  ? 'Rest'
+                  : logged > 0
+                    ? `${logged} of ${plannedSetCount(d)} logged today`
+                    : `${d.entries.length} exercises · ${plannedSetCount(d)} sets`
+              return (
+                <li
+                  key={d.id}
+                  className="flex min-h-11 items-center justify-between gap-3 py-2"
+                  style={{ borderBottom: '1px solid var(--color-divider)' }}
+                >
+                  <span className="flex flex-col">
+                    <span className="text-sm text-[var(--color-text-primary)]">
+                      Day {index + 1} · {d.label}
+                    </span>
+                    <span className="text-xs text-[var(--color-text-secondary)]">{detail}</span>
+                  </span>
+                  {done ? (
+                    <span className="text-xs text-[var(--color-text-secondary)]">Done today</span>
+                  ) : isCurrent && logged > 0 ? (
+                    <span className="text-xs text-[var(--color-accent)]">In progress</span>
+                  ) : d.kind === 'rest' ? (
+                    <SecondaryButton
+                      onClick={() => markRested(d.id)}
+                      disabled={busy}
+                      className="px-4 py-2 text-sm"
+                    >
+                      Mark rested
+                    </SecondaryButton>
+                  ) : (
+                    <SecondaryButton
+                      onClick={() => navigate(`/train/session/${d.id}`)}
+                      className="px-4 py-2 text-sm"
+                    >
+                      Do this
+                    </SecondaryButton>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            It logs against today. The day you missed stays missed — this is today&apos;s session,
+            with that day&apos;s movements.
+          </p>
         </section>
       )}
 

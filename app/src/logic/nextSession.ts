@@ -22,6 +22,30 @@ export function dayForDate(
   return split.days[weekdayIndex(localDate, weekStart) % split.days.length]
 }
 
+/**
+ * Which day is actually being done on a date, which is not always the one the
+ * schedule names.
+ *
+ * Miss Monday and Tuesday and the schedule still says Wednesday — that rule
+ * stays, because a missed session is missed rather than owed. But someone who
+ * decides to do Monday's shoulders on Wednesday is not fighting the schedule,
+ * they are training; and once they have logged a set against that day, that is
+ * the session in front of them. Work already recorded outranks the calendar.
+ *
+ * The scheduled day wins any tie: if it has work on it too, the swap was a
+ * detour rather than a replacement.
+ */
+export function sessionDayOn(
+  split: Split,
+  localDate: string,
+  weekStart: WeekStart,
+  workedDayIds: ReadonlySet<string>,
+): SplitDay | undefined {
+  const scheduled = dayForDate(split, localDate, weekStart)
+  if (scheduled && workedDayIds.has(scheduled.id)) return scheduled
+  return split.days.find((d) => workedDayIds.has(d.id)) ?? scheduled
+}
+
 /** Total sets a split day prescribes, for the "6 exercises · 21 sets" line. */
 export function plannedSetCount(day: SplitDay): number {
   return day.entries.reduce((total, entry) => total + entry.sets, 0)

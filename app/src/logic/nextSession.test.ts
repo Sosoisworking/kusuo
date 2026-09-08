@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Split } from '../db/schema'
-import { dayForDate, describePrescription, formatPrescription, plannedSetCount } from './nextSession'
+import {
+  dayForDate,
+  describePrescription,
+  formatPrescription,
+  plannedSetCount,
+  sessionDayOn,
+} from './nextSession'
 
 function split(labels: string[]): Split {
   return {
@@ -119,5 +125,43 @@ describe('describePrescription', () => {
     expect(
       describePrescription({ exerciseId: 'a', sets: 3, repsMin: 6, repsMax: 8 }, { category: 'pull' }),
     ).toBe('3 × 6-8')
+  })
+})
+
+describe('sessionDayOn', () => {
+  const week = split(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+
+  it('shows the scheduled day when nothing has been done', () => {
+    expect(sessionDayOn(week, WED, 'monday', new Set())?.label).toBe('Wed')
+  })
+
+  it('shows the day you actually started, not the one the calendar names', () => {
+    // Missed Monday, decided to do it on Wednesday, logged a set against it.
+    const monday = week.days[0]
+    expect(sessionDayOn(week, WED, 'monday', new Set([monday.id]))?.label).toBe('Mon')
+  })
+
+  it('keeps the scheduled day when that is the one being worked', () => {
+    const wednesday = week.days[2]
+    expect(sessionDayOn(week, WED, 'monday', new Set([wednesday.id]))?.label).toBe('Wed')
+  })
+
+  it('prefers the scheduled day when both have work on them', () => {
+    // A detour is not a replacement: today is still today's session.
+    const worked = new Set([week.days[0].id, week.days[2].id])
+    expect(sessionDayOn(week, WED, 'monday', worked)?.label).toBe('Wed')
+  })
+
+  it('lets a rest day be traded for a training day', () => {
+    const withRest = split(['Push', 'Pull', 'Rest'])
+    const push = withRest.days[0]
+    // The third day of the week is the rest day; working Push overrides it.
+    expect(sessionDayOn(withRest, WED, 'monday', new Set())?.label).toBe('Rest')
+    expect(sessionDayOn(withRest, WED, 'monday', new Set([push.id]))?.label).toBe('Push')
+  })
+
+  it('has nothing to show for an empty split', () => {
+    const empty: Split = { ...week, days: [] }
+    expect(sessionDayOn(empty, WED, 'monday', new Set())).toBeUndefined()
   })
 })
