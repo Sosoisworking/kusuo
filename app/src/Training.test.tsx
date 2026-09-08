@@ -613,6 +613,45 @@ describe('moving on carries what you typed', () => {
     expect(liveSets(await allSessionEvents())).toHaveLength(0)
   })
 
+  it('shows the record you hold beside the movement, not inside the fields', async () => {
+    const split = await withPpl()
+    // A heavy day weeks ago, then a lighter one since, so the record and the
+    // set the field offers are different numbers and cannot be confused.
+    await logSet(
+      { localDate: '2026-01-02', splitDayId: split.days[0].id, exerciseId: BENCH, setIndex: 0 },
+      { weightKg: 100, reps: 5 },
+      DEVICE_ID,
+    )
+    await logSet(
+      { localDate: '2026-01-04', splitDayId: split.days[0].id, exerciseId: BENCH, setIndex: 0 },
+      { weightKg: 80, reps: 8 },
+      DEVICE_ID,
+    )
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
+    expect(screen.getByText('Best 100 kg × 5')).toBeInTheDocument()
+    // The field still offers what it would actually log — last time's 80, never
+    // the 100 record, because an empty field commits what it shows.
+    expect(await screen.findByRole('textbox', { name: /Weight for set 1/ })).toHaveAttribute(
+      'placeholder',
+      '80',
+    )
+  })
+
+  it('counts a record set today as the record', async () => {
+    const split = await withPpl()
+    const today = todayLocalDate()
+    await logSet(
+      { localDate: today, splitDayId: split.days[0].id, exerciseId: BENCH, setIndex: 0 },
+      { weightKg: 120, reps: 3 },
+      DEVICE_ID,
+    )
+    renderAt(`/train/session/${split.days[0].id}`)
+
+    expect(await screen.findByText('Best 120 kg × 3 · today')).toBeInTheDocument()
+  })
+
   it('does not turn an effort score alone into a set', async () => {
     const split = await withPpl()
     renderAt(`/train/session/${split.days[0].id}`)

@@ -27,6 +27,7 @@ import { findSplitDay, updateSplit } from '../db/splits'
 import { todayLocalDate } from '../lib/date'
 import { toKg, weightValue } from '../lib/units'
 import { describePrescription, plannedSetCount } from '../logic/nextSession'
+import { exerciseRecords } from '../logic/records'
 import { isSessionComplete, setsForExercise, setsOnDate, type LoggedSet } from '../logic/sessions'
 import { lastSessionSets, summariseSets } from '../logic/trainingHistory'
 
@@ -194,6 +195,12 @@ export default function Session() {
   const rows = Array.from({ length: rowCount }, (_, i) => i)
 
   const previous = lastSessionSets(setsForExercise(events, entry.exerciseId), today)
+  /*
+    The heaviest set ever logged for this movement — today's included, because a
+    record set an hour ago is still the record you hold. Cardio has no load to
+    hold a record with, so it has none to show.
+  */
+  const best = isCardio ? undefined : exerciseRecords(events, entry.exerciseId).heaviestSet
   const repTarget =
     entry.repsMin === entry.repsMax ? `${entry.repsMin}` : `${entry.repsMin}-${entry.repsMax}`
   // Anything the directory appended while we were away. Named on return, so a
@@ -602,6 +609,27 @@ export default function Session() {
             .filter(Boolean)
             .join(' · ')}
         </p>
+
+        {/*
+          The best you have done on this movement, where you can see it while
+          you decide what to load.
+
+          Deliberately here rather than in the set table's placeholder: a ghost
+          in a field is what gets logged when that field is left empty, so a
+          record shown there would log a lift you did not do the moment you
+          typed reps and skipped the weight. Reference belongs beside the
+          movement; the fields stay honest about what they will commit.
+        */}
+        {/* A half-step above the meta line beneath the name — 13px, which the
+            system already uses — because this is a number you look for rather
+            than one you merely read past. Secondary ink keeps it quieter than
+            the movement itself while clearing the 55% contrast floor. */}
+        {best && (
+          <p className="text-[13px] text-[var(--color-text-secondary)]">
+            Best {weightValue(best.weightKg, units)} {units} × {best.reps}
+            {best.localDate === today ? ' · today' : ''}
+          </p>
+        )}
 
         {/* The rounds, where you actually read them: between sets, mid-circuit,
             on the screen you already have open. The circuit itself is logged by
