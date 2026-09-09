@@ -14,6 +14,7 @@ import { appendReflection } from './db/reflections'
 import { finishSession, logSet } from './db/sessions'
 import { instantiateTemplate } from './db/splits'
 import { addDays, todayLocalDate } from './lib/date'
+import { formatLongDate } from './lib/format'
 import { dayForDate, plannedSetCount } from './logic/nextSession'
 
 const DEVICE_ID = 'test-device'
@@ -413,6 +414,29 @@ describe('Calendar', () => {
     expect(cell.getAttribute('aria-label')).toMatch(/1 of 1 done, trained$/)
   })
 
+  it('opens on today rather than asking for a tap', async () => {
+    await onboard()
+    const today = todayLocalDate()
+    renderAt('/calendar')
+
+    // The day detail is already open on today, and its heading names the date.
+    expect(await screen.findByText(formatLongDate(today))).toBeInTheDocument()
+    expect(screen.queryByText('Pick a day')).toBeNull()
+    expect(await screen.findByLabelText(new RegExp(`^${today}:`))).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
+  it('lets today be closed again', async () => {
+    await onboard()
+    const today = todayLocalDate()
+    renderAt('/calendar')
+
+    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
+    expect(await screen.findByText('Pick a day')).toBeInTheDocument()
+  })
+
   it('says nothing about training on a day with none', async () => {
     await onboard()
     const today = todayLocalDate()
@@ -454,7 +478,6 @@ describe('Goals and reflections have somewhere to live', () => {
     await appendReflection(today, 'Slept badly, trained anyway.', DEVICE_ID)
 
     renderAt('/calendar')
-    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
     await userEvent.click(await screen.findByRole('tab', { name: 'Reflection' }))
 
     expect(await screen.findByText('Slept badly, trained anyway.')).toBeInTheDocument()
@@ -462,10 +485,8 @@ describe('Goals and reflections have somewhere to live', () => {
 
   it('says plainly when nothing was written that day', async () => {
     await onboard()
-    const today = todayLocalDate()
 
     renderAt('/calendar')
-    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
     await userEvent.click(await screen.findByRole('tab', { name: 'Reflection' }))
 
     expect(await screen.findByText('Nothing written that day.')).toBeInTheDocument()
@@ -473,13 +494,11 @@ describe('Goals and reflections have somewhere to live', () => {
 
   it('holds a day\'s training, reflection and goals in three tabs', async () => {
     await onboard()
-    const today = todayLocalDate()
     await createGoal({ title: 'Read 24 books', description: 'Two a month', targetDate: '2026-12-31' })
 
     renderAt('/calendar')
     // The tabs belong to a day, so they appear once one is chosen.
     expect(screen.queryByRole('tab', { name: 'Goals' })).toBeNull()
-    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
 
     // Training leads, and each answer is whole rather than stacked behind another.
     expect(await screen.findByRole('tab', { name: 'Training' })).toHaveAttribute(
@@ -579,7 +598,6 @@ describe('the calendar day detail', () => {
     await finishSession(today, split.days[0].id, DEVICE_ID)
 
     renderAt('/calendar')
-    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
 
     // Summary: 80x6 + 80x5 = 880 kg across 2 sets of 1 movement. It appears
     // twice — once as the day total, once as this movement's own volume. The
@@ -603,7 +621,6 @@ describe('the calendar day detail', () => {
     )
 
     renderAt('/calendar')
-    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
 
     expect(await screen.findByText('Kettlebell 1')).toBeInTheDocument()
     expect(screen.getByText('20 min')).toBeInTheDocument()
@@ -611,9 +628,7 @@ describe('the calendar day detail', () => {
 
   it('says nothing about training on a day with none', async () => {
     await onboard()
-    const today = todayLocalDate()
     renderAt('/calendar')
-    await userEvent.click(await screen.findByLabelText(new RegExp(`^${today}:`)))
 
     // The tab is still there — a day with no sets says so rather than hiding
     // the question, which is what made an empty day ambiguous before.

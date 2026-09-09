@@ -44,7 +44,13 @@ export default function CalendarView() {
   const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [cursor, setCursor] = useState(todayLocalDate)
-  const [selected, setSelected] = useState<string | null>(null)
+  /*
+    Today, already open. The screen used to land on an empty "Pick a day" and
+    ask for a tap before it said anything, when the day you almost always want
+    is the one you are standing in. Tapping today still closes it, and tapping
+    another day still moves it.
+  */
+  const [selected, setSelected] = useState<string | null>(todayLocalDate)
   const [dayTab, setDayTab] = useState<DayTab>('training')
 
   useEffect(() => {
