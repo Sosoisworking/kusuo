@@ -85,7 +85,9 @@ describe('exerciseRecords', () => {
     expect(records.totalSets).toBe(1)
     expect(records.heaviestSet?.weightKg).toBe(100)
     expect(records.bestSetVolume?.volumeKg).toBe(500)
-    expect(records.repPrs).toEqual([{ weightKg: 100, reps: 5 }])
+    expect(records.repPrs.map(({ weightKg, reps }) => ({ weightKg, reps }))).toEqual([
+      { weightKg: 100, reps: 5 },
+    ])
   })
 
   it('ranks the best estimated 1RM by the estimate, not by raw weight', () => {
@@ -109,10 +111,12 @@ describe('exerciseRecords', () => {
       ],
       'ex-back-squat',
     )
-    expect(records.repPrs).toEqual([
+    expect(records.repPrs.map(({ weightKg, reps }) => ({ weightKg, reps }))).toEqual([
       { weightKg: 120, reps: 3 },
       { weightKg: 100, reps: 8 },
     ])
+    // The set travels with the record so the page can date it.
+    expect(records.repPrs[1].set.reps).toBe(8)
   })
 
   it('ignores sets belonging to another exercise', () => {

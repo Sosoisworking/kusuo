@@ -25,8 +25,12 @@ export interface ExerciseRecords {
   bestEstimatedOneRepMax?: { set: LoggedSet; oneRepMaxKg: number }
   /** Set with the most weight moved (weight times reps). */
   bestSetVolume?: { set: LoggedSet; volumeKg: number }
-  /** Highest reps achieved at each distinct weight, heaviest first. */
-  repPrs: { weightKg: number; reps: number }[]
+  /**
+   * Highest reps achieved at each distinct weight, heaviest first. The set is
+   * carried so the record can say when it happened — a personal best with no
+   * date on it cannot tell you whether you are moving forwards.
+   */
+  repPrs: { weightKg: number; reps: number; set: LoggedSet }[]
   totalSets: number
 }
 
@@ -40,7 +44,7 @@ export function exerciseRecords(events: SessionEvent[], exerciseId: string): Exe
   const records: ExerciseRecords = { repPrs: [], totalSets: sets.length }
   if (sets.length === 0) return records
 
-  const repsByWeight = new Map<number, number>()
+  const repsByWeight = new Map<number, LoggedSet>()
 
   for (const set of sets) {
     if (
@@ -62,12 +66,14 @@ export function exerciseRecords(events: SessionEvent[], exerciseId: string): Exe
     }
 
     const best = repsByWeight.get(set.weightKg)
-    if (best === undefined || set.reps > best) repsByWeight.set(set.weightKg, set.reps)
+    if (best === undefined || set.reps > best.reps) repsByWeight.set(set.weightKg, set)
   }
 
-  records.repPrs = Array.from(repsByWeight, ([weightKg, reps]) => ({ weightKg, reps })).sort(
-    (a, b) => b.weightKg - a.weightKg,
-  )
+  records.repPrs = Array.from(repsByWeight, ([weightKg, set]) => ({
+    weightKg,
+    reps: set.reps,
+    set,
+  })).sort((a, b) => b.weightKg - a.weightKg)
   return records
 }
 

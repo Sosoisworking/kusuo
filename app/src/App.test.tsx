@@ -508,12 +508,15 @@ describe('Goals and reflections have somewhere to live', () => {
     expect(screen.queryByText('Run a marathon')).toBeNull()
   })
 
-  it('lists what was written in Records too', async () => {
+  it('keeps reflections off Records, which is for bests', async () => {
     await onboard()
     await appendReflection(todayLocalDate(), 'A quiet week.', DEVICE_ID)
 
     renderAt('/records')
-    expect(await screen.findByText('A quiet week.')).toBeInTheDocument()
+    // A note about a day is a journal entry, not a personal best. It is read on
+    // the Calendar against the day it belongs to, and covered by that test.
+    await screen.findByRole('heading', { name: 'Records', level: 1 })
+    expect(screen.queryByText('A quiet week.')).toBeNull()
   })
 })
 

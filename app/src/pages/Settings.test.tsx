@@ -325,10 +325,29 @@ describe('Records', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Training' }))
 
     expect(await screen.findByText('Barbell bench press')).toBeInTheDocument()
-    // Heaviest single set, and the derived figures beside it.
+    // The row states one record in full: the weight, the reps, and the day.
     expect(screen.getByText('85')).toBeInTheDocument()
-    expect(screen.getByText('Est. 1RM')).toBeInTheDocument()
-    expect(screen.getByText('Best set volume')).toBeInTheDocument()
+    expect(screen.getByText(/kg × 3/)).toBeInTheDocument()
+    expect(screen.getByText(/heaviest set ·/)).toBeInTheDocument()
+    // The rest waits behind a tap rather than crowding the row.
+    expect(screen.queryByText('Estimated one-rep max')).toBeNull()
+  })
+
+  it('opens the rest of a lift\'s records, each named and dated', async () => {
+    await onboard()
+    await withLift()
+    renderAt('/records')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Training' }))
+    await userEvent.click(await screen.findByRole('button', { name: /Barbell bench press/ }))
+
+    expect(await screen.findByText('Most moved in one set')).toBeInTheDocument()
+    // The rep PR here is the heaviest set itself, so it is not repeated.
+    expect(screen.queryByText(/Most reps at/)).toBeNull()
+    expect(screen.getByText('Most moved in one session')).toBeInTheDocument()
+    // An estimate says so, rather than sitting among the lifts you did.
+    expect(screen.getByText('Estimated one-rep max')).toBeInTheDocument()
+    expect(screen.getByText(/not a lift you have done/)).toBeInTheDocument()
   })
 
   it('converts every weight when the unit is switched', async () => {

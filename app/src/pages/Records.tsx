@@ -3,10 +3,8 @@ import Screen, { EmptyState } from '../components/Screen'
 import { allHabitEvents } from '../db/events'
 import { listCompletedGoals } from '../db/goals'
 import { listAllHabits } from '../db/habits'
-import { allReflections } from '../db/reflections'
-import type { Goal, Habit, HabitEvent, ReflectionEntry, Settings } from '../db/schema'
-import { formatLongDate } from '../lib/format'
-import { latestReflectionsByDate, reflectionSummary } from '../logic/reflection'
+import type { Goal, Habit, HabitEvent, Settings } from '../db/schema'
+import { formatLongDate, formatShortDate } from '../lib/format'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { monthLabel, todayLocalDate } from '../lib/date'
 
@@ -18,6 +16,7 @@ import { updateSettings } from '../db/settings'
 import type { BodyweightEntry, Exercise, SessionEvent, Units } from '../db/schema'
 import { formatWeight, toKg, weightValue } from '../lib/units'
 import { completedDatesForHabit } from '../logic/derive'
+import type { LoggedSet } from '../logic/sessions'
 import { bestMonth, bestStreak, bodyweightByDate, bodyweightChange, liftRecords } from '../logic/records'
 
 /** A completion instant, as the calendar day it happened on. */
@@ -32,17 +31,56 @@ interface HabitBests {
   month: { month: string; count: number } | undefined
 }
 
+/**
+ * Two records that are the same set are one record. The top rep PR is usually
+ * at your heaviest weight, so on a movement with little history it is the
+ * headline again in different words — worth saying only when it differs.
+ */
+function isSameSet(a: LoggedSet, b: LoggedSet): boolean {
+  return a.localDate === b.localDate && a.weightKg === b.weightKg && a.reps === b.reps
+}
+
+/**
+ * One record, said in full: what it is, the number, and the day it happened.
+ * `detail` carries the set behind a derived figure, so a volume says which
+ * lift produced it and an estimate admits that it is one.
+ */
+function Record({
+  label,
+  value,
+  detail,
+  when,
+}: {
+  label: string
+  value: string
+  detail?: string
+  when: string
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="flex flex-col gap-0.5">
+        <span className="text-[13px] text-[var(--color-text-secondary)]">{label}</span>
+        {detail && <span className="text-xs text-[var(--color-text-secondary)]">{detail}</span>}
+      </dt>
+      <dd className="flex shrink-0 flex-col items-end gap-0.5">
+        <span className="text-[15px] text-[var(--color-text-primary)]">{value}</span>
+        <span className="text-xs text-[var(--color-text-secondary)]">{formatShortDate(when)}</span>
+      </dd>
+    </div>
+  )
+}
+
 export default function Records() {
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState<Settings | undefined>()
   const [rows, setRows] = useState<HabitBests[]>([])
   const [reached, setReached] = useState<Goal[]>([])
-  const [reflections, setReflections] = useState<ReflectionEntry[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([])
   const [tab, setTab] = useState<'habits' | 'training'>('habits')
   const [weighIns, setWeighIns] = useState<BodyweightEntry[]>([])
   const [weightInput, setWeightInput] = useState('')
+  const [openLift, setOpenLift] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -51,17 +89,15 @@ export default function Records() {
       listAllHabits(),
       allHabitEvents(),
       listCompletedGoals(),
-      allReflections(),
       listExercises(),
       allSessionEvents(),
       allBodyweight(),
     ]).then(
-      ([s, habits, events, goals, entries, list, sessions, weights]: [
+      ([s, habits, events, goals, list, sessions, weights]: [
         Settings | undefined,
         Habit[],
         HabitEvent[],
         Goal[],
-        ReflectionEntry[],
         Exercise[],
         SessionEvent[],
         BodyweightEntry[],
@@ -69,7 +105,6 @@ export default function Records() {
         if (cancelled) return
         setSettings(s)
         setReached(goals)
-        setReflections(entries)
         setExercises(list)
         setSessionEvents(sessions)
         setWeighIns(weights)
@@ -95,9 +130,6 @@ export default function Records() {
   if (loading) return <Screen title="Records">{null}</Screen>
 
   const withHistory = rows.filter((r) => r.totalDone > 0)
-  const reflectionDays = [...latestReflectionsByDate(reflections).entries()].sort((a, b) =>
-    b[0].localeCompare(a[0]),
-  )
 
   const units: Units = settings?.units ?? 'kg'
   const byId = new Map(exercises.map((e) => [e.id, e]))
@@ -134,8 +166,122 @@ export default function Records() {
 
       {tab === 'training' ? (
         <>
-          {/* Bodyweight sits with the lifts because that is what it is read
-              against — a number you watch beside them, not a score. */}
+          {/* The unit switch lives here as well as in Settings: this is the one
+              screen where every number is a weight, so it is where you notice. */}
+          <Segmented<Units>
+            label="Show weights in"
+            value={units}
+            onChange={switchUnits}
+            options={[
+              { value: 'kg', label: 'kg' },
+              { value: 'lb', label: 'lb' },
+            ]}
+          />
+
+          {lifts.length === 0 ? (
+            <EmptyState>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                No lifts logged yet. A movement appears here the first time you put a weight on it.
+              </p>
+            </EmptyState>
+          ) : (
+            /*
+              One record per movement, said in full.
+
+              This used to put an unlabelled number on the right and then four
+              more underneath in one wrapping row — a weight with no reps, two
+              volumes a word apart that meant a set and a whole day, and an
+              estimate styled exactly like the lifts it was estimated from.
+              Nothing carried a date, which is what a record is for.
+
+              So the row states one fact you can read at a glance — heaviest
+              set, in full, with the day it happened — and the rest waits behind
+              a tap, each one named, dated, and honest about whether you lifted
+              it or the app worked it out.
+            */
+            <section className="flex flex-col">
+              {lifts.map(({ exerciseId, records, bestSession }) => {
+                const heaviest = records.heaviestSet
+                if (!heaviest) return null
+                const open = openLift === exerciseId
+                const name = byId.get(exerciseId)?.name ?? 'Unknown movement'
+                const oneRepMax = records.bestEstimatedOneRepMax
+                const topRep = records.repPrs[0]
+                return (
+                  <article
+                    key={exerciseId}
+                    style={{ borderBottom: '1px solid var(--color-divider)' }}
+                  >
+                    <button
+                      onClick={() => setOpenLift(open ? null : exerciseId)}
+                      aria-expanded={open}
+                      className="flex min-h-11 w-full items-baseline justify-between gap-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                    >
+                      <span className="flex flex-col gap-0.5">
+                        <span className="text-base text-[var(--color-text-primary)]">{name}</span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          heaviest set · {formatLongDate(heaviest.localDate)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-lg text-[var(--color-accent)]">
+                        {weightValue(heaviest.weightKg, units)}
+                        <span className="text-xs text-[var(--color-text-secondary)]">
+                          {` ${units} × ${heaviest.reps}`}
+                        </span>
+                      </span>
+                    </button>
+
+                    {open && (
+                      <dl className="flex flex-col gap-2 pb-3">
+                        {topRep && !isSameSet(topRep.set, heaviest) && (
+                          <Record
+                            label={`Most reps at ${weightValue(topRep.weightKg, units)} ${units}`}
+                            value={`${topRep.reps} reps`}
+                            when={topRep.set.localDate}
+                          />
+                        )}
+                        {records.bestSetVolume && (
+                          <Record
+                            label="Most moved in one set"
+                            value={`${weightValue(records.bestSetVolume.volumeKg, units)} ${units}`}
+                            detail={`${weightValue(records.bestSetVolume.set.weightKg, units)} ${units} × ${records.bestSetVolume.set.reps}`}
+                            when={records.bestSetVolume.set.localDate}
+                          />
+                        )}
+                        {bestSession && (
+                          <Record
+                            label="Most moved in one session"
+                            value={`${weightValue(bestSession.volumeKg, units)} ${units}`}
+                            detail="every set of that day added up"
+                            when={bestSession.localDate}
+                          />
+                        )}
+                        {oneRepMax && (
+                          <Record
+                            label="Estimated one-rep max"
+                            value={`${weightValue(oneRepMax.oneRepMaxKg, units)} ${units}`}
+                            /* Named as a calculation, because it is one: this
+                               is a weight you have never actually lifted. */
+                            detail={`worked out from ${weightValue(oneRepMax.set.weightKg, units)} ${units} × ${oneRepMax.set.reps} — not a lift you have done`}
+                            when={oneRepMax.set.localDate}
+                          />
+                        )}
+                      </dl>
+                    )}
+                  </article>
+                )
+              })}
+            </section>
+          )}
+
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            Counted from your logged sets, never stored. A voided set leaves no record behind.
+          </p>
+
+          {/* Bodyweight is not a personal best — it is a number you watch beside
+              the lifts, and the one thing on this page you type into. It sits
+              after the records rather than above them, so the page opens on
+              what it is named for. */}
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Bodyweight</h2>
             {weighIns.length > 0 && (
@@ -189,88 +335,6 @@ export default function Records() {
             )}
           </section>
 
-          {/* The unit switch lives here as well as in Settings: this is the one
-              screen where every number is a weight, so it is where you notice. */}
-          <Segmented<Units>
-            label="Lifts"
-            value={units}
-            onChange={switchUnits}
-            options={[
-              { value: 'kg', label: 'kg' },
-              { value: 'lb', label: 'lb' },
-            ]}
-          />
-
-          {lifts.length === 0 ? (
-            <EmptyState>
-              <p className="text-sm text-[var(--color-text-secondary)]">
-                No lifts logged yet. A movement appears here the first time you put a weight on it.
-              </p>
-            </EmptyState>
-          ) : (
-            <section className="flex flex-col">
-              {lifts.map(({ exerciseId, records, bestSession }) => {
-                const heaviest = records.heaviestSet
-                const oneRepMax = records.bestEstimatedOneRepMax
-                const topRep = records.repPrs[0]
-                return (
-                  <article
-                    key={exerciseId}
-                    className="flex flex-col gap-2 py-3"
-                    style={{ borderBottom: '1px solid var(--color-divider)' }}
-                  >
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-base text-[var(--color-text-primary)]">
-                        {byId.get(exerciseId)?.name ?? 'Unknown movement'}
-                      </span>
-                      <span className="text-lg text-[var(--color-accent)]">
-                        {heaviest ? weightValue(heaviest.weightKg, units) : '—'}
-                        <span className="ml-1 text-xs text-[var(--color-text-secondary)]">
-                          {units}
-                        </span>
-                      </span>
-                    </div>
-                    <dl className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-text-secondary)]">
-                      {oneRepMax && (
-                        <div className="flex gap-1.5">
-                          <dt>Est. 1RM</dt>
-                          <dd className="text-[var(--color-text-primary)]">
-                            {formatWeight(oneRepMax.oneRepMaxKg, units)}
-                          </dd>
-                        </div>
-                      )}
-                      {records.bestSetVolume && (
-                        <div className="flex gap-1.5">
-                          <dt>Best set volume</dt>
-                          <dd className="text-[var(--color-text-primary)]">
-                            {formatWeight(records.bestSetVolume.volumeKg, units)}
-                          </dd>
-                        </div>
-                      )}
-                      {bestSession && (
-                        <div className="flex gap-1.5">
-                          <dt>Session volume</dt>
-                          <dd className="text-[var(--color-text-primary)]">
-                            {formatWeight(bestSession.volumeKg, units)}
-                          </dd>
-                        </div>
-                      )}
-                      {topRep && (
-                        <div className="flex gap-1.5">
-                          <dt>Reps at {formatWeight(topRep.weightKg, units)}</dt>
-                          <dd className="text-[var(--color-text-primary)]">{topRep.reps}</dd>
-                        </div>
-                      )}
-                    </dl>
-                  </article>
-                )
-              })}
-            </section>
-          )}
-
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            Counted from your logged sets, never stored. A voided set leaves no record behind.
-          </p>
         </>
       ) : (
         <>
@@ -302,8 +366,10 @@ export default function Records() {
                 {month && (
                   <div className="flex gap-1.5">
                     <dt>Best month</dt>
+                    {/* "September 2026 · 1" left you to work out what the 1
+                        counted. Said as a sentence it cannot be misread. */}
                     <dd className="text-[var(--color-text-primary)]">
-                      {monthLabel(`${month.month}-01`)} · {month.count}
+                      {`${month.count} ${month.count === 1 ? 'day' : 'days'} in ${monthLabel(`${month.month}-01`)}`}
                     </dd>
                   </div>
                 )}
@@ -337,33 +403,6 @@ export default function Records() {
                 )}
                 <span className="text-xs text-[var(--color-text-secondary)]">
                   reached {formatLongDate(todayLocalDateOf(goal.completedAt))}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">Reflections</h2>
-        {reflectionDays.length === 0 ? (
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Nothing written yet. What you write on a day shows up here and on that day in the
-            calendar.
-          </p>
-        ) : (
-          <ul className="flex flex-col">
-            {reflectionDays.map(([date, entry]) => (
-              <li
-                key={date}
-                className="flex flex-col gap-0.5 py-2.5"
-                style={{ borderBottom: '1px solid var(--color-divider)' }}
-              >
-                <span className="text-xs text-[var(--color-text-secondary)]">
-                  {formatLongDate(date)}
-                </span>
-                <span className="whitespace-pre-wrap text-sm text-[var(--color-text-primary)]">
-                  {reflectionSummary(entry)}
                 </span>
               </li>
             ))}
