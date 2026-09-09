@@ -350,6 +350,34 @@ describe('Records', () => {
     expect(screen.getByText(/not a lift you have done/)).toBeInTheDocument()
   })
 
+  it('lists movements A to Z, not by how heavy they are', async () => {
+    await onboard()
+    await seedExercises()
+    const split = await instantiateTemplate('split-ppl-3')
+    const day = split.days[0].id
+    const at = { localDate: '2026-01-05', splitDayId: day }
+    // The heavier lift is the later one alphabetically, so weight order and
+    // name order disagree and the assertion can tell them apart.
+    await logSet(
+      { ...at, exerciseId: 'ex-barbell-bench-press', setIndex: 0 },
+      { weightKg: 60, reps: 5 },
+      DEVICE_ID,
+    )
+    await logSet(
+      { ...at, exerciseId: 'ex-overhead-press', setIndex: 1 },
+      { weightKg: 100, reps: 5 },
+      DEVICE_ID,
+    )
+    renderAt('/records')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Training' }))
+    const names = (await screen.findAllByRole('button', { name: /kg ×/ })).map((b) =>
+      b.textContent?.trim(),
+    )
+    expect(names[0]).toMatch(/^Barbell bench press/)
+    expect(names[1]).toMatch(/^Overhead press/)
+  })
+
   it('converts every weight when the unit is switched', async () => {
     await onboard()
     await withLift()

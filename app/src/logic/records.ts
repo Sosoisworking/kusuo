@@ -150,9 +150,11 @@ export interface LiftRecord {
 }
 
 /**
- * Every movement that has been lifted at least once, heaviest single set first.
- * Ordering by weight rather than by recency puts the lifts you care about at
- * the top without ranking you against anything.
+ * Every movement that has been lifted at least once.
+ *
+ * Returned heaviest-first so the function is deterministic on its own terms.
+ * That is not the order Records shows: the page sorts A–Z, which needs the
+ * exercise name, and a name is something only the page can resolve from an id.
  */
 export function liftRecords(events: SessionEvent[]): LiftRecord[] {
   const ids = new Set<string>()

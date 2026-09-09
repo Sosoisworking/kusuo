@@ -133,7 +133,19 @@ export default function Records() {
 
   const units: Units = settings?.units ?? 'kg'
   const byId = new Map(exercises.map((e) => [e.id, e]))
+  /*
+    A–Z by movement name, which is the order you can predict: you come here
+    looking for one lift, and alphabetical is the only arrangement where you
+    know before you look roughly where it will be. Ordering by weight put the
+    squat and the deadlift on top for ever and buried everything else, which is
+    also a ranking — and this page states your bests without ranking them.
+
+    Sorted here rather than in `liftRecords`, because the name lives on the
+    exercise and the logic layer only has ids.
+  */
   const lifts = liftRecords(sessionEvents)
+    .map((lift) => ({ ...lift, name: byId.get(lift.exerciseId)?.name ?? 'Unknown movement' }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   const points = bodyweightByDate(weighIns)
   const change = bodyweightChange(points)
@@ -200,11 +212,10 @@ export default function Records() {
               it or the app worked it out.
             */
             <section className="flex flex-col">
-              {lifts.map(({ exerciseId, records, bestSession }) => {
+              {lifts.map(({ exerciseId, name, records, bestSession }) => {
                 const heaviest = records.heaviestSet
                 if (!heaviest) return null
                 const open = openLift === exerciseId
-                const name = byId.get(exerciseId)?.name ?? 'Unknown movement'
                 const oneRepMax = records.bestEstimatedOneRepMax
                 const topRep = records.repPrs[0]
                 return (
