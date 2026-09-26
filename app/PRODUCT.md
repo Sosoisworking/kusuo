@@ -71,3 +71,10 @@ None. This is a personal app with no testimonials, case studies, press, or third
 ## Accessibility & Inclusion
 
 No accessibility requirement beyond platform standard was raised by the user. iOS Human Interface Guidelines tap-target sizing (44×44pt minimum) applies as a functional constraint on the phone surface (see Operating Context), not as a separate accessibility ask.
+
+## Why these are absent
+
+- **No backend.** The app records private reflection. A server would mean an account, a consent surface, a privacy policy and a breach to worry about — for an app used by one person at a time on one device. So there is no server: nothing to breach, nothing to consent to, and offline as the default rather than a feature. The cost is no cross-device sync.
+- **No accounts.** There is exactly one person to design for (see Users, above).
+- **No telemetry.** I would rather not know which screen is popular than ship an app that reports on its user. The cost is that I cannot see which features get used.
+- **No gamification.** Calm over stimulating: no urgency-manufacturing patterns (streak-loss shaming, red badges, punitive copy). Records are facts stated plainly. Streaks are counted; losing one is never punished.

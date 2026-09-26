@@ -6,21 +6,35 @@ Kusuo is local-first. All data lives on the device in IndexedDB. There is no ser
 
 ## Status
 
-Not yet built. This repository currently contains the design brief only.
+Shipped. Live at https://sosoisworking.github.io/kusuo/
 
-## Getting started
+Every push to `main` is deployed to GitHub Pages by `../.github/workflows/deploy.yml`, but only after the typecheck, lint, unit tests and end-to-end tests pass.
 
-The build has not started. To begin:
+## Running it locally
 
-1. Open this folder in Claude Code.
-2. Enter plan mode (Shift+Tab twice).
-3. Paste the contents of `docs/DESIGN_PROMPT.md`.
+Requires Node.js; CI uses Node 22. From this folder:
 
-The agent runs a design interview first, then produces a plan for approval. No code is written before that plan is approved.
+```bash
+npm ci
+npm run dev
+```
+
+The app is served under `/kusuo/`, matching the GitHub Pages path.
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server |
+| `npm test` | Unit and component tests (Vitest) |
+| `npm run test:e2e` | End-to-end tests (Playwright). First run needs `npx playwright install webkit` |
+| `npm run lint` | oxlint |
+| `npm run build` | Typecheck, then production build to `dist/` |
+| `npm run preview` | Serve the production build |
 
 ## Documentation
 
-- `docs/DESIGN_PROMPT.md` — the build brief. Platform decision, data architecture, design workflow, quality bar. Start here.
+- `PRODUCT.md` — what the app is for, who it is for, and what it deliberately leaves out.
+- `docs/SPEC.md` — the specification, written from the code. Where another document disagrees with it, it wins.
+- `docs/DESIGN_PROMPT.md` — the original build brief. Partially superseded; its own header says which parts still stand.
 - `docs/legacy/` — product planning from earlier sessions. Valid as **product and data-model specification**. Its technical guidance is **obsolete**: it describes a native Android/Kotlin/Room app that was never carried forward. Read "Room" as "local database" and "Activity" as "screen"; ignore all Gradle, Kotlin, and APK instructions.
 
 ## Key decisions
