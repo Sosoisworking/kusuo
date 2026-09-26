@@ -2,17 +2,17 @@
 
 > ## ⚠️ PARTIALLY SUPERSEDED — read this first
 >
-> This file was written before the design interview and before Kusuo became a **two-person app**. It is still the authority on working method, quality bar, iOS PWA constraints, deployment, and plugin usage.
+> This is the original build brief, written before the design interview. It is still the authority on working method, quality bar, iOS PWA constraints, deployment, and plugin usage.
 >
-> It is **no longer the authority on product or data architecture**. Where this file and `PRODUCT.md` / `DESIGN.md` / `PLAN.md` disagree, **those three win**.
+> It is **not the authority on the app as built** — `docs/SPEC.md` is. Where this file and `SPEC.md` disagree, **`SPEC.md` wins**.
 >
 > Specifically superseded:
 >
-> - **§2A** — the "iPhone writes, Mac reads, no backend, no accounts" model. Kusuo now has a second human user and a Supabase layer for near-live partner view. Your own data is still local-first in IndexedDB; only explicitly shared habits reach a server. See `PLAN.md`.
 > - **§3** — the interview. It has been run. The answers are in `PRODUCT.md`. Do not re-run it.
-> - **§12** — "no backend, no account" is now wrong for the sharing layer. Everything else in that section stands, especially: no AI, no notifications in v1, no composite scores ever.
 >
-> Everything else in this file is current.
+> **§2A** and **§12** still describe the app: one writer, one reader, no backend, no accounts. A second user and a sync layer have been considered; neither is built, and `PRODUCT.md` and `SPEC.md` describe the app as it is. The GitHub-repo sync that §2A proposes as its Phase 2 is not built either.
+>
+> The setup steps below predate the first commit and are kept as history.
 
 ## How to use this file — setup steps for Soso
 
