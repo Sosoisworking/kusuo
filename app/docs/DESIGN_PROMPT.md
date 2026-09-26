@@ -10,7 +10,7 @@
 >
 > - **§3** — the interview. It has been run. The answers are in `PRODUCT.md`. Do not re-run it.
 >
-> **§2A** and **§12** still describe the app: one writer, one reader, no backend, no accounts. A second user and a sync layer have been considered; neither is built, and `PRODUCT.md` and `SPEC.md` describe the app as it is. The GitHub-repo sync that §2A proposes as its Phase 2 is not built either.
+> **§2A** and **§12** still describe the app: one writer, one reader, no backend, no accounts. A second user and a sync layer are planned; neither is built, and `PRODUCT.md` and `SPEC.md` describe the app as it is. The GitHub-repo sync that §2A proposes as its Phase 2 is not built either.
 >
 > The setup steps below predate the first commit and are kept as history.
 
