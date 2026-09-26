@@ -22,7 +22,7 @@ Six tabs: Today, Train, Splits, Calendar, Records, Settings. Reflect and Goals a
 
 ## Positioning
 
-Not a general habit-tracking product. It is calm, local-first, and personally owned: no backend, no account, no AI, no telemetry, no gamification (explicitly rejecting the Duolingo-style pattern as an anti-reference). Data lives only on Soso's own devices as an append-only event log, which is what makes safe future multi-device sync possible without a server. A competing consumer habit app could not truthfully copy this because they are built around engagement/retention mechanics and backend accounts, which this product deliberately has none of.
+Not a general habit-tracking product. It is calm, local-first, and personally owned: no backend, no account, no AI, no telemetry, no gamification (explicitly rejecting the Duolingo-style pattern as an anti-reference). Data lives only on Soso's own devices. What happens — habit completions, logged sets, finished sessions, reflections, weigh-ins — is an append-only event log; what Soso defines — habits, goals, splits — is edited in place. The event log is what makes safe future multi-device sync possible without a server. A competing consumer habit app could not truthfully copy this because they are built around engagement/retention mechanics and backend accounts, which this product deliberately has none of.
 
 ## Operating Context
 
@@ -74,7 +74,7 @@ No accessibility requirement beyond platform standard was raised by the user. iO
 
 ## Why these are absent
 
-- **No backend.** The app records private reflection. A server would mean an account, a consent surface, a privacy policy and a breach to worry about — for an app used by one person at a time on one device. So there is no server: nothing to breach, nothing to consent to, and offline as the default rather than a feature. The cost is no cross-device sync.
+- **No backend.** The app records private reflection. A server would mean an account, a consent surface, a privacy policy and a breach to worry about — for an app used by one person. So there is no server: nothing to breach, nothing to consent to, and offline as the default rather than a feature. The cost is no cross-device sync.
 - **No accounts.** There is exactly one person to design for (see Users, above).
 - **No telemetry.** I would rather not know which screen is popular than ship an app that reports on its user. The cost is that I cannot see which features get used.
 - **No gamification.** Calm over stimulating: no urgency-manufacturing patterns (streak-loss shaming, red badges, punitive copy). Records are facts stated plainly. Streaks are counted; losing one is never punished.
