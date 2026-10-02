@@ -6,7 +6,7 @@
 
 ## What was decided earlier that day
 
-Kusuo would become a two-person app. Soso and his partner would each keep their own record; habits could be shared for viewing, opt-in one at a time, default off. Near-live partner view via Supabase, with Row Level Security enforcing the privacy model in the database. Reflections never shareable. Two writers in the system but never on the same record, so no merge logic.
+Kusuo would become a two-person app. Sohaib and his partner would each keep their own record; habits could be shared for viewing, opt-in one at a time, default off. Near-live partner view via Supabase, with Row Level Security enforcing the privacy model in the database. Reflections never shareable. Two writers in the system but never on the same record, so no merge logic.
 
 That design was run through a five-advisor council, survived peer review, and was written up in full. The reasoning is sound and the documents are kept for it.
 
@@ -22,7 +22,7 @@ Reading the repository afterwards showed the decision was made against a picture
 
 4. **The council's own strongest objection stands.** The First Principles advisor's point — that one-writer, no-merge, no-auth, no-server are the architectural expression of "one person, one phone", not incidental constraints — is now confirmed by the code. The whole data layer is built on it.
 
-5. **It was Soso's idea, not his partner's.** She was willing rather than asking. The council flagged this as the decisive unknown, and it remains the weakest joint in the case.
+5. **It was Sohaib's idea, not his partner's.** She was willing rather than asking. The council flagged this as the decisive unknown, and it remains the weakest joint in the case.
 
 ## What it would take to revive it
 
@@ -32,7 +32,7 @@ Not a rewrite. The groundwork is genuinely there:
 - `settings.deviceRole` already distinguishes writer from reader.
 - Export/import already round-trips a whole database.
 
-Reviving it means adding a sharing layer, not restructuring anything. The sensible trigger is Soso using the app daily for a month and his partner asking to see it — real signal that a planning document cannot manufacture.
+Reviving it means adding a sharing layer, not restructuring anything. The sensible trigger is Sohaib using the app daily for a month and his partner asking to see it — real signal that a planning document cannot manufacture.
 
 ## What was kept from it
 

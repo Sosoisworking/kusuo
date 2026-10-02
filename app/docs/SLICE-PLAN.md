@@ -183,7 +183,7 @@ and e2e before anything deploys.
 
 - **Nothing has run on a physical iPhone.** Everything below was found and
   verified on the iOS Simulator (iPhone 17, iOS 26.3), which is the real engine
-  on real iOS but still not Soso's own handset. Playwright's WebKit at iPhone 13
+  on real iOS but still not Sohaib's own handset. Playwright's WebKit at iPhone 13
   size covers the same engine at the same size in CI.
 
 ---

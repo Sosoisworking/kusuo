@@ -10,7 +10,7 @@ Two reasons.
 
 **The screens are about to be replaced.** The six-tab redesign in `REDESIGN-PROMPT.md` rewrites navigation and most of the UI. Component tests written against `Today.tsx` today are thrown away in a fortnight.
 
-**Broken markup is not the real risk here.** Soso opens this app daily and will notice a button that does nothing within seconds. What he will *never* notice is a streak function that miscounts one week in nine, or a migration that drops a field, or an export that silently omits a table. This is an event-sourced app with derived state and no server: **the failure mode that matters is quiet data corruption in history he cannot audit.**
+**Broken markup is not the real risk here.** Sohaib opens this app daily and will notice a button that does nothing within seconds. What he will *never* notice is a streak function that miscounts one week in nine, or a migration that drops a field, or an export that silently omits a table. This is an event-sourced app with derived state and no server: **the failure mode that matters is quiet data corruption in history he cannot audit.**
 
 So the plan is ordered by consequence, not by coverage percentage. Tests that survive the redesign come first; tests coupled to markup come last, and get written as part of the redesign rather than before it.
 

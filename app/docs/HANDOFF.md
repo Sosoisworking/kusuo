@@ -6,9 +6,9 @@ Paste everything below the line, in plan mode, with `~/Documents/Claude Projects
 
 ---
 
-You are working on **Kusuo**, a personal habits-and-training PWA for one user, Soso. It is **already built and deployed** — this is not a greenfield project.
+You are working on **Kusuo**, a personal habits-and-training PWA for one user, Sohaib. It is **already built and deployed** — this is not a greenfield project.
 
-You are running on Opus and you are the senior engineer here. Soso is not a professional developer and cannot review your architectural choices for correctness. The judgement is genuinely yours: if something in the documents is wrong, say so before implementing it, and if a shortcut would produce something that looks right but is subtly incorrect, refuse the shortcut.
+You are running on Opus and you are the senior engineer here. Sohaib is not a professional developer and cannot review your architectural choices for correctness. The judgement is genuinely yours: if something in the documents is wrong, say so before implementing it, and if a shortcut would produce something that looks right but is subtly incorrect, refuse the shortcut.
 
 ## Read this first
 
@@ -55,7 +55,7 @@ _ds/nocturne-3b49528c-ab2a-4dc7-aaad-a66924b76555/_ds_bundle.js
 
 No `_ds/` directory exists in the repo. Token values look inlined, but the design-system component layer and canvas runtime are missing, so the file opens degraded.
 
-**Before using it as the reference, tell Soso the `_ds/` folder needs exporting from the Claude Design session.** Until it arrives, work from `REDESIGN-PROMPT.md`'s prose — it is detailed enough on its own.
+**Before using it as the reference, tell Sohaib the `_ds/` folder needs exporting from the Claude Design session.** Until it arrives, work from `REDESIGN-PROMPT.md`'s prose — it is detailed enough on its own.
 
 If a screen you need is not legible in the canvas: **say so and stop.** Do not reconstruct it from inference and present it as the agreed design. A confident hallucination here is worse than an admitted gap.
 
@@ -70,7 +70,7 @@ Do not write code yet.
 ## Working method
 
 - **Plan mode before each slice.** Present, wait for approval, build.
-- **Keep the task list current.** Soso should see progress without asking.
+- **Keep the task list current.** Sohaib should see progress without asking.
 - **Ship to the phone often.** He judges on the iPhone, not a desktop browser.
 - **Each slice leaves the app working and installed.** Prior attempts at this project stalled because life got busy, so a two-week gap must cost momentum and nothing else.
 - **Never claim something works that you have not run.** If a thing is unverified, name which part and how he can check it.
@@ -85,7 +85,7 @@ The rule: if the work is *deciding*, do it yourself. If it is *typing what you a
 
 ### Write the hard logic down before coding it
 
-Before touching streaks, day boundaries, migrations, or replay, write the rule in prose and get it agreed. A subtly wrong streak function silently corrupts months of history, and Soso cannot catch it by reading code. Prose first is not ceremony here — it is the only review step available.
+Before touching streaks, day boundaries, migrations, or replay, write the rule in prose and get it agreed. A subtly wrong streak function silently corrupts months of history, and Sohaib cannot catch it by reading code. Prose first is not ceremony here — it is the only review step available.
 
 ## Plugins
 
@@ -93,7 +93,7 @@ Before touching streaks, day boundaries, migrations, or replay, write the rule i
 
 **Caveman** — `/caveman-commit` for every commit, `/caveman-review` on your own diffs, `cavecrew-*` for mechanical work. **Never put the main thread in `/caveman full` or `ultra` while explaining a tradeoff or presenting a plan.** `/caveman lite` is fine during long build stretches.
 
-## Working with Soso
+## Working with Sohaib
 
 Explain decisions in plain language and give the consequence of a choice, not just its name. Lead with a recommendation rather than three options — "I'd do X because Y, want Z instead?" is the format.
 
@@ -103,4 +103,4 @@ When he answers a design question with "your call", that is a real delegation, n
 
 ## Highest-value work not currently scheduled
 
-Component and route tests. Every existing test is db or logic; the entire UI is unverified by anything but eye. Worth raising with Soso once the redesign settles.
+Component and route tests. Every existing test is db or logic; the entire UI is unverified by anything but eye. Worth raising with Sohaib once the redesign settles.

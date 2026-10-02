@@ -141,7 +141,7 @@ One Playwright path: add habit → complete → reload → still complete.
 
 ## Before Phase 2 begins
 
-Interview the partner the way Soso was interviewed: her actual habits, what she'd want to see, what she'd never want shared, and whether she wants this at all once it is real rather than described. Building for an imagined second user is how the couples half dies.
+Interview the partner the way Sohaib was interviewed: her actual habits, what she'd want to see, what she'd never want shared, and whether she wants this at all once it is real rather than described. Building for an imagined second user is how the couples half dies.
 
 ## Not in v1
 

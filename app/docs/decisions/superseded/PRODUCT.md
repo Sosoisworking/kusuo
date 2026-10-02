@@ -12,9 +12,9 @@ It is not a motivational app, and it is not a social network. It does not congra
 
 ## The two users
 
-**Soso** — iPhone, builds and maintains it. Habits include reading, Japanese, Quran, and fitness.
+**Sohaib** — iPhone, builds and maintains it. Habits include reading, Japanese, Quran, and fitness.
 
-**His partner** — a real second user, not a hypothetical. The couples idea was Soso's; she is willing. That distinction matters: **her habits and her reasons must shape the design, not just his.** Anything built for "the partner" as an abstraction will be wrong. Before the pairing work begins, her actual habits and what she'd want to see need to be gathered the same way Soso's were.
+**His partner** — a real second user, not a hypothetical. The couples idea was Sohaib's; she is willing. That distinction matters: **her habits and her reasons must shape the design, not just his.** Anything built for "the partner" as an abstraction will be wrong. Before the pairing work begins, her actual habits and what she'd want to see need to be gathered the same way Sohaib's were.
 
 ## The one job
 

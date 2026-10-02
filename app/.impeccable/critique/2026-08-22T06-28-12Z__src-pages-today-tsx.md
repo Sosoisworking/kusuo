@@ -52,7 +52,7 @@ Reads as Kusuo-specific, not generic-habit-app boilerplate: streak text vanishes
 - No loading skeleton during initial load (`if (loading) return null`) — imperceptible on local IndexedDB today, worth revisiting if load ever slows (e.g. post-eviction rehydration).
 - `completedDatesForHabit` is computed twice per habit per render (once for `doneCount`, once in the row map) — redundant O(events) scans, not a correctness issue at this data scale.
 
-## Persona red flags (Soso, half-awake, checking the phone)
+## Persona red flags (Sohaib, half-awake, checking the phone)
 Primary loop (open → see habits → tap → turns green) is low-friction and matches the five-second-open principle; nothing gamified or shame-inducing is visible. The two real risks are exactly the P1s: a silent failed tap, and an empty state that dead-ends with nowhere to go.
 
 ## Positive findings

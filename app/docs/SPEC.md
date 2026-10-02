@@ -8,7 +8,7 @@ Superseded documents are in `docs/decisions/superseded/`, kept for their reasoni
 
 ## What Kusuo is
 
-A personal-growth app for one person: **Soso**. Habits and strength training in one place, with honest history and no gamification.
+A personal-growth app for one person: **Sohaib**. Habits and strength training in one place, with honest history and no gamification.
 
 It is a PWA installed to the iPhone home screen. All data is local. There are no accounts, no server, and nothing is transmitted anywhere.
 

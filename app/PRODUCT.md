@@ -12,17 +12,17 @@ React 19 + TypeScript + Vite 8 + Tailwind CSS v4, Dexie (IndexedDB), Zustand, Re
 
 ## Users
 
-Single named user, Soso. No multi-user, no accounts. Two physical contexts: iPhone (the only device that ever writes data — morning and evening, roughly equal use) and Mac (read-only companion, used to review progress). The product has exactly one person to design for; there is no "typical user" abstraction.
+Single named user, Sohaib. No multi-user, no accounts. Two physical contexts: iPhone (the only device that ever writes data — morning and evening, roughly equal use) and Mac (read-only companion, used to review progress). The product has exactly one person to design for; there is no "typical user" abstraction.
 
 ## Product Purpose
 
-A personal-growth app holding two halves of the same practice: a small set of daily habits, and a proper training log for the days Soso lifts. Success is opening it, seeing today's habits and today's session within 5 seconds, and coming back tomorrow — not streak-maximizing or feature completeness.
+A personal-growth app holding two halves of the same practice: a small set of daily habits, and a proper training log for the days Sohaib lifts. Success is opening it, seeing today's habits and today's session within 5 seconds, and coming back tomorrow — not streak-maximizing or feature completeness.
 
 Six tabs: Today, Train, Splits, Calendar, Records, Settings. Reflect and Goals are reached from cards on Today and from the profile menu; they lost their tabs deliberately when the training module arrived.
 
 ## Positioning
 
-Not a general habit-tracking product. It is calm, local-first, and personally owned: no backend, no account, no AI, no telemetry, no gamification (explicitly rejecting the Duolingo-style pattern as an anti-reference). Data lives only on Soso's own devices. What happens — habit completions, logged sets, finished sessions, reflections, weigh-ins — is an append-only event log; what Soso defines — habits, goals, splits — is edited in place. The event log is what makes safe future multi-device sync possible without a server. A competing consumer habit app could not truthfully copy this because they are built around engagement/retention mechanics and backend accounts, which this product deliberately has none of.
+Not a general habit-tracking product. It is calm, local-first, and personally owned: no backend, no account, no AI, no telemetry, no gamification (explicitly rejecting the Duolingo-style pattern as an anti-reference). Data lives only on Sohaib's own devices. What happens — habit completions, logged sets, finished sessions, reflections, weigh-ins — is an append-only event log; what Sohaib defines — habits, goals, splits — is edited in place. The event log is what makes safe future multi-device sync possible without a server. A competing consumer habit app could not truthfully copy this because they are built around engagement/retention mechanics and backend accounts, which this product deliberately has none of.
 
 ## Operating Context
 
@@ -57,7 +57,7 @@ Not a general habit-tracking product. It is calm, local-first, and personally ow
 
 ## Evidence on Hand
 
-None. This is a personal app with no testimonials, case studies, press, or third-party proof to draw on, and none should be fabricated. The only "evidence" is Soso's own stated history of prior habit-tracking attempts failing because they "just didn't take off" — informing the emphasis on low-friction daily use over feature richness.
+None. This is a personal app with no testimonials, case studies, press, or third-party proof to draw on, and none should be fabricated. The only "evidence" is Sohaib's own stated history of prior habit-tracking attempts failing because they "just didn't take off" — informing the emphasis on low-friction daily use over feature richness.
 
 ## Product Principles
 
