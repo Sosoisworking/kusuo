@@ -84,7 +84,9 @@ export const EXERCISE_SEED: ExerciseSeed[] = [
   { id: 'ex-front-raise', name: 'Front delt raise', category: 'push', muscleGroup: 'Shoulders', equipment: 'Dumbbell' },
   { id: 'ex-cable-front-raise', name: 'Cable front delt raise', category: 'push', muscleGroup: 'Shoulders', equipment: 'Cable' },
   { id: 'ex-archer-pull', name: 'Archer pull', category: 'pull', muscleGroup: 'Rear delts', equipment: 'Cable' },
-  { id: 'ex-hibah-cris-cross', name: "Hibah's cris cross", category: 'pull', muscleGroup: 'Rear delts', equipment: 'Cable' },
+  // Renamed so the library names no one. The id is unchanged: every set logged
+  // against this movement points at it.
+  { id: 'ex-hibah-cris-cross', name: 'Rear delt cable cross', category: 'pull', muscleGroup: 'Rear delts', equipment: 'Cable' },
   { id: 'ex-bayesian-curl', name: 'Bayesian curl', category: 'pull', muscleGroup: 'Biceps', equipment: 'Cable' },
   { id: 'ex-cable-bar-curl', name: 'Cable bar curl', category: 'pull', muscleGroup: 'Biceps', equipment: 'Cable' },
   { id: 'ex-cable-hammer-curl', name: 'Cable hammer curl', category: 'pull', muscleGroup: 'Biceps', equipment: 'Cable' },

@@ -12,6 +12,7 @@ import {
 import { resetDatabase } from '../test/setup'
 import { appendHabitEvent } from './events'
 import { seedExercises } from './exercises'
+import { EXERCISE_SEED } from '../lib/exerciseSeed'
 import { createHabit } from './habits'
 import { finishSession, logSet } from './sessions'
 import { instantiateTemplate } from './splits'
@@ -317,6 +318,22 @@ describe('backup across schema versions', () => {
       ],
     }
     expect(() => parseBackup(JSON.stringify(broken))).toThrow(InvalidBackupError)
+  })
+
+  it('gives a seeded movement in an older backup the name the seed now uses', async () => {
+    await seedExercises()
+    const payload = await buildBackup()
+    const seeded = EXERCISE_SEED[0]
+    // A file exported before the movement was renamed.
+    const older = {
+      ...payload,
+      exercises: payload.exercises.map((e) =>
+        e.id === seeded.id ? { ...e, name: 'An older name' } : e,
+      ),
+    }
+
+    await importBackup(parseBackup(JSON.stringify(older)))
+    expect((await db.exercises.get(seeded.id))?.name).toBe(seeded.name)
   })
 
   it('clears what the payload does not carry, and refills the movement library', async () => {

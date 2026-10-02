@@ -28,7 +28,7 @@ const WORKOUT: SharedWorkout = {
   label: 'Push',
   entries: [
     { name: 'Barbell bench press', sets: 3, repsMin: 6, repsMax: 8 },
-    { name: "Hibah's cris cross", sets: 3, repsMin: 12, repsMax: 15 },
+    { name: "Farmer's carry", sets: 3, repsMin: 12, repsMax: 15 },
   ],
 }
 

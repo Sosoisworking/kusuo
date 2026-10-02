@@ -2,12 +2,19 @@ import { EXERCISE_SEED } from '../lib/exerciseSeed'
 import { db, type Exercise, type ExerciseCategory, type SessionEvent } from './schema'
 
 /**
- * Adds any seed movements this device is missing. Idempotent and additive:
- * existing rows are left alone, so re-running it after an app update never
- * rewrites timestamps or clobbers a movement the user has already used.
+ * Brings this device's movement library up to date with the seed: adds any
+ * seed movement it is missing, and gives a seeded movement the seed's name if
+ * it still holds an older one. Returns how many movements were added.
+ *
+ * Names follow the seed because nothing else ever writes them — a seeded
+ * movement cannot be edited — and its id never changes, because every logged
+ * set points at it. So a rename in the seed reaches an installed app on its
+ * next launch, and an older backup as soon as it is imported. A custom
+ * movement is never touched, and a seeded one whose name already matches is
+ * left exactly as it was, timestamps included.
  */
 export async function seedExercises(): Promise<number> {
-  const existing = new Set(await db.exercises.toCollection().primaryKeys())
+  const existing = new Map((await db.exercises.toArray()).map((row) => [row.id, row]))
   const now = Date.now()
   const missing: Exercise[] = EXERCISE_SEED.filter((s) => !existing.has(s.id)).map((s) => ({
     ...s,
@@ -16,6 +23,13 @@ export async function seedExercises(): Promise<number> {
     updatedAt: now,
   }))
   if (missing.length > 0) await db.exercises.bulkAdd(missing)
+
+  for (const seeded of EXERCISE_SEED) {
+    const row = existing.get(seeded.id)
+    if (row && !row.isCustom && row.name !== seeded.name) {
+      await db.exercises.update(seeded.id, { name: seeded.name, updatedAt: now })
+    }
+  }
   return missing.length
 }
 

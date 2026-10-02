@@ -71,6 +71,45 @@ describe('seedExercises', () => {
     await db.exercises.delete(EXERCISE_SEED[0].id)
     expect(await seedExercises()).toBe(1)
   })
+
+  it('gives a seeded movement the name the seed now uses', async () => {
+    // An installed app still holding a name from an earlier version.
+    await seedExercises()
+    const seeded = EXERCISE_SEED[0]
+    await db.exercises.update(seeded.id, { name: 'An older name', updatedAt: 1 })
+
+    await seedExercises()
+    const row = await db.exercises.get(seeded.id)
+    expect(row?.name).toBe(seeded.name)
+    expect(row?.updatedAt).toBeGreaterThan(1)
+  })
+
+  it('does not touch a seeded movement whose name already matches', async () => {
+    await seedExercises()
+    const seeded = EXERCISE_SEED[0]
+    await db.exercises.update(seeded.id, { updatedAt: 1 })
+
+    await seedExercises()
+    expect((await db.exercises.get(seeded.id))?.updatedAt).toBe(1)
+  })
+
+  it('never renames a custom movement', async () => {
+    await seedExercises()
+    const custom = await createCustomExercise({
+      name: 'Sled push',
+      category: 'legs',
+      muscleGroup: 'Quads',
+      equipment: 'Other',
+    })
+    await seedExercises()
+    expect((await db.exercises.get(custom.id))?.name).toBe('Sled push')
+  })
+
+  it('names no person in the movement library', () => {
+    expect(EXERCISE_SEED.find((e) => e.id === 'ex-hibah-cris-cross')?.name).toBe(
+      'Rear delt cable cross',
+    )
+  })
 })
 
 describe('filterExercises', () => {
