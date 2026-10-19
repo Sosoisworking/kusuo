@@ -1,4 +1,5 @@
 import type { ReflectionEntry } from '../db/schema'
+import { isLater } from './order'
 
 /**
  * Today's (or any date's) reflection text is never stored — it's derived by
@@ -12,7 +13,7 @@ export function latestReflectionForDate(
   let last: ReflectionEntry | undefined
   for (const e of entries) {
     if (e.localDate !== localDate) continue
-    if (!last || e.timestamp >= last.timestamp) last = e
+    if (!last || isLater(e, last)) last = e
   }
   return last
 }
@@ -22,7 +23,7 @@ export function latestReflectionsByDate(entries: ReflectionEntry[]): Map<string,
   const lastByDate = new Map<string, ReflectionEntry>()
   for (const e of entries) {
     const existing = lastByDate.get(e.localDate)
-    if (!existing || e.timestamp > existing.timestamp) {
+    if (!existing || isLater(e, existing)) {
       lastByDate.set(e.localDate, e)
     }
   }

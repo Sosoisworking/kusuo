@@ -2,6 +2,7 @@ import type { SessionMark, Units, WeekStart } from '../db/schema'
 import { addDays, startOfWeek } from '../lib/date'
 import { weightValue } from '../lib/units'
 import type { LoggedSet } from './sessions'
+import { isLater } from './order'
 
 /**
  * How a day's sets read on one line. Sets sharing a weight collapse to
@@ -118,7 +119,7 @@ function completedMarks(marks: SessionMark[]): SessionMark[] {
   for (const mark of marks) {
     const key = `${mark.localDate} ${mark.splitDayId}`
     const existing = lastByDay.get(key)
-    if (!existing || mark.timestamp > existing.timestamp) lastByDay.set(key, mark)
+    if (!existing || isLater(mark, existing)) lastByDay.set(key, mark)
   }
   return Array.from(lastByDay.values()).filter((m) => m.action === 'complete')
 }

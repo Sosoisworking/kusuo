@@ -1,4 +1,5 @@
 import type { HabitEvent } from '../db/schema'
+import { isLater } from './order'
 
 /**
  * Completion state is never stored — it's derived by replaying events for a
@@ -14,7 +15,7 @@ export function isCompleteOnDate(
   let last: HabitEvent | undefined
   for (const e of events) {
     if (e.habitId !== habitId || e.localDate !== localDate) continue
-    if (!last || e.timestamp >= last.timestamp) last = e
+    if (!last || isLater(e, last)) last = e
   }
   return last?.action === 'complete'
 }
@@ -28,7 +29,7 @@ export function completedDatesForHabit(
   for (const e of events) {
     if (e.habitId !== habitId) continue
     const existing = lastByDate.get(e.localDate)
-    if (!existing || e.timestamp > existing.timestamp) {
+    if (!existing || isLater(e, existing)) {
       lastByDate.set(e.localDate, e)
     }
   }

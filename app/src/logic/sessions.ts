@@ -1,4 +1,5 @@
 import type { SessionEvent, SessionMark } from '../db/schema'
+import { isLater } from './order'
 
 /** A set that survives replay — the last event for its slot was a 'log'. */
 export interface LoggedSet {
@@ -30,7 +31,7 @@ export function liveSets(events: SessionEvent[]): LoggedSet[] {
   for (const e of events) {
     const key = slotKey(e)
     const existing = lastBySlot.get(key)
-    if (!existing || e.timestamp > existing.timestamp) lastBySlot.set(key, e)
+    if (!existing || isLater(e, existing)) lastBySlot.set(key, e)
   }
   const sets: LoggedSet[] = []
   for (const e of lastBySlot.values()) {
@@ -77,7 +78,7 @@ export function isSessionComplete(
   let last: SessionMark | undefined
   for (const m of marks) {
     if (m.localDate !== localDate || m.splitDayId !== splitDayId) continue
-    if (!last || m.timestamp >= last.timestamp) last = m
+    if (!last || isLater(m, last)) last = m
   }
   return last?.action === 'complete'
 }
@@ -88,7 +89,7 @@ export function trainingDates(marks: SessionMark[]): Set<string> {
   for (const m of marks) {
     const key = `${m.localDate} ${m.splitDayId}`
     const existing = lastByDay.get(key)
-    if (!existing || m.timestamp > existing.timestamp) lastByDay.set(key, m)
+    if (!existing || isLater(m, existing)) lastByDay.set(key, m)
   }
   const dates = new Set<string>()
   for (const m of lastByDay.values()) {

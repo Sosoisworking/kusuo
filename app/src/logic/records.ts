@@ -1,6 +1,7 @@
 import type { BodyweightEntry, SessionEvent } from '../db/schema'
 import { addDays } from '../lib/date'
 import { setsForExercise, volume, type LoggedSet } from './sessions'
+import { isLater } from './order'
 
 /**
  * Epley estimate: weight * (1 + reps / 30). At a single rep the formula
@@ -191,7 +192,7 @@ export function bodyweightByDate(entries: BodyweightEntry[]): BodyweightPoint[] 
   const lastByDate = new Map<string, BodyweightEntry>()
   for (const entry of entries) {
     const existing = lastByDate.get(entry.localDate)
-    if (!existing || entry.timestamp > existing.timestamp) lastByDate.set(entry.localDate, entry)
+    if (!existing || isLater(entry, existing)) lastByDate.set(entry.localDate, entry)
   }
   return [...lastByDate.values()]
     .sort((a, b) => b.localDate.localeCompare(a.localDate))
