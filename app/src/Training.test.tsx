@@ -7,10 +7,11 @@ import { seedExercises } from './db/exercises'
 import { eventsForHabit } from './db/events'
 import { createHabit } from './db/habits'
 import { resetDatabase } from './test/setup'
+import { addSplit } from './test/splits'
 import { db, type Split } from './db/schema'
 import { allSessionEvents, finishSession, logSet } from './db/sessions'
 import { createSettings, updateSettings } from './db/settings'
-import { instantiateTemplate } from './db/splits'
+import { getSplit, instantiateTemplate } from './db/splits'
 import { todayLocalDate } from './lib/date'
 import { exerciseRecords } from './logic/records'
 import { liveSets } from './logic/sessions'
@@ -236,6 +237,9 @@ describe('the session flow', () => {
     await typeSet('80', '6')
     await userEvent.click(await screen.findByRole('button', { name: 'Log set 1' }))
     await screen.findByRole('button', { name: 'Set 1 logged — remove it' })
+    // Logging moves focus on to set 2 just after the row flips. Going back to
+    // set 1 before that lands lets the move take a keystroke meant for it.
+    await waitFor(() => expect(screen.getByLabelText('Weight for set 2 in kg')).toHaveFocus())
 
     const weight1 = screen.getByRole('textbox', { name: /Weight for set 1/ })
     await userEvent.clear(weight1)
@@ -338,7 +342,7 @@ describe('the session flow', () => {
       createdAt: now,
       updatedAt: now,
     }
-    await db.splits.add(split)
+    await addSplit(split)
     renderAt('/train/session/cardio-day')
 
     const minutes = await screen.findByLabelText('Minutes for set 1')
@@ -483,7 +487,7 @@ describe('Train with no split', () => {
     )
     await userEvent.click(within(batman as HTMLElement).getByRole('button', { name: 'Use this' }))
 
-    await waitFor(async () => expect(await db.splits.count()).toBe(1))
+    await waitFor(async () => expect(await db.plans.count()).toBe(1))
   })
 
   it('gives a reader no way to choose one', async () => {
@@ -553,13 +557,13 @@ describe('moving on carries what you typed', () => {
     renderAt(`/train/session/${split.days[0].id}`)
 
     await screen.findByRole('heading', { name: 'Barbell bench press', level: 1 })
-    const before = (await db.splits.get(split.id))!.days[0].entries.length
+    const before = (await getSplit(split.id))!.days[0].entries.length
     await userEvent.click(
       screen.getByRole('button', { name: 'Remove Incline dumbbell press from this day' }),
     )
 
     await waitFor(async () => {
-      expect((await db.splits.get(split.id))!.days[0].entries.length).toBe(before - 1)
+      expect((await getSplit(split.id))!.days[0].entries.length).toBe(before - 1)
     })
     // Still standing where you were: removing something further down the list
     // is not a reason to be moved.
@@ -809,11 +813,11 @@ describe('editing the day from inside the session', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Log set 1' }))
     await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
 
-    const before = (await db.splits.get(split.id))?.days[0].entries.length ?? 0
+    const before = (await getSplit(split.id))?.days[0].entries.length ?? 0
     await userEvent.click(screen.getByRole('button', { name: 'Remove from this day' }))
 
     await waitFor(async () =>
-      expect((await db.splits.get(split.id))?.days[0].entries.length).toBe(before - 1),
+      expect((await getSplit(split.id))?.days[0].entries.length).toBe(before - 1),
     )
     // The work still happened, so the event stays.
     expect(await db.sessionEvents.count()).toBe(1)
@@ -846,7 +850,7 @@ describe('editing the day from inside the session', () => {
     expect(await screen.findByRole('heading', { name: 'Overhead press', level: 1 }))
       .toBeInTheDocument()
     expect(screen.getByText('Preacher curl added to the end of Push.')).toBeInTheDocument()
-    expect((await db.splits.get(split.id))?.days[0].entries).toHaveLength(6)
+    expect((await getSplit(split.id))?.days[0].entries).toHaveLength(6)
   })
 
   it('calls reopening a session what it is', async () => {
