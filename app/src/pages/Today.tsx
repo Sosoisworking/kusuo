@@ -4,7 +4,8 @@ import { allHabitEvents, appendHabitEvent } from '../db/events'
 import { listActiveHabits } from '../db/habits'
 import type { Habit, HabitEvent, SessionEvent, SessionMark, Settings, Split } from '../db/schema'
 import { allSessionEvents, allSessionMarks } from '../db/sessions'
-import { getOrCreateDeviceId, getSettings } from '../db/settings'
+import { getOrCreateDeviceId, getSettings, updateSettings } from '../db/settings'
+import { shouldAskForBackup } from '../lib/backupNotice'
 import { getActiveSplit } from '../db/splits'
 import ProfileMenu from '../components/ProfileMenu'
 import { WEEKDAY_INITIALS, formatLongDate, formatShortDate, greeting } from '../lib/format'
@@ -239,6 +240,17 @@ export default function Today() {
     setMarks(m)
   }
 
+  async function dismissBackupNotice() {
+    if (!settings) return
+    const at = Date.now()
+    try {
+      await updateSettings(settings.deviceId, { backupNoticeDismissedAt: at })
+      setSettings({ ...settings, backupNoticeDismissedAt: at })
+    } catch {
+      setError("Couldn't save that — give it another tap.")
+    }
+  }
+
   async function toggle(habit: Habit, isDone: boolean) {
     if (!settings || settings.deviceRole !== 'writer') return
     setError(null)
@@ -354,6 +366,37 @@ export default function Today() {
           )
         })}
       </section>
+
+      {/* The next training release migrates every split and logged set. This
+          phone holds the only copy of the record, so it asks for one first. */}
+      {shouldAskForBackup(settings) && (
+        <section
+          aria-label="Save a copy"
+          className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-4"
+        >
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)]">
+            Save a copy before the next update
+          </h2>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            The next version reorganises how splits and sessions are stored. Nothing should be
+            lost, but this phone holds the only copy — export one first.
+          </p>
+          <div className="mt-1 flex gap-2">
+            <Link
+              to="/settings/data"
+              className="flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-4 py-3 text-sm text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            >
+              Export a copy
+            </Link>
+            <button
+              onClick={dismissBackupNotice}
+              className="min-h-11 px-4 text-sm text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            >
+              I've saved one
+            </button>
+          </div>
+        </section>
+      )}
 
       {trainingDay && (
         <section className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-4">

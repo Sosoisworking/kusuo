@@ -200,6 +200,38 @@ describe('Today', () => {
   })
 })
 
+describe('Today asks for a copy before the next update', () => {
+  it('shows the phone the notice, with a way to export', async () => {
+    await onboard()
+    renderAt('/')
+
+    const notice = await screen.findByRole('region', { name: 'Save a copy' })
+    expect(within(notice).getByRole('link', { name: 'Export a copy' })).toHaveAttribute(
+      'href',
+      '/settings/data',
+    )
+  })
+
+  it('goes away when dismissed, and stays away', async () => {
+    await onboard()
+    renderAt('/')
+
+    await userEvent.click(await screen.findByRole('button', { name: "I've saved one" }))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Save a copy' })).toBeNull())
+    expect((await db.settings.get(DEVICE_ID))?.backupNoticeDismissedAt).toBeTypeOf('number')
+    // Dismissing records the dismissal, never a backup.
+    expect((await db.settings.get(DEVICE_ID))?.lastBackupAt).toBeUndefined()
+  })
+
+  it('never shows on the Mac', async () => {
+    await onboard('reader')
+    renderAt('/')
+
+    await screen.findByRole('heading', { level: 1 })
+    expect(screen.queryByRole('region', { name: 'Save a copy' })).toBeNull()
+  })
+})
+
 describe('Today and the day that is already under way', () => {
   async function activeSplitDay() {
     await seedExercises()

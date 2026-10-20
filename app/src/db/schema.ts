@@ -218,6 +218,11 @@ export interface Settings {
   /** Sets a movement gets when it is added to a day from the directory. */
   defaultSets: number
   lastBackupAt?: number
+  /**
+   * When the "save a copy before the next update" notice was dismissed. Records
+   * the dismissal only — never that a backup exists.
+   */
+  backupNoticeDismissedAt?: number
   schemaVersion: number
   onboardingComplete: boolean
 }
