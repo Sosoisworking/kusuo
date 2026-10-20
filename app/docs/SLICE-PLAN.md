@@ -286,3 +286,30 @@ and the landscape cap used `vh` where the SPEC calls for `dvh`.
 - **Export in the installed app** opens iOS's preview with *Open in…* rather than
   saving a file. The copy says what each route actually does instead of promising
   a download.
+
+## Phase 3 — the training rebuild (from 20 October 2026)
+
+Kusuo keeps its habits and replaces its training module with a rebuild of openGym's feature
+set, then adds a backend. Why, what it ends, and how licensing is handled:
+`decisions/2026-10-20-training-rebuild.md`. Each slice ships to the phone working.
+
+| # | Slice | Status |
+|---|---|---|
+| S0 | Groundwork: one replay ordering, a persisted clock, an id for every set, every table classified, backups can't change the device's role, a request for a fresh export | ✅ done |
+| S1a | Migration at parity: Dexie v10 (routines, plans, schedule), backup v6, no screen changes | next |
+| S1b | Combined days, rest-day marks, the archived training habit | |
+| S3 | Planning, built new: week editor, overrides, rotation, starter plans, the full entry editor | |
+| S4 | Session, built new: every set type, effort with colours, plate math, PRs as facts — no rest timer | |
+| S2 | Exercise library: ~1,324 ExerciseDB movements, search and filters | |
+| S5 | Progression rules, stalls and deloads | |
+| S6 | Stats: 1RM curves, heatmap, muscle map, structural balance, measurements, day notes | |
+| S7 | Editing history, and importing from Strong, Hevy, FitNotes, Apple Health | |
+| — | Gate: move to Kusuo's own domain | |
+| S8 | Server and passkey accounts | |
+| S9 | Encrypted sync; the Mac becomes a writer | |
+| S10 | Reminders and nudges | |
+| S11 | AI coach | |
+| S12 | Claims brought into line with what shipped | |
+
+Set identity and ordering: `decisions/2026-10-20-set-identity-and-ordering.md`. Week storage:
+`decisions/2026-10-20-week-storage.md`.
