@@ -1,3 +1,5 @@
+import { isLater } from '../logic/order'
+import { setKeyOf } from '../logic/sessions'
 import { nextTimestamp } from './clock'
 import { appendHabitEvent } from './events'
 import { db, type SessionEvent, type SessionMark } from './schema'
@@ -22,8 +24,9 @@ export interface SetValues {
 }
 
 /**
- * Appends a logged set. Re-logging the same (date, day, exercise, setIndex)
- * corrects it — the later event wins on replay — and nothing is overwritten.
+ * Appends a logged set. Logging over a set already in that position corrects it
+ * — the new event carries the same set id, and the later one wins on replay —
+ * and nothing is overwritten.
  */
 export async function logSet(
   identity: SetIdentity,
@@ -45,6 +48,26 @@ export async function voidSet(
   return appendSessionEvent(identity, values, 'void', deviceId)
 }
 
+/**
+ * The id of the set already at this position, if this device has one there —
+ * so logging over it corrects it, and voiding it takes it back. Otherwise a new
+ * set, with a new id.
+ *
+ * The position is still how the session screen addresses a set, which is sound
+ * while one device writes. When two devices sync, the screen will address sets
+ * by id instead; until then this is the only place the two meet.
+ */
+async function setIdAt(identity: SetIdentity): Promise<string> {
+  const here = await db.sessionEvents
+    .where('[localDate+splitDayId]')
+    .equals([identity.localDate, identity.splitDayId])
+    .filter((e) => e.exerciseId === identity.exerciseId && e.setIndex === identity.setIndex)
+    .toArray()
+  let latest: SessionEvent | undefined
+  for (const e of here) if (!latest || isLater(e, latest)) latest = e
+  return latest ? setKeyOf(latest) : crypto.randomUUID()
+}
+
 async function appendSessionEvent(
   identity: SetIdentity,
   values: SetValues,
@@ -55,6 +78,7 @@ async function appendSessionEvent(
     id: crypto.randomUUID(),
     ...identity,
     ...values,
+    setId: await setIdAt(identity),
     action,
     timestamp: nextTimestamp(),
     deviceId,

@@ -15,6 +15,7 @@ let clock = 1000
 
 function set(overrides: Partial<LoggedSet> = {}): LoggedSet {
   return {
+    setId: crypto.randomUUID(),
     localDate: '2026-08-25',
     splitDayId: 'day1',
     exerciseId: 'ex-barbell-bench-press',

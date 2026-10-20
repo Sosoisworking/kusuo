@@ -1,8 +1,10 @@
 import type { SessionEvent, SessionMark } from '../db/schema'
 import { isLater } from './order'
 
-/** A set that survives replay — the last event for its slot was a 'log'. */
+/** A set that survives replay — the last event for its set was a 'log'. */
 export interface LoggedSet {
+  /** The set's identity: its id, or its slot for a set logged before ids existed. */
+  setId: string
   localDate: string
   splitDayId: string
   exerciseId: string
@@ -22,14 +24,25 @@ function slotKey(
 }
 
 /**
+ * The set an event belongs to: its own id, or for an event written before sets
+ * had ids, the slot it was logged in. A correction to an old set carries that
+ * slot key as its id, so the two still meet on replay.
+ */
+export function setKeyOf(
+  e: Pick<SessionEvent, 'setId' | 'localDate' | 'splitDayId' | 'exerciseId' | 'setIndex'>,
+): string {
+  return e.setId ?? slotKey(e)
+}
+
+/**
  * Replays session events into the sets that are actually live. Set state is
- * never stored: the last event by timestamp for a (date, day, exercise, index)
- * slot wins, and a slot whose last event is a 'void' drops out entirely.
+ * never stored: the last event for each set wins — by timestamp, then deviceId —
+ * and a set whose last event is a 'void' drops out entirely.
  */
 export function liveSets(events: SessionEvent[]): LoggedSet[] {
   const lastBySlot = new Map<string, SessionEvent>()
   for (const e of events) {
-    const key = slotKey(e)
+    const key = setKeyOf(e)
     const existing = lastBySlot.get(key)
     if (!existing || isLater(e, existing)) lastBySlot.set(key, e)
   }
@@ -37,6 +50,7 @@ export function liveSets(events: SessionEvent[]): LoggedSet[] {
   for (const e of lastBySlot.values()) {
     if (e.action !== 'log') continue
     sets.push({
+      setId: setKeyOf(e),
       localDate: e.localDate,
       splitDayId: e.splitDayId,
       exerciseId: e.exerciseId,

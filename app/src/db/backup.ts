@@ -294,7 +294,9 @@ function isSessionEvent(x: unknown): x is SessionEvent {
     SESSION_EVENT_ACTIONS.includes(e.action as SessionEventAction) &&
     typeof e.timestamp === 'number' &&
     typeof e.deviceId === 'string' &&
-    (e.rpe === undefined || typeof e.rpe === 'number')
+    (e.rpe === undefined || typeof e.rpe === 'number') &&
+    (e.durationSec === undefined || typeof e.durationSec === 'number') &&
+    (e.setId === undefined || typeof e.setId === 'string')
   )
 }
 

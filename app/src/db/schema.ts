@@ -155,6 +155,17 @@ export interface SessionEvent {
   rpe?: number
   /** Cardio is logged by time; lifts leave this unset. */
   durationSec?: number
+  /**
+   * Which set this event is about. Every new set gets a UUID; a correction or a
+   * void reuses the id of the set it changes. Events written before sets had ids
+   * leave it unset, and replay identifies them by their slot instead — the same
+   * key they always had, so history reads exactly as it did.
+   *
+   * `setIndex` is now only display order. Two devices that each log "set 1"
+   * without having seen the other's are recording two sets, not one; a slot key
+   * would have kept only the later one.
+   */
+  setId?: string
   action: SessionEventAction
   timestamp: number
   deviceId: string

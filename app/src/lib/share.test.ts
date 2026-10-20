@@ -96,8 +96,8 @@ describe('formatSessionText', () => {
       exerciseId: 'ex-bench',
       volumeKg: 880,
       sets: [
-        { localDate: '2026-01-05', splitDayId: 'd', exerciseId: 'ex-bench', setIndex: 0, weightKg: 80, reps: 6, timestamp: 1 },
-        { localDate: '2026-01-05', splitDayId: 'd', exerciseId: 'ex-bench', setIndex: 1, weightKg: 80, reps: 5, timestamp: 2 },
+        { setId: crypto.randomUUID(), localDate: '2026-01-05', splitDayId: 'd', exerciseId: 'ex-bench', setIndex: 0, weightKg: 80, reps: 6, timestamp: 1 },
+        { setId: crypto.randomUUID(), localDate: '2026-01-05', splitDayId: 'd', exerciseId: 'ex-bench', setIndex: 1, weightKg: 80, reps: 5, timestamp: 2 },
       ],
     },
   ]
@@ -121,7 +121,7 @@ describe('formatSessionText', () => {
         exerciseId: 'ex-kb',
         volumeKg: 0,
         sets: [
-          { localDate: '2026-01-05', splitDayId: 'd', exerciseId: 'ex-kb', setIndex: 0, weightKg: 0, reps: 0, durationSec: 1200, timestamp: 1 },
+          { setId: crypto.randomUUID(), localDate: '2026-01-05', splitDayId: 'd', exerciseId: 'ex-kb', setIndex: 0, weightKg: 0, reps: 0, durationSec: 1200, timestamp: 1 },
         ],
       },
     ]
