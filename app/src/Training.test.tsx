@@ -504,8 +504,8 @@ describe('moving through a session', () => {
       .toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
 
-    expect(await screen.findByRole('heading', { level: 1 })).not.toHaveTextContent(
-      'Barbell bench press',
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1 })).not.toHaveTextContent('Barbell bench press'),
     )
   })
 
@@ -703,8 +703,8 @@ describe('moving on carries what you typed', () => {
     }
     await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
 
-    expect(await screen.findByRole('heading', { level: 1 })).not.toHaveTextContent(
-      'Barbell bench press',
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1 })).not.toHaveTextContent('Barbell bench press'),
     )
     expect(await db.sessionEvents.count()).toBe(0)
   })
@@ -730,8 +730,8 @@ describe('a suggestion is not a set', () => {
     await typeSet('60', '10')
     await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
 
-    expect(await screen.findByRole('heading', { level: 1 })).not.toHaveTextContent(
-      'Barbell bench press',
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1 })).not.toHaveTextContent('Barbell bench press'),
     )
     const sets = liveSets(await allSessionEvents()).filter((s) => s.localDate === todayLocalDate())
     expect(sets).toHaveLength(1)
