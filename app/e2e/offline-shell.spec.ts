@@ -16,6 +16,10 @@ async function onboard(page: Page) {
   await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Get started' }).click()
   await page.getByRole('button', { name: 'Push / Pull / Legs 3 days' }).click()
+  // Onboarding is over when Today is on screen. Navigating away before then
+  // cuts off its last writes, and Today sends an unfinished setup back to the
+  // start — taking the tab bar with it.
+  await page.locator('nav[aria-label="Primary"]').waitFor()
 }
 
 function registrationCount(page: Page) {
