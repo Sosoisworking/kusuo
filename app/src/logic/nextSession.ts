@@ -1,5 +1,5 @@
 import type { Exercise, ExerciseCategory, Split, SplitDay, SplitEntry, WeekStart } from '../db/schema'
-import { sessionFor, weekFromOrder } from './schedule'
+import { scheduledOn, sessionFor, weekFromOrder } from './schedule'
 
 /**
  * Which day of the split belongs to a date.
@@ -18,32 +18,35 @@ export function dayForDate(
   localDate: string,
   weekStart: WeekStart = 'monday',
 ): SplitDay | undefined {
-  const [id] = sessionFor(weekFromOrder(split.days.map((day) => day.id), weekStart), localDate)
+  const [id] = scheduledOn(weekFromOrder(split.days.map((day) => day.id), weekStart), localDate)
   return split.days.find((day) => day.id === id)
 }
 
 /**
- * Which day is actually being done on a date, which is not always the one the
- * schedule names.
+ * The days actually being done on a date, which are not always the one the
+ * schedule names (see `sessionFor`).
  *
  * Miss Monday and Tuesday and the schedule still says Wednesday — that rule
  * stays, because a missed session is missed rather than owed. But someone who
  * decides to do Monday's shoulders on Wednesday is not fighting the schedule,
- * they are training; and once they have logged a set against that day, that is
- * the session in front of them. Work already recorded outranks the calendar.
+ * they are training; once a set is logged against that day, it is the session
+ * in front of them. Do Wednesday's too and the session is both, Wednesday's
+ * first — the swap was a detour rather than a replacement.
  *
- * The scheduled day wins any tie: if it has work on it too, the swap was a
- * detour rather than a replacement.
+ * Today, Train and the session screen all ask this one question, so they can
+ * no longer disagree about what today's session is. Today used to ask only the
+ * schedule, and went on offering Wednesday's work after Monday's was done.
  */
-export function sessionDayOn(
+export function sessionDaysOn(
   split: Split,
   localDate: string,
   weekStart: WeekStart,
-  workedDayIds: ReadonlySet<string>,
-): SplitDay | undefined {
-  const scheduled = dayForDate(split, localDate, weekStart)
-  if (scheduled && workedDayIds.has(scheduled.id)) return scheduled
-  return split.days.find((d) => workedDayIds.has(d.id)) ?? scheduled
+  worked: ReadonlySet<string>,
+): SplitDay[] {
+  const order = split.days.map((day) => day.id)
+  const scheduled = scheduledOn(weekFromOrder(order, weekStart), localDate)
+  const byId = new Map(split.days.map((day) => [day.id, day]))
+  return sessionFor(scheduled, order, worked).flatMap((id) => byId.get(id) ?? [])
 }
 
 /** Total sets a split day prescribes, for the "6 exercises · 21 sets" line. */

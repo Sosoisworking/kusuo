@@ -6,9 +6,15 @@ import Screen, { EmptyState } from '../components/Screen'
 import SectionHeading from '../components/SectionHeading'
 import { listExercises } from '../db/exercises'
 import type { Exercise, SessionEvent, SessionMark, Settings, Split, SplitDay } from '../db/schema'
-import { allSessionEvents, allSessionMarks, finishSession } from '../db/sessions'
+import { allSessionEvents, allSessionMarks, markRested } from '../db/sessions'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
-import { getActiveSplit, instantiateTemplate, listSplits, setActiveSplit } from '../db/splits'
+import {
+  getActiveSplit,
+  instantiateTemplate,
+  listSplits,
+  restRoutineIds,
+  setActiveSplit,
+} from '../db/splits'
 import { todayLocalDate } from '../lib/date'
 import ProfileMenu from '../components/ProfileMenu'
 import { formatRelativeDay } from '../lib/format'
@@ -18,9 +24,9 @@ import {
   formatPrescription,
   dayForDate,
   plannedSetCount,
-  sessionDayOn,
+  sessionDaysOn,
 } from '../logic/nextSession'
-import { isSessionComplete, setsForExercise, setsOnDate, volume } from '../logic/sessions'
+import { isSessionComplete, setsForExercise, setsOnDate, volume, workedOn } from '../logic/sessions'
 import { lastCompletedDate, lastSessionSets, recentSessions } from '../logic/trainingHistory'
 
 /**
@@ -53,6 +59,7 @@ export default function Train() {
   const [marks, setMarks] = useState<SessionMark[]>([])
   const [events, setEvents] = useState<SessionEvent[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
+  const [restIds, setRestIds] = useState<Set<string>>(new Set())
   const [pickerOpen, setPickerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,13 +75,14 @@ export default function Train() {
   }, [])
 
   async function load() {
-    const [s, sp, all, m, e, ex] = await Promise.all([
+    const [s, sp, all, m, e, ex, rest] = await Promise.all([
       getSettings(getOrCreateDeviceId()),
       getActiveSplit(),
       listSplits(),
       allSessionMarks(),
       allSessionEvents(),
       listExercises(),
+      restRoutineIds(),
     ])
     setSettings(s)
     setSplit(sp)
@@ -82,6 +90,7 @@ export default function Train() {
     setMarks(m)
     setEvents(e)
     setExercises(ex)
+    setRestIds(rest)
   }
 
   async function switchTo(templateId: string) {
@@ -103,17 +112,17 @@ export default function Train() {
   }
 
   /**
-   * A rest day still has to be marked, or the cycle sticks on it forever. It
-   * writes the SessionMark and deliberately passes no habit id: resting is part
-   * of the split, but it is not a training session, and ticking the habit for
-   * it would put a lie in the history.
+   * A rest day still has to be marked, or the cycle sticks on it forever. The
+   * mark says it was rest and ticks no habit: resting is part of the split, but
+   * it is not a training session, and ticking the habit for it would put a lie
+   * in the history.
    */
-  async function markRested(dayId: string) {
+  async function markDayRested(dayId: string) {
     if (!settings || settings.deviceRole !== 'writer') return
     setError(null)
     setBusy(true)
     try {
-      await finishSession(todayLocalDate(), dayId, settings.deviceId)
+      await markRested(todayLocalDate(), dayId, settings.deviceId)
       await load()
     } catch {
       setError("Couldn't save that — try again.")
@@ -130,19 +139,22 @@ export default function Train() {
   const today = todayLocalDate()
   const scheduled: SplitDay | undefined = split ? dayForDate(split, today, weekStart) : undefined
   /*
-    Days with work recorded against today — sets that survived replay, or a
-    session marked done. This is what lets a swapped-in session stick: pick
-    Monday's shoulders on a Wednesday, log one set, and Train keeps showing
-    shoulders instead of snapping back to what the calendar says.
+    Today's session: the days with work recorded against today — sets that
+    survived replay, or a day marked done — or the scheduled day until there is
+    any. This is what lets a swapped-in session stick: pick Monday's shoulders on
+    a Wednesday, log one set, and Train keeps showing shoulders instead of
+    snapping back to what the calendar says. Do Wednesday's as well and both
+    are today's session.
   */
-  const workedToday = new Set<string>(setsOnDate(events, today).map((s) => s.splitDayId))
-  for (const d of split?.days ?? []) {
-    if (isSessionComplete(marks, today, d.id)) workedToday.add(d.id)
-  }
-  const day: SplitDay | undefined = split
-    ? sessionDayOn(split, today, weekStart, workedToday)
-    : undefined
-  const swapped = Boolean(day && scheduled && day.id !== scheduled.id)
+  const session = split ? sessionDaysOn(split, today, weekStart, workedOn(events, marks, today)) : []
+  // A rest day marked and then trained through anyway is a training day.
+  const training = session.filter((d) => d.kind !== 'rest')
+  const shown = training.length > 0 ? training : session
+  // The card is about the day still to do; once every one is done, the first.
+  const day: SplitDay | undefined =
+    shown.find((d) => !isSessionComplete(marks, today, d.id)) ?? shown[0]
+  const alsoToday = shown.filter((d) => d.id !== day?.id)
+  const swapped = Boolean(day && scheduled && !session.some((d) => d.id === scheduled.id))
   const dayNumber = split && day ? split.days.findIndex((d) => d.id === day.id) + 1 : 0
   const byId = new Map(exercises.map((e) => [e.id, e]))
   const dayById = new Map(splits.flatMap((s) => s.days.map((d) => [d.id, d] as const)))
@@ -159,7 +171,7 @@ export default function Train() {
     else if (lastDone) meta.push(`last done ${formatRelativeDay(lastDone, today)}`)
   }
 
-  const recent = recentSessions(marks, 5)
+  const recent = recentSessions(marks, 5, restIds)
 
   return (
     <Screen
@@ -222,6 +234,38 @@ export default function Train() {
               Doing this instead of {scheduled.label} today.
             </p>
           )}
+          {/* The rest of today's session. Finishing any part of it finishes
+              all of it, so each is listed with where it stands. */}
+          {alsoToday.length > 0 && (
+            <ul aria-label="Also today" className="mt-2 flex flex-col">
+              {alsoToday.map((d) => {
+                const logged = setsOnDate(events, today).filter((s) => s.splitDayId === d.id).length
+                const status = isSessionComplete(marks, today, d.id)
+                  ? 'done'
+                  : `${logged} of ${plannedSetCount(d)} logged`
+                const text = (
+                  <>
+                    <span className="text-sm text-[var(--color-text-primary)]">Also today · {d.label}</span>
+                    <span className="text-xs text-[var(--color-text-secondary)]">{status}</span>
+                  </>
+                )
+                return (
+                  <li key={d.id} style={{ borderTop: '1px solid var(--color-divider)' }}>
+                    {isReader ? (
+                      <div className="flex min-h-11 items-center justify-between gap-3">{text}</div>
+                    ) : (
+                      <Link
+                        to={`/train/session/${d.id}`}
+                        className="flex min-h-11 items-center justify-between gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                      >
+                        {text}
+                      </Link>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
 
           {!isReader && (
             <div className="mt-3 flex gap-2">
@@ -232,7 +276,7 @@ export default function Train() {
                   </p>
                 ) : (
                   <button
-                    onClick={() => markRested(day.id)}
+                    onClick={() => markDayRested(day.id)}
                     disabled={busy}
                     className="flex min-h-12 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
                   >
@@ -303,7 +347,7 @@ export default function Train() {
                     <span className="text-xs text-[var(--color-accent)]">In progress</span>
                   ) : d.kind === 'rest' ? (
                     <SecondaryButton
-                      onClick={() => markRested(d.id)}
+                      onClick={() => markDayRested(d.id)}
                       disabled={busy}
                       className="px-4 py-2 text-sm"
                     >
@@ -410,26 +454,28 @@ export default function Train() {
         <section className="flex flex-col gap-2">
           <SectionHeading>Recent sessions</SectionHeading>
           <ul className="flex flex-col">
-            {recent.map((session) => {
-              const sets = setsOnDate(events, session.localDate).filter(
-                (s) => s.splitDayId === session.splitDayId,
+            {recent.map((finished) => {
+              const sets = setsOnDate(events, finished.localDate).filter((s) =>
+                finished.routineIds.includes(s.splitDayId),
               )
               const moved = volume(sets)
               const detail =
                 sets.length === 0
-                  ? 'Rest'
+                  ? 'no sets logged'
                   : `${sets.length} sets${moved > 0 ? ` · ${weightValue(moved, units)} ${units}` : ''}`
               return (
                 <li
-                  key={`${session.localDate}-${session.splitDayId}`}
+                  key={finished.localDate}
                   className="flex min-h-11 items-baseline gap-3 py-2"
                   style={{ borderBottom: '1px solid var(--color-divider)' }}
                 >
                   <span className="w-14 shrink-0 text-xs text-[var(--color-text-secondary)]">
-                    {formatRelativeDay(session.localDate, today)}
+                    {formatRelativeDay(finished.localDate, today)}
                   </span>
                   <span className="flex-1 text-sm text-[var(--color-text-primary)]">
-                    {dayById.get(session.splitDayId)?.label ?? 'Session'}
+                    {finished.routineIds
+                      .map((id) => dayById.get(id)?.label ?? 'Session')
+                      .join(' + ')}
                   </span>
                   <span className="text-xs text-[var(--color-text-secondary)]">{detail}</span>
                 </li>

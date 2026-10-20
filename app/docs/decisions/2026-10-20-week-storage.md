@@ -28,7 +28,7 @@ week starts, and splits of 1 to 10 days with every placement of rest days.
 changing the week start moves the schedule. A week stored in S1a would either stop moving — a
 visible change, early — or have to be rewritten on every change of the setting, which is the
 behaviour this record exists to end. So `logic/schedule.ts` builds the week from the plan's order
-each time it is asked (`weekFromOrder`, read through `sessionFor`), and `dayForDate` already goes
+each time it is asked (`weekFromOrder`, read through `scheduledOn`), and `dayForDate` already goes
 through it. S3 stores that week on each plan, from the week start in effect then, and the
 schedule stops moving with the setting from that day on.
 

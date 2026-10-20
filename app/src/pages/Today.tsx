@@ -10,8 +10,8 @@ import ProfileMenu from '../components/ProfileMenu'
 import { WEEKDAY_INITIALS, formatLongDate, formatShortDate, greeting } from '../lib/format'
 import { todayLocalDate } from '../lib/date'
 import { completedDatesForHabit } from '../logic/derive'
-import { dayForDate, plannedSetCount } from '../logic/nextSession'
-import { isSessionComplete, setsOnDate } from '../logic/sessions'
+import { plannedSetCount, sessionDaysOn } from '../logic/nextSession'
+import { isSessionComplete, setsOnDate, workedOn } from '../logic/sessions'
 import { countInWeekOf, completionsByDate, weekDays } from '../logic/week'
 import { dailyStreak } from '../logic/streaks'
 
@@ -262,18 +262,28 @@ export default function Today() {
 
   const isReader = settings.deviceRole === 'reader'
   const weekStart = settings.weekStart
-  const trainingDay = split ? dayForDate(split, today, weekStart) : undefined
-
-  // Today's training state, derived from the same two logs Train replays, so
-  // the two screens cannot disagree about whether a session is under way.
-  const isRestDay = trainingDay?.kind === 'rest'
-  const plannedSets = trainingDay ? plannedSetCount(trainingDay) : 0
-  const loggedSets = trainingDay
-    ? setsOnDate(sessionEvents, today).filter((s) => s.splitDayId === trainingDay.id).length
-    : 0
-  const sessionFinished = trainingDay ? isSessionComplete(marks, today, trainingDay.id) : false
-  const sessionWaiting = Boolean(trainingDay) && !isRestDay && !sessionFinished
-  const trainingNote = sessionWaiting && trainingDay ? `Up next · ${trainingDay.label}` : null
+  // Today's session, asked the same question Train asks, so the two screens
+  // cannot disagree about what it is. Today used to read only the schedule:
+  // do Monday's shoulders on a Wednesday and it went on offering Wednesday.
+  const session = split
+    ? sessionDaysOn(split, today, weekStart, workedOn(sessionEvents, marks, today))
+    : []
+  // A rest day marked and then trained through anyway is a training day.
+  const training = session.filter((d) => d.kind !== 'rest')
+  const shown = training.length > 0 ? training : session
+  const shownIds = new Set(shown.map((d) => d.id))
+  const sessionLabel = shown.map((d) => d.label).join(' + ')
+  const isRestDay = shown.length > 0 && training.length === 0
+  const plannedSets = training.reduce((total, d) => total + plannedSetCount(d), 0)
+  const plannedExercises = training.reduce((total, d) => total + d.entries.length, 0)
+  const loggedSets = setsOnDate(sessionEvents, today).filter((s) => shownIds.has(s.splitDayId)).length
+  const sessionFinished =
+    training.length > 0 && training.every((d) => isSessionComplete(marks, today, d.id))
+  const sessionWaiting = training.length > 0 && !sessionFinished
+  const trainingNote = sessionWaiting ? `Up next · ${sessionLabel}` : null
+  // Only a habit that is still active gets ticked; a pointer left at an
+  // archived one promises a tick that finishing will not make.
+  const ticksHabit = habits.some((h) => h.id === settings.trainingHabitId)
 
   const rows: Row[] = orderedHabits(habits).map((habit) => {
     const completedDates = completedDatesForHabit(events, habit.id)
@@ -295,7 +305,7 @@ export default function Today() {
   const remaining = rows.length - doneCount
   // The accent ring marks the habit with a session still waiting — the same row
   // that reads "Up next · Push". One signal, not two competing ones.
-  const queuedHabitId = sessionWaiting ? settings.trainingHabitId : undefined
+  const queuedHabitId = sessionWaiting && ticksHabit ? settings.trainingHabitId : undefined
 
   const days = weekDays(today, weekStart)
   const dayCounts = completionsByDate(habits, events, days)
@@ -355,21 +365,21 @@ export default function Today() {
         })}
       </section>
 
-      {trainingDay && (
+      {shown.length > 0 && (
         <section className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-4">
           <span className="text-xs text-[var(--color-text-secondary)]">
             {isRestDay ? 'Today' : sessionFinished ? 'Done today' : loggedSets > 0 ? 'In progress' : 'Next up'}
           </span>
           <h2 className="text-lg font-medium text-[var(--color-text-primary)]">
-            {split?.name} · {trainingDay.label}
+            {split?.name} · {sessionLabel}
           </h2>
           <p className="text-xs text-[var(--color-text-secondary)]">
             {isRestDay
               ? 'A day in the split, not a gap in it.'
               : loggedSets > 0 || sessionFinished
                 ? `${loggedSets} of ${plannedSets} sets logged`
-                : `${trainingDay.entries.length} exercises · ${plannedSets} sets${
-                    settings.trainingHabitId ? ' · logging it ticks the habit' : ''
+                : `${plannedExercises} exercises · ${plannedSets} sets${
+                    ticksHabit ? ' · logging it ticks the habit' : ''
                   }`}
           </p>
           {/* A rest day is a day in the split, so it is worth saying — but the

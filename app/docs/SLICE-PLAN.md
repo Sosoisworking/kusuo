@@ -312,4 +312,4 @@ set, then adds a backend. Why, what it ends, and how licensing is handled:
 | S12 | Claims brought into line with what shipped | |
 
 Set identity and ordering: `decisions/2026-10-20-set-identity-and-ordering.md`. Week storage:
-`decisions/2026-10-20-week-storage.md`. Plans and routines: `decisions/2026-10-20-plans-and-routines.md`.
+`decisions/2026-10-20-week-storage.md`. Plans and routines: `decisions/2026-10-20-plans-and-routines.md`. The day's session: `decisions/2026-10-20-the-days-session.md`.

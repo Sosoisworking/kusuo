@@ -26,9 +26,15 @@ import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { findSplitDay, updateSplit } from '../db/splits'
 import { todayLocalDate } from '../lib/date'
 import { toKg, weightValue } from '../lib/units'
-import { describePrescription, plannedSetCount } from '../logic/nextSession'
+import { describePrescription, plannedSetCount, sessionDaysOn } from '../logic/nextSession'
 import { exerciseRecords } from '../logic/records'
-import { isSessionComplete, setsForExercise, setsOnDate, type LoggedSet } from '../logic/sessions'
+import {
+  isSessionComplete,
+  setsForExercise,
+  setsOnDate,
+  workedOn,
+  type LoggedSet,
+} from '../logic/sessions'
 import { lastSessionSets, summariseSets } from '../logic/trainingHistory'
 
 interface Draft {
@@ -171,6 +177,19 @@ export default function Session() {
   const daySets = setsOnDate(events, today).filter((s) => s.splitDayId === day.id)
   const planned = plannedSetCount(day)
   const complete = isSessionComplete(marks, today, day.id)
+  /*
+    Today's session as Train shows it, with this day in it. A missed day done
+    alongside today's is one session, so finishing here finishes every training
+    day with work on it today, and undoing undoes them all — otherwise the one
+    not finished from its own screen stayed "in progress" for the rest of the
+    day, after the habit was already ticked.
+  */
+  const worked = workedOn(events, marks, today).add(day.id)
+  const sessionDays = sessionDaysOn(split, today, settings.weekStart, worked).filter(
+    (d) => d.kind !== 'rest',
+  )
+  const toFinish = sessionDays.filter((d) => !isSessionComplete(marks, today, d.id)).map((d) => d.id)
+  const toUnfinish = sessionDays.filter((d) => isSessionComplete(marks, today, d.id)).map((d) => d.id)
 
   const setsFor = (entry: SplitEntry): LoggedSet[] =>
     daySets.filter((s) => s.exerciseId === entry.exerciseId).sort((a, b) => a.setIndex - b.setIndex)
@@ -527,7 +546,7 @@ export default function Session() {
     if (!(await commitTyped())) return
     setBusy(true)
     try {
-      await finishSession(today, day.id, deviceId, trainingHabitId)
+      await finishSession(today, toFinish, deviceId, trainingHabitId)
       navigate('/train')
     } catch {
       setError("Couldn't log the session — try again.")
@@ -539,7 +558,7 @@ export default function Session() {
     if (busy) return
     setBusy(true)
     try {
-      await unfinishSession(today, day.id, deviceId)
+      await unfinishSession(today, toUnfinish, deviceId)
       setData(await loadSession(dayId))
     } catch {
       setError("Couldn't undo that — try again.")

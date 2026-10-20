@@ -383,6 +383,7 @@ function isSessionMark(x: unknown): x is SessionMark {
     typeof m.localDate === 'string' &&
     typeof m.splitDayId === 'string' &&
     SESSION_MARK_ACTIONS.includes(m.action as SessionMarkAction) &&
+    (m.kind === undefined || m.kind === 'training' || m.kind === 'rest') &&
     typeof m.timestamp === 'number' &&
     typeof m.deviceId === 'string'
   )
@@ -604,7 +605,8 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
       row that does not exist — and in an append-only log that orphan is
       permanent, because no later event can take it back.
     */
-    const habits = new Set((payload.habits ?? []).map((h) => h.id))
+    // Nor can one the file holds only as archived, for the same reason.
+    const habits = new Set((payload.habits ?? []).filter((h) => h.isActive).map((h) => h.id))
     const { trainingHabitId, ...rest } = payload.preferences
     await applyRecordPreferences(
       trainingHabitId && habits.has(trainingHabitId)

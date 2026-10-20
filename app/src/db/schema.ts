@@ -239,6 +239,14 @@ export interface SessionMark {
   localDate: string
   splitDayId: string
   action: SessionMarkAction
+  /**
+   * What was finished: a training session, or a rest day taken. Written with
+   * every mark since S1b, because a routine's kind can change after the fact —
+   * turning Sunday from rest into training must not make every rested Sunday
+   * look trained. Marks from before then leave it unset and are judged by their
+   * routine's kind.
+   */
+  kind?: SplitDayKind
   timestamp: number
   deviceId: string
 }

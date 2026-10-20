@@ -36,7 +36,7 @@ Sixteen commits, slices 0 through 11 plus the training data model (`902eeff`), a
 | `schedule` | one row — `activePlanId`. One pointer, so there is never more than one active plan |
 | `splits` | **legacy, unread** since version 10 — kept so the conversion to plans can be run again. A backup does not carry it; an import or reset empties it. `db/splits.ts` still hands the screens splits and days, assembled from plans and routines |
 | `sessionEvents` | **append-only** — localDate, splitDayId, exerciseId, setIndex, setId, weightKg, reps, rpe, action `log`\|`void`, deviceId. `localDate` is indexed and load-bearing: the calendar, the week strip and the training-habit tick are calendar-day questions, and re-deriving a day from a UTC instant is wrong across DST and travel. Do not remove it — `REDESIGN-PROMPT.md` omits it, and that omission is the error |
-| `sessionMarks` | **append-only** — session complete/uncomplete per day |
+| `sessionMarks` | **append-only** — complete/uncomplete per day and routine, with `kind` `training`\|`rest` since S1b. A rest day marked done is not training: it is no trained day on the calendar, no recent session, nothing to share. A mark from before S1b is judged by its routine's kind |
 | `settings` | deviceId PK, deviceRole `writer`\|`reader`, units, weekStart, theme, defaultSets, trainingHabitId, lastBackupAt. This row describes the phone, not the record: a backup never carries it, an import never replaces it, and logging out deletes it alone |
 | `bodyweight` | **append-only** — localDate, weightKg, timestamp, deviceId |
 
@@ -44,7 +44,7 @@ State is **derived by replaying events**, last-event-wins. Never stored as a fla
 
 **Logic implemented:** `derive.ts` (completion by replay), `streaks.ts` (daily and weekly; `weeklyStreak` takes a `weekStart` and every call site now passes it, so the setting is live — `dailyStreak` takes none, because a daily run does not care where the week begins), `sessions.ts` (set replay, volume, training dates), `records.ts` (Epley 1RM, per-exercise records, best volume, best streak, best month), `reflection.ts`, `backup.ts` (JSON export/import at schema **version 6**, converting an older file's splits to plans and routines with the same function the database upgrade uses, all-or-nothing in one transaction, refusing a file from a newer build, carrying the record's own preferences but never this device's identity, and asking every table — not only habit events — whether this device holds work newer than the file).
 
-**Training already exists at the data and logic layer** — exercises, splits, seeded templates, set-by-set session events, derived records. Finishing a session writes a real `HabitEvent` against `settings.trainingHabitId`, so training ticks its habit once rather than in two places.
+**Training already exists at the data and logic layer** — exercises, splits, seeded templates, set-by-set session events, derived records. Finishing a session writes a real `HabitEvent` against `settings.trainingHabitId`, so training ticks its habit once rather than in two places — once a day, even when the session covers several routines, and only while that habit is active; archiving it lets go of the pointer.
 
 **Tests:** 453 across 30 files — CRUD, migrations, backup round-trip and hardening, streaks, records, session replay, and component and route tests for every screen. Thirteen Playwright paths run on WebKit at iPhone 13 size, covering what the component suite cannot: a real IndexedDB, a real service worker, real reloads, offline, and a real pointer drag.
 

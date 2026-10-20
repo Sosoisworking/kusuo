@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionEvent, SessionMark } from '../db/schema'
-import { dayBreakdown, isSessionComplete, liveSets, setsOnDate, trainingDates, volume } from './sessions'
+import {
+  dayBreakdown,
+  isSessionComplete,
+  liveSets,
+  setsOnDate,
+  trainingDates,
+  volume,
+  workedOn,
+} from './sessions'
 
 let clock = 1000
 function makeEvent(overrides: Partial<SessionEvent> = {}): SessionEvent {
@@ -137,6 +145,52 @@ describe('trainingDates', () => {
       makeMark({ localDate: '2026-01-10', splitDayId: 'day1', action: 'uncomplete' }),
     ]
     expect(trainingDates(marks)).toEqual(new Set(['2026-01-10']))
+  })
+})
+
+describe('trainingDates and rest days', () => {
+  it('leaves out a rest day marked done', () => {
+    const marks = [
+      makeMark({ localDate: '2026-01-10', kind: 'training' }),
+      makeMark({ localDate: '2026-01-11', splitDayId: 'rest', kind: 'rest' }),
+    ]
+    expect(trainingDates(marks)).toEqual(new Set(['2026-01-10']))
+  })
+
+  it('judges a mark from before marks said what they were by its routine', () => {
+    const marks = [makeMark({ localDate: '2026-01-11', splitDayId: 'rest' })]
+    expect(trainingDates(marks, new Set(['rest']))).toEqual(new Set())
+    expect(trainingDates(marks, new Set())).toEqual(new Set(['2026-01-11']))
+  })
+
+  it('believes the mark over the routine, whose kind may have changed since', () => {
+    // Sunday was a rest day when it was rested, and a training day now.
+    const rested = [makeMark({ localDate: '2026-01-11', splitDayId: 'sunday', kind: 'rest' })]
+    expect(trainingDates(rested, new Set())).toEqual(new Set())
+    // And the other way: trained on, then turned into a rest day.
+    const trained = [makeMark({ localDate: '2026-01-04', splitDayId: 'sunday', kind: 'training' })]
+    expect(trainingDates(trained, new Set(['sunday']))).toEqual(new Set(['2026-01-04']))
+  })
+})
+
+describe('workedOn', () => {
+  it('holds the routines with a set logged or a finished mark that day', () => {
+    const events = [
+      makeEvent({ localDate: '2026-01-10', splitDayId: 'push' }),
+      makeEvent({ localDate: '2026-01-09', splitDayId: 'legs' }),
+    ]
+    const marks = [makeMark({ localDate: '2026-01-10', splitDayId: 'pull' })]
+    expect(workedOn(events, marks, '2026-01-10')).toEqual(new Set(['push', 'pull']))
+  })
+
+  it('does not count a set taken back out, or a session un-finished', () => {
+    const set = makeEvent({ localDate: '2026-01-10', splitDayId: 'push', setId: 's1' })
+    const events = [set, makeEvent({ ...set, id: 'void', action: 'void', timestamp: clock++ })]
+    const marks = [
+      makeMark({ localDate: '2026-01-10', splitDayId: 'pull' }),
+      makeMark({ localDate: '2026-01-10', splitDayId: 'pull', action: 'uncomplete' }),
+    ]
+    expect(workedOn(events, marks, '2026-01-10')).toEqual(new Set())
   })
 })
 

@@ -36,10 +36,23 @@ export async function updateHabit(id: string, changes: UpdateHabitInput): Promis
   await db.habits.update(id, { ...changes, updatedAt: nextTimestamp() })
 }
 
-/** Sets archivedAt; the habit stays in history/detail views but disappears from Today/template pickers via listActiveHabits. */
+/**
+ * Sets archivedAt; the habit stays in history/detail views but disappears from
+ * Today/template pickers via listActiveHabits.
+ *
+ * Archiving the habit that training ticks also lets go of it. Left pointing at
+ * a habit no screen shows, finishing a session ticked it out of sight, Today
+ * kept promising "logging it ticks the habit", and Settings showed no habit
+ * chosen while one still was.
+ */
 export async function archiveHabit(id: string): Promise<void> {
   const now = nextTimestamp()
-  await db.habits.update(id, { isActive: false, archivedAt: now, updatedAt: now })
+  await db.transaction('rw', db.habits, db.settings, async () => {
+    await db.habits.update(id, { isActive: false, archivedAt: now, updatedAt: now })
+    await db.settings.filter((s) => s.trainingHabitId === id).modify((s) => {
+      delete s.trainingHabitId
+    })
+  })
 }
 
 export function listActiveHabits(): Promise<Habit[]> {

@@ -1,7 +1,7 @@
 import type { SessionMark, Units, WeekStart } from '../db/schema'
 import { addDays, startOfWeek } from '../lib/date'
 import { weightValue } from '../lib/units'
-import type { LoggedSet } from './sessions'
+import { isRestMark, type LoggedSet } from './sessions'
 import { isLater } from './order'
 
 /**
@@ -102,15 +102,34 @@ export function lastCompletedDate(marks: SessionMark[], splitDayId: string): str
 
 export interface FinishedSession {
   localDate: string
-  splitDayId: string
+  /** Every routine finished that day: one session can cover several. */
+  routineIds: string[]
 }
 
-/** Finished sessions, newest first. Un-finishing one takes it back out. */
-export function recentSessions(marks: SessionMark[], limit: number): FinishedSession[] {
-  return completedMarks(marks)
-    .map((m) => ({ localDate: m.localDate, splitDayId: m.splitDayId }))
-    .sort((a, b) => b.localDate.localeCompare(a.localDate))
+/**
+ * Finished sessions, newest first, one per day. Un-finishing one takes it back
+ * out, and a rest day marked done is not a session.
+ */
+export function recentSessions(
+  marks: SessionMark[],
+  limit: number,
+  restRoutines: ReadonlySet<string> = new Set(),
+): FinishedSession[] {
+  const byDate = new Map<string, SessionMark[]>()
+  for (const mark of completedMarks(marks)) {
+    if (isRestMark(mark, restRoutines)) continue
+    const day = byDate.get(mark.localDate)
+    if (day) day.push(mark)
+    else byDate.set(mark.localDate, [mark])
+  }
+  return [...byDate.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
     .slice(0, limit)
+    .map(([localDate, day]) => ({
+      localDate,
+      // In the order they were finished, which is the order they were done.
+      routineIds: [...day].sort((a, b) => a.timestamp - b.timestamp).map((m) => m.splitDayId),
+    }))
 }
 
 /** Last-event-wins replay per (date, day) — the same rule habits use. */

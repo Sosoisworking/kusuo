@@ -1,8 +1,9 @@
 import { isLater } from '../logic/order'
 import { setKeyOf } from '../logic/sessions'
 import { nextTimestamp } from './clock'
+import { isCompleteOnDate } from '../logic/derive'
 import { appendHabitEvent } from './events'
-import { db, type SessionEvent, type SessionMark } from './schema'
+import { db, type SessionEvent, type SessionMark, type SplitDayKind } from './schema'
 
 export interface SetIdentity {
   localDate: string
@@ -88,40 +89,74 @@ async function appendSessionEvent(
 }
 
 /**
- * Marks the session finished and ticks the training habit for the same date.
+ * Marks a session finished and ticks the training habit for the same date.
  * One tap, two facts — the habit tick is a real HabitEvent so streaks and the
  * habit history stay the single source of truth for "did I train".
+ *
+ * A session can cover several routines done the same day, and finishing it
+ * finishes all of them: one mark each, and one tick. A second routine finished
+ * later the same day leaves the tick alone rather than stacking another on it.
+ *
+ * The tick goes only to a habit that is still active. A pointer left at an
+ * archived habit would tick something no screen shows.
  */
 export async function finishSession(
   localDate: string,
-  splitDayId: string,
+  routineIds: string | readonly string[],
   deviceId: string,
   trainingHabitId?: string,
-): Promise<SessionMark> {
-  const mark = await appendSessionMark(localDate, splitDayId, 'complete', deviceId)
-  if (trainingHabitId) {
-    await appendHabitEvent(trainingHabitId, localDate, 'complete', deviceId)
+): Promise<SessionMark[]> {
+  const marks: SessionMark[] = []
+  for (const id of typeof routineIds === 'string' ? [routineIds] : routineIds) {
+    marks.push(await appendSessionMark(localDate, id, 'complete', 'training', deviceId))
   }
-  return mark
+  if (trainingHabitId && (await db.habits.get(trainingHabitId))?.isActive) {
+    const today = await db.habitEvents
+      .where('[habitId+localDate]')
+      .equals([trainingHabitId, localDate])
+      .toArray()
+    if (!isCompleteOnDate(today, trainingHabitId, localDate)) {
+      await appendHabitEvent(trainingHabitId, localDate, 'complete', deviceId)
+    }
+  }
+  return marks
 }
 
 /**
- * Un-finishes a session. Deliberately does *not* un-tick the training habit:
- * reaching across and silently removing a completion the user can see is the
- * kind of hidden write that loses data. They un-tick it themselves.
+ * A rest day taken. It still has to be marked, or the schedule sticks on it;
+ * but it is not training, so it ticks no habit and counts toward no record.
+ */
+export async function markRested(
+  localDate: string,
+  routineId: string,
+  deviceId: string,
+): Promise<SessionMark> {
+  return appendSessionMark(localDate, routineId, 'complete', 'rest', deviceId)
+}
+
+/**
+ * Un-finishes a session — every routine in it, as finishing finished them all.
+ * Deliberately does *not* un-tick the training habit: reaching across and
+ * silently removing a completion the user can see is the kind of hidden write
+ * that loses data. They un-tick it themselves.
  */
 export async function unfinishSession(
   localDate: string,
-  splitDayId: string,
+  routineIds: string | readonly string[],
   deviceId: string,
-): Promise<SessionMark> {
-  return appendSessionMark(localDate, splitDayId, 'uncomplete', deviceId)
+): Promise<SessionMark[]> {
+  const marks: SessionMark[] = []
+  for (const id of typeof routineIds === 'string' ? [routineIds] : routineIds) {
+    marks.push(await appendSessionMark(localDate, id, 'uncomplete', undefined, deviceId))
+  }
+  return marks
 }
 
 async function appendSessionMark(
   localDate: string,
   splitDayId: string,
   action: SessionMark['action'],
+  kind: SplitDayKind | undefined,
   deviceId: string,
 ): Promise<SessionMark> {
   const mark: SessionMark = {
@@ -129,6 +164,7 @@ async function appendSessionMark(
     localDate,
     splitDayId,
     action,
+    ...(kind ? { kind } : {}),
     timestamp: nextTimestamp(),
     deviceId,
   }

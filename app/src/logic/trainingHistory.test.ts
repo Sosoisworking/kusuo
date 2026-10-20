@@ -177,4 +177,20 @@ describe('recentSessions', () => {
     ]
     expect(recentSessions(marks, 5)).toEqual([])
   })
+
+  it('lists one session a day, holding every routine finished in it, in the order done', () => {
+    const marks = [mark({ splitDayId: 'pull' }), mark({ splitDayId: 'push' })]
+    expect(recentSessions(marks, 5)).toEqual([{ localDate: '2026-08-25', routineIds: ['pull', 'push'] }])
+  })
+
+  it('leaves out a rest day marked done — it is not a session', () => {
+    const marks = [
+      mark({ localDate: '2026-08-24', splitDayId: 'rest', kind: 'rest' }),
+      mark({ localDate: '2026-08-23', splitDayId: 'old-rest' }),
+      mark({ localDate: '2026-08-25', kind: 'training' }),
+    ]
+    expect(recentSessions(marks, 5, new Set(['old-rest'])).map((s) => s.localDate)).toEqual([
+      '2026-08-25',
+    ])
+  })
 })

@@ -97,19 +97,49 @@ export function isSessionComplete(
   return last?.action === 'complete'
 }
 
-/** Every date holding at least one finished session. */
-export function trainingDates(marks: SessionMark[]): Set<string> {
+/** The marks that stand: for each date and routine, the latest, if it says finished. */
+export function finishedMarks(marks: SessionMark[]): SessionMark[] {
   const lastByDay = new Map<string, SessionMark>()
   for (const m of marks) {
     const key = `${m.localDate} ${m.splitDayId}`
     const existing = lastByDay.get(key)
     if (!existing || isLater(m, existing)) lastByDay.set(key, m)
   }
+  return [...lastByDay.values()].filter((m) => m.action === 'complete')
+}
+
+/**
+ * Whether a finished mark records a rest day rather than training. A mark says
+ * so itself since S1b; an older one is judged by its routine's kind now.
+ */
+export function isRestMark(mark: SessionMark, restRoutines: ReadonlySet<string>): boolean {
+  return mark.kind ? mark.kind === 'rest' : restRoutines.has(mark.splitDayId)
+}
+
+/**
+ * Every date holding at least one finished training session. A rest day marked
+ * done is part of the plan, not training: it used to count here, so the
+ * calendar showed rested days as trained and Share offered them as sessions.
+ */
+export function trainingDates(
+  marks: SessionMark[],
+  restRoutines: ReadonlySet<string> = new Set(),
+): Set<string> {
   const dates = new Set<string>()
-  for (const m of lastByDay.values()) {
-    if (m.action === 'complete') dates.add(m.localDate)
+  for (const m of finishedMarks(marks)) {
+    if (!isRestMark(m, restRoutines)) dates.add(m.localDate)
   }
   return dates
+}
+
+/**
+ * The routines with work on a date: a set that survived replay, or the routine
+ * marked done. This is what decides the day's session once it is under way.
+ */
+export function workedOn(events: SessionEvent[], marks: SessionMark[], localDate: string): Set<string> {
+  const worked = new Set(setsOnDate(events, localDate).map((s) => s.splitDayId))
+  for (const m of finishedMarks(marks)) if (m.localDate === localDate) worked.add(m.splitDayId)
+  return worked
 }
 
 export interface DayExercise {

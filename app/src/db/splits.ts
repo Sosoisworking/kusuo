@@ -221,6 +221,15 @@ export async function updateSplit(
   })
 }
 
+/**
+ * Every routine that is a rest day, archived ones included. A mark written
+ * before marks said what they recorded is judged by its routine's kind.
+ */
+export async function restRoutineIds(): Promise<Set<string>> {
+  const rest = await db.routines.filter((routine) => routine.kind === 'rest').toArray()
+  return new Set(rest.map((routine) => routine.id))
+}
+
 /** Finds the day a session was logged against, across every split. */
 export async function findSplitDay(
   splitDayId: string,

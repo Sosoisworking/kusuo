@@ -3,14 +3,14 @@ import { Navigate } from 'react-router'
 import BackLink from '../components/BackLink'
 import { PrimaryButton } from '../components/Button'
 import { listExercises } from '../db/exercises'
-import type { Exercise, Settings as SettingsType, SessionEvent, Split } from '../db/schema'
+import type { Exercise, Settings as SettingsType, SessionEvent, SessionMark, Split, SplitDay } from '../db/schema'
 import { allSessionEvents } from '../db/sessions'
-import { listSplits } from '../db/splits'
+import { listSplits, restRoutineIds } from '../db/splits'
 import { getOrCreateDeviceId, getSettings } from '../db/settings'
 import { todayLocalDate } from '../lib/date'
 import { formatLongDate } from '../lib/format'
 import { encodeWorkout, formatSessionText, workoutFromDay } from '../lib/share'
-import { dayBreakdown, trainingDates } from '../logic/sessions'
+import { dayBreakdown, finishedMarks, isRestMark, setsOnDate, trainingDates } from '../logic/sessions'
 import { allSessionMarks } from '../db/sessions'
 
 export default function Share() {
@@ -19,6 +19,8 @@ export default function Share() {
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [events, setEvents] = useState<SessionEvent[]>([])
   const [splits, setSplits] = useState<Split[]>([])
+  const [marks, setMarks] = useState<SessionMark[]>([])
+  const [restIds, setRestIds] = useState<Set<string>>(new Set())
   const [dates, setDates] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [includeCode, setIncludeCode] = useState(true)
@@ -32,13 +34,17 @@ export default function Share() {
       allSessionEvents(),
       listSplits(),
       allSessionMarks(),
-    ]).then(([s, list, ev, allSplits, marks]) => {
+      restRoutineIds(),
+    ]).then(([s, list, ev, allSplits, m, rest]) => {
       if (cancelled) return
       setSettings(s)
       setExercises(list)
       setEvents(ev)
       setSplits(allSplits)
-      const trained = [...trainingDates(marks)].sort((a, b) => b.localeCompare(a))
+      setMarks(m)
+      setRestIds(rest)
+      // A rest day marked done is not a session, so it is not offered.
+      const trained = [...trainingDates(m, rest)].sort((a, b) => b.localeCompare(a))
       const logged = [...new Set(ev.map((e) => e.localDate))].sort((a, b) => b.localeCompare(a))
       const all = [...new Set([...trained, ...logged])].sort((a, b) => b.localeCompare(a))
       setDates(all)
@@ -62,13 +68,38 @@ export default function Share() {
   const units = settings.units
   const byId = new Map(exercises.map((e) => [e.id, e]))
   const rows = selected ? dayBreakdown(events, selected) : []
-  // The day a session was logged against names it. Every set of a session
-  // carries the same splitDayId, so the first one is enough.
-  const splitDayId = selected
-    ? events.find((e) => e.localDate === selected)?.splitDayId
-    : undefined
-  const day = splits.flatMap((s) => s.days).find((d) => d.id === splitDayId)
-  const label = day?.label ?? 'Session'
+  /*
+    The days a session was logged against name it — all of them. A missed day
+    done alongside the scheduled one is one session, and it used to be labelled
+    by whichever set happened to come first. In the order they were started,
+    then any finished with nothing logged.
+  */
+  const dayById = new Map(splits.flatMap((s) => s.days.map((d) => [d.id, d] as const)))
+  const routineIds = selected
+    ? [
+        ...new Set([
+          ...setsOnDate(events, selected)
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .map((set) => set.splitDayId),
+          ...finishedMarks(marks)
+            .filter((m) => m.localDate === selected && !isRestMark(m, restIds))
+            .map((m) => m.splitDayId),
+        ]),
+      ]
+    : []
+  const days = routineIds.flatMap((id) => dayById.get(id) ?? [])
+  const label = routineIds.map((id) => dayById.get(id)?.label ?? 'Session').join(' + ') || 'Session'
+  // A code carries one day, so a session of several travels as one day holding
+  // all their movements, named for all of them.
+  const day: SplitDay | undefined =
+    days.length === routineIds.length && days.length > 0
+      ? {
+          id: days[0].id,
+          label: days.map((d) => d.label).join(' + '),
+          kind: 'training',
+          entries: days.flatMap((d) => d.entries),
+        }
+      : undefined
 
   const text = selected ? formatSessionText(selected, label, rows, byId, units) : ''
   const code = buildCode()

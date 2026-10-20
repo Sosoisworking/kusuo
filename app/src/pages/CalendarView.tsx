@@ -4,6 +4,7 @@ import { allHabitEvents } from '../db/events'
 import { listAllHabits } from '../db/habits'
 import type { Habit, HabitEvent, SessionMark, Settings } from '../db/schema'
 import { allSessionEvents, allSessionMarks } from '../db/sessions'
+import { restRoutineIds } from '../db/splits'
 import { listExercises } from '../db/exercises'
 import { formatWeight } from '../lib/units'
 import { dayBreakdown, liveSets, trainingDates } from '../logic/sessions'
@@ -43,6 +44,7 @@ export default function CalendarView() {
   const [reachedGoals, setReachedGoals] = useState<Goal[]>([])
   const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
+  const [restIds, setRestIds] = useState<Set<string>>(new Set())
   const [cursor, setCursor] = useState(todayLocalDate)
   /*
     Today, already open. The screen used to land on an empty "Pick a day" and
@@ -65,7 +67,8 @@ export default function CalendarView() {
       allSessionEvents(),
       listExercises(),
       listCompletedGoals(),
-    ]).then(([s, h, e, m, r, g, sessions, list, reached]) => {
+      restRoutineIds(),
+    ]).then(([s, h, e, m, r, g, sessions, list, reached, rest]) => {
       if (cancelled) return
       setSettings(s)
       setHabits(h)
@@ -76,6 +79,7 @@ export default function CalendarView() {
       setSessionEvents(sessions)
       setExercises(list)
       setReachedGoals(reached)
+      setRestIds(rest)
       setLoading(false)
     })
     return () => {
@@ -89,7 +93,8 @@ export default function CalendarView() {
     () => completionsByDate(habits, events, days),
     [habits, events, days],
   )
-  const trained = useMemo(() => trainingDates(marks), [marks])
+  // A rest day marked done is part of the plan, not training, so it earns no mark.
+  const trained = useMemo(() => trainingDates(marks, restIds), [marks, restIds])
   // A day can hold training without holding a finished session: log ten sets,
   // walk out, never tap Finish. The grid owes that day a mark — the day detail
   // has always had the full breakdown — but not the one that means finished.

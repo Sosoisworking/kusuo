@@ -5,7 +5,7 @@ import {
   describePrescription,
   formatPrescription,
   plannedSetCount,
-  sessionDayOn,
+  sessionDaysOn,
 } from './nextSession'
 
 function split(labels: string[]): Split {
@@ -128,40 +128,38 @@ describe('describePrescription', () => {
   })
 })
 
-describe('sessionDayOn', () => {
+describe('sessionDaysOn', () => {
   const week = split(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+  const labels = (worked: string[], plan = week, date = WED) =>
+    sessionDaysOn(plan, date, 'monday', new Set(worked)).map((d) => d.label)
 
   it('shows the scheduled day when nothing has been done', () => {
-    expect(sessionDayOn(week, WED, 'monday', new Set())?.label).toBe('Wed')
+    expect(labels([])).toEqual(['Wed'])
   })
 
   it('shows the day you actually started, not the one the calendar names', () => {
     // Missed Monday, decided to do it on Wednesday, logged a set against it.
-    const monday = week.days[0]
-    expect(sessionDayOn(week, WED, 'monday', new Set([monday.id]))?.label).toBe('Mon')
+    expect(labels([week.days[0].id])).toEqual(['Mon'])
   })
 
   it('keeps the scheduled day when that is the one being worked', () => {
-    const wednesday = week.days[2]
-    expect(sessionDayOn(week, WED, 'monday', new Set([wednesday.id]))?.label).toBe('Wed')
+    expect(labels([week.days[2].id])).toEqual(['Wed'])
   })
 
-  it('prefers the scheduled day when both have work on them', () => {
-    // A detour is not a replacement: today is still today's session.
-    const worked = new Set([week.days[0].id, week.days[2].id])
-    expect(sessionDayOn(week, WED, 'monday', worked)?.label).toBe('Wed')
+  it('holds both when both have work on them, the scheduled day first', () => {
+    // A detour is not a replacement: today is still today's session, and the
+    // missed day done alongside it is part of it.
+    expect(labels([week.days[0].id, week.days[2].id])).toEqual(['Wed', 'Mon'])
   })
 
   it('lets a rest day be traded for a training day', () => {
     const withRest = split(['Push', 'Pull', 'Rest'])
-    const push = withRest.days[0]
     // The third day of the week is the rest day; working Push overrides it.
-    expect(sessionDayOn(withRest, WED, 'monday', new Set())?.label).toBe('Rest')
-    expect(sessionDayOn(withRest, WED, 'monday', new Set([push.id]))?.label).toBe('Push')
+    expect(labels([], withRest)).toEqual(['Rest'])
+    expect(labels([withRest.days[0].id], withRest)).toEqual(['Push'])
   })
 
   it('has nothing to show for an empty split', () => {
-    const empty: Split = { ...week, days: [] }
-    expect(sessionDayOn(empty, WED, 'monday', new Set())).toBeUndefined()
+    expect(labels([], { ...week, days: [] })).toEqual([])
   })
 })

@@ -28,6 +28,29 @@ export function weekFromOrder(routineIds: readonly string[], weekStart: WeekStar
 }
 
 /** The routines a week puts on a date. */
-export function sessionFor(week: Week, localDate: string): readonly string[] {
+export function scheduledOn(week: Week, localDate: string): readonly string[] {
   return week[weekdayIndex(localDate, 'sunday')] ?? []
+}
+
+/**
+ * The day's session: the routines actually being done on it.
+ *
+ * Until something is worked, that is what the schedule names. Once a routine
+ * has work against it — a set logged, or the routine marked done — the
+ * session is the routines with work: miss Monday, do Monday's shoulders on
+ * Wednesday, and Wednesday's session is shoulders. A missed session is missed
+ * rather than owed, but work already recorded outranks the calendar.
+ *
+ * Several can be worked on one date — the scheduled day and a missed one, or
+ * two missed ones — and then they are one session. The scheduled routine comes
+ * first when it is among them, so a detour reads as a detour; the others follow
+ * in the plan's order.
+ */
+export function sessionFor(
+  scheduled: readonly string[],
+  order: readonly string[],
+  worked: ReadonlySet<string>,
+): string[] {
+  const done = [...scheduled, ...order].filter((id, i, all) => worked.has(id) && all.indexOf(id) === i)
+  return done.length > 0 ? done : [...scheduled]
 }

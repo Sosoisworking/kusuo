@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Split, WeekStart } from '../db/schema'
 import { addDays, weekdayIndex } from '../lib/date'
 import { dayForDate } from './nextSession'
-import { sessionFor, weekFromOrder } from './schedule'
+import { scheduledOn, sessionFor, weekFromOrder } from './schedule'
 
 /**
  * The rule as it was written before plans existed, kept here as the oracle:
@@ -62,7 +62,7 @@ describe('the week a plan makes', () => {
     const empty = splitOf(0, 0)
     for (const date of DATES) {
       expect(dayForDate(empty, date, 'monday')).toBeUndefined()
-      expect(sessionFor(weekFromOrder([], 'monday'), date)).toEqual([])
+      expect(scheduledOn(weekFromOrder([], 'monday'), date)).toEqual([])
     }
   })
 
@@ -80,8 +80,36 @@ describe('the week a plan makes', () => {
   it('starts on the first day of the week', () => {
     const ids = ['push', 'pull', 'legs']
     // 5 January 2026 is a Monday, 4 January a Sunday.
-    expect(sessionFor(weekFromOrder(ids, 'monday'), '2026-01-05')).toEqual(['push'])
-    expect(sessionFor(weekFromOrder(ids, 'sunday'), '2026-01-04')).toEqual(['push'])
-    expect(sessionFor(weekFromOrder(ids, 'sunday'), '2026-01-05')).toEqual(['pull'])
+    expect(scheduledOn(weekFromOrder(ids, 'monday'), '2026-01-05')).toEqual(['push'])
+    expect(scheduledOn(weekFromOrder(ids, 'sunday'), '2026-01-04')).toEqual(['push'])
+    expect(scheduledOn(weekFromOrder(ids, 'sunday'), '2026-01-05')).toEqual(['pull'])
+  })
+})
+
+describe('the session on a date', () => {
+  const order = ['mon', 'tue', 'wed', 'thu']
+
+  it('is what the schedule names until something is worked', () => {
+    expect(sessionFor(['wed'], order, new Set())).toEqual(['wed'])
+  })
+
+  it('is the routine actually being done when it is not the scheduled one', () => {
+    expect(sessionFor(['wed'], order, new Set(['mon']))).toEqual(['mon'])
+  })
+
+  it('holds every routine worked that day, the scheduled one first', () => {
+    expect(sessionFor(['wed'], order, new Set(['thu', 'mon', 'wed']))).toEqual(['wed', 'mon', 'thu'])
+  })
+
+  it('lists a routine once, even when the schedule and the plan both name it', () => {
+    expect(sessionFor(['wed', 'wed'], order, new Set(['wed']))).toEqual(['wed'])
+  })
+
+  it('ignores work against a routine the plan does not hold', () => {
+    expect(sessionFor(['wed'], order, new Set(['elsewhere']))).toEqual(['wed'])
+  })
+
+  it('is empty for a plan with nothing in it', () => {
+    expect(sessionFor([], [], new Set())).toEqual([])
   })
 })
