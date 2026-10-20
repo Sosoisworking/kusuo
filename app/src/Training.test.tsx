@@ -603,6 +603,9 @@ describe('moving on carries what you typed', () => {
     await typeSet('80', '6')
     await userEvent.click(screen.getByRole('button', { name: /Log set 1/ }))
     await waitFor(async () => expect(await db.sessionEvents.count()).toBe(1))
+    // Logging moves focus on to set 2 just after the row flips. Going back to
+    // set 1 before that lands lets the move take a keystroke meant for it.
+    await waitFor(() => expect(screen.getByLabelText('Weight for set 2 in kg')).toHaveFocus())
 
     // Touch the field so a draft exists that matches what is stored, then take
     // the set back out. The draft used to survive the void and re-log it.
@@ -612,6 +615,10 @@ describe('moving on carries what you typed', () => {
     await userEvent.type(weight, '80')
     await userEvent.click(await screen.findByRole('button', { name: /Set 1 logged — remove it/ }))
     await waitFor(async () => expect(liveSets(await allSessionEvents())).toHaveLength(0))
+    // The stored void lands before the screen has finished with it, and the
+    // screen ignores a tap while it is still saving. The row turning back into
+    // an unlogged set is the end of the save.
+    await screen.findByRole('button', { name: 'Log set 1' })
 
     await userEvent.click(screen.getByRole('button', { name: /Next movement/ }))
     await waitFor(() =>
