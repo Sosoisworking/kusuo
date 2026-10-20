@@ -23,6 +23,25 @@ export interface RecordPreferences {
   defaultSets: number
 }
 
+/**
+ * Exactly the fields a backup may carry, and nothing else.
+ *
+ * Preferences arrive from a file, and this device's settings row is where they
+ * land. Spreading whatever the file held let a crafted backup write any setting
+ * — `deviceRole: 'writer'` turned a read-only Mac into one that logs. Copying
+ * named fields means a key the format doesn't define never reaches the row.
+ */
+export function pickRecordPreferences(prefs: RecordPreferences): RecordPreferences {
+  const picked: RecordPreferences = {
+    units: prefs.units,
+    weekStart: prefs.weekStart,
+    defaultSets: prefs.defaultSets,
+  }
+  if (prefs.userName !== undefined) picked.userName = prefs.userName
+  if (prefs.trainingHabitId !== undefined) picked.trainingHabitId = prefs.trainingHabitId
+  return picked
+}
+
 export function recordPreferences(settings: Settings): RecordPreferences {
   return {
     userName: settings.userName,
@@ -86,10 +105,10 @@ export async function applyRecordPreferences(prefs: RecordPreferences): Promise<
   const deviceId = getOrCreateDeviceId()
   const existing = await db.settings.get(deviceId)
   if (!existing) {
-    localStorage.setItem(RESTORED_PREFERENCES_KEY, JSON.stringify(prefs))
+    localStorage.setItem(RESTORED_PREFERENCES_KEY, JSON.stringify(pickRecordPreferences(prefs)))
     return
   }
-  await db.settings.update(deviceId, { ...prefs })
+  await db.settings.update(deviceId, { ...pickRecordPreferences(prefs) })
   forgetRestoredPreferences()
 }
 

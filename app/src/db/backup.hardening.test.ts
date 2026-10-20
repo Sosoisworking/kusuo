@@ -213,6 +213,32 @@ describe('the preference block the version gate lets through', () => {
   })
 })
 
+describe('a backup cannot change what this device is', () => {
+  it('ignores a device role smuggled into the preferences', async () => {
+    // The Mac is a reader. A crafted file adds keys the format never carries.
+    await createSettings({ deviceId: getOrCreateDeviceId(), deviceRole: 'reader' })
+    const prefs = {
+      units: 'kg',
+      weekStart: 'monday',
+      defaultSets: 3,
+      deviceRole: 'writer',
+      onboardingComplete: false,
+      theme: 'dark',
+    }
+    await importBackup(parseBackup(validPayloadJson({ preferences: prefs })))
+
+    const settings = await db.settings.get(getOrCreateDeviceId())
+    expect(settings?.deviceRole).toBe('reader')
+    expect(settings?.theme).toBe('system')
+  })
+
+  it('keeps only the preferences the format defines', () => {
+    const prefs = { units: 'lb', weekStart: 'sunday', defaultSets: 4, deviceRole: 'writer' }
+    const parsed = parseBackup(validPayloadJson({ preferences: prefs }))
+    expect(parsed.preferences).toEqual({ units: 'lb', weekStart: 'sunday', defaultSets: 4 })
+  })
+})
+
 describe('a backup from a version that does not exist yet', () => {
   it('is refused rather than imported as though it were current', () => {
     expect(() => parseBackup(validPayloadJson({ schemaVersion: 99 }))).toThrow(InvalidBackupError)

@@ -25,6 +25,7 @@ import {
 import {
   applyRecordPreferences,
   getOrCreateDeviceId,
+  pickRecordPreferences,
   getSettings,
   recordPreferences,
   updateSettings,
@@ -405,7 +406,7 @@ export function parseBackup(json: string): BackupPayload {
     ...tables,
     schemaVersion,
     exportedAt,
-    preferences: preferences as RecordPreferences | undefined,
+    preferences: preferences === undefined ? undefined : pickRecordPreferences(preferences as RecordPreferences),
     splits: (tables.splits as unknown[]).map(normaliseSplit),
   } as BackupPayload
 }
