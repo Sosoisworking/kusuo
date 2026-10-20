@@ -15,7 +15,7 @@ import { seedExercises } from './exercises'
 import { EXERCISE_SEED } from '../lib/exerciseSeed'
 import { createHabit } from './habits'
 import { finishSession, logSet } from './sessions'
-import { instantiateTemplate } from './splits'
+import { getSplit, instantiateTemplate } from './splits'
 import { recordTableNames } from './tables'
 import { db, type Habit, type HabitEvent } from './schema'
 import { createSettings, getSettings } from './settings'
@@ -103,6 +103,9 @@ describe('serializeBackup / parseBackup', () => {
       reflections: [],
       exercises: [],
       splits: [],
+      routines: [],
+      plans: [],
+      schedule: [],
       sessionEvents: [],
       sessionMarks: [],
       bodyweight: [],
@@ -303,16 +306,16 @@ describe('backup across schema versions', () => {
     await finishSession('2026-01-10', split.days[0].id, 'dev1')
 
     const payload = await buildBackup()
-    expect(payload.schemaVersion).toBe(5)
+    expect(payload.schemaVersion).toBe(6)
 
     const restored = parseBackup(serializeBackup(payload))
     expect(restored).toEqual(payload)
 
     await importBackup(restored)
-    expect(await db.splits.count()).toBe(1)
+    expect(await db.plans.count()).toBe(1)
     expect(await db.sessionEvents.count()).toBe(1)
     expect(await db.sessionMarks.count()).toBe(1)
-    expect((await db.splits.get(split.id))?.days[0].entries.length).toBe(
+    expect((await getSplit(split.id))?.days[0].entries.length).toBe(
       split.days[0].entries.length,
     )
   })
@@ -379,7 +382,7 @@ describe('backup across schema versions', () => {
       bodyweight: [],
     })
 
-    expect(await db.splits.count()).toBe(0)
+    expect(await db.plans.count()).toBe(0)
     // The library is not the user's record: an import that arrives without one
     // gets the seeded movements back straight away, because a split entry whose
     // exercise is missing reads "Unknown movement" until it does.
@@ -416,7 +419,7 @@ describe('importing a schema 2 export', () => {
     }
 
     const parsed = parseBackup(JSON.stringify(v2))
-    const day = parsed.splits[0].days[0]
+    const day = parsed.splits![0].days[0]
     expect(day.kind).toBe('training')
     expect(day.entries[0]).toEqual({ exerciseId: 'ex-a', sets: 3, repsMin: 8, repsMax: 8 })
     expect('reps' in day.entries[0]).toBe(false)

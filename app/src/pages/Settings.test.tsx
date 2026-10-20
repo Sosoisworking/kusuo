@@ -10,7 +10,7 @@ import { db } from '../db/schema'
 import { allTables, clearEverything, clearRecord } from '../db/tables'
 import { createSettings } from '../db/settings'
 import { logSet } from '../db/sessions'
-import { instantiateTemplate } from '../db/splits'
+import { getSplit, instantiateTemplate } from '../db/splits'
 import { encodeWorkout } from '../lib/share'
 import { todayLocalDate } from '../lib/date'
 
@@ -100,7 +100,7 @@ describe('Settings', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Add Machine pec deck' }))
 
     await waitFor(async () => {
-      const entries = (await db.splits.get(split.id))?.days[0].entries ?? []
+      const entries = (await getSplit(split.id))?.days[0].entries ?? []
       expect(entries.at(-1)?.sets).toBe(5)
     })
   })
@@ -472,7 +472,7 @@ describe('sharing a workout', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add to my split' }))
 
     expect(await screen.findByText(/Added "Arms \(shared\)"/)).toBeInTheDocument()
-    const after = await db.splits.get(split.id)
+    const after = await getSplit(split.id)
     expect(after?.days).toHaveLength(before + 1)
     expect(after?.days.slice(0, before)).toEqual(split.days)
   })

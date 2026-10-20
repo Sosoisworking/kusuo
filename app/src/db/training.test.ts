@@ -28,6 +28,7 @@ import {
   createSplit,
   findSplitDay,
   getActiveSplit,
+  getSplit,
   importWorkoutAsDay,
   instantiateTemplate,
   listSplits,
@@ -411,7 +412,7 @@ describe('importing a shared workout', () => {
       entries: [{ name: 'Barbell bench press', sets: 4, repsMin: 5, repsMax: 5 }],
     })
 
-    const after = await db.splits.get(split.id)
+    const after = await getSplit(split.id)
     expect(after?.days).toHaveLength(before + 1)
     expect(after?.days.at(-1)?.id).toBe(day.id)
     // The original days are untouched, byte for byte.
@@ -430,7 +431,7 @@ describe('importing a shared workout', () => {
     })
 
     expect(await db.exercises.count()).toBe(before)
-    const added = (await db.splits.get(split.id))?.days.at(-1)
+    const added = (await getSplit(split.id))?.days.at(-1)
     expect(added?.entries[0].exerciseId).toBe('ex-barbell-bench-press')
   })
 
@@ -476,13 +477,13 @@ describe('building a split of your own', () => {
   it('adds, renames and removes days', async () => {
     const split = await createSplit('Mine')
     const day = await addSplitDay(split.id, 'Push')
-    expect((await db.splits.get(split.id))?.days).toHaveLength(1)
+    expect((await getSplit(split.id))?.days).toHaveLength(1)
 
     await renameSplitDay(split.id, day.id, 'Upper')
-    expect((await db.splits.get(split.id))?.days[0].label).toBe('Upper')
+    expect((await getSplit(split.id))?.days[0].label).toBe('Upper')
 
     await removeSplitDay(split.id, day.id)
-    expect((await db.splits.get(split.id))?.days).toEqual([])
+    expect((await getSplit(split.id))?.days).toEqual([])
   })
 
   it('empties a day when it becomes a rest day, because a rest day has no plan', async () => {
@@ -493,7 +494,7 @@ describe('building a split of your own', () => {
 
     await setSplitDayKind(split.id, day.id, 'rest')
 
-    const after = (await db.splits.get(split.id))?.days[0]
+    const after = (await getSplit(split.id))?.days[0]
     expect(after?.kind).toBe('rest')
     expect(after?.entries).toEqual([])
   })
@@ -512,7 +513,7 @@ describe('building a split of your own', () => {
     await removeSplitDay(split.id, day.id)
 
     // The day is gone from the plan; the training is not gone from the record.
-    expect((await db.splits.get(split.id))?.days.find((d) => d.id === day.id)).toBeUndefined()
+    expect((await getSplit(split.id))?.days.find((d) => d.id === day.id)).toBeUndefined()
     expect(await db.sessionEvents.count()).toBe(1)
     expect(await db.sessionMarks.count()).toBe(1)
     expect(exerciseRecords(await allSessionEvents(), 'ex-barbell-bench-press').totalSets).toBe(1)

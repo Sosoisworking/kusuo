@@ -7,12 +7,13 @@ import { seedExercises } from './db/exercises'
 import { appendHabitEvent } from './db/events'
 import { createHabit } from './db/habits'
 import { resetDatabase } from './test/setup'
+import { addSplit } from './test/splits'
 import { db, type Habit } from './db/schema'
 import { createSettings } from './db/settings'
 import { archiveGoal, completeGoal, createGoal } from './db/goals'
 import { appendReflection } from './db/reflections'
 import { finishSession, logSet } from './db/sessions'
-import { instantiateTemplate } from './db/splits'
+import { getSplit, instantiateTemplate } from './db/splits'
 import { addDays, todayLocalDate } from './lib/date'
 import { formatLongDate } from './lib/format'
 import { dayForDate, plannedSetCount } from './logic/nextSession'
@@ -284,7 +285,7 @@ describe('Today and the day that is already under way', () => {
     await onboard()
     // One rest day repeats across the whole week, so today is a rest day
     // whichever day the suite runs on.
-    await db.splits.add({
+    await addSplit({
       id: 'split-rest-only',
       name: 'Deload',
       days: [{ id: 'rest-day', label: 'Rest', kind: 'rest', entries: [] }],
@@ -396,7 +397,7 @@ describe('the Mac read-only build', () => {
     expect(await db.habits.count()).toBe(0)
     expect(await db.habitEvents.count()).toBe(0)
     expect(await db.exercises.count()).toBe(0)
-    expect(await db.splits.count()).toBe(0)
+    expect(await db.plans.count()).toBe(0)
     expect(await db.sessionEvents.count()).toBe(0)
     expect(await db.sessionMarks.count()).toBe(0)
   })
@@ -413,7 +414,7 @@ describe('Splits', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Use Push / Pull / Legs' }))
 
     await waitFor(() => expect(screen.getByText('Active')).toBeInTheDocument())
-    expect(await db.splits.count()).toBe(1)
+    expect(await db.plans.count()).toBe(1)
   })
 
   it('re-activates an existing copy rather than duplicating it', async () => {
@@ -426,9 +427,9 @@ describe('Splits', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Use Push / Pull / Legs' }))
 
     await waitFor(async () => {
-      expect((await db.splits.get(first.id))?.isActive).toBe(true)
+      expect((await getSplit(first.id))?.isActive).toBe(true)
     })
-    expect(await db.splits.count()).toBe(2)
+    expect(await db.plans.count()).toBe(2)
   })
 })
 

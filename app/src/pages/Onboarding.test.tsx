@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../App'
 import { resetDatabase } from '../test/setup'
 import { db } from '../db/schema'
+import { listSplits } from '../db/splits'
 
 const DEVICE_ID = 'test-device'
 
@@ -76,11 +77,14 @@ describe('onboarding', () => {
     )
     await userEvent.click(ppl as HTMLElement)
 
-    await waitFor(async () => expect(await db.splits.count()).toBe(1))
-    const split = (await db.splits.toArray())[0]
+    // Onboarding finishes last, after the split is stored and made active.
+    await waitFor(async () =>
+      expect((await db.settings.get(DEVICE_ID))?.onboardingComplete).toBe(true),
+    )
+    expect(await db.plans.count()).toBe(1)
+    const split = (await listSplits())[0]
     expect(split.seededFrom).toBe('split-ppl-3')
     expect(split.isActive).toBe(true)
-    expect((await db.settings.get(DEVICE_ID))?.onboardingComplete).toBe(true)
   })
 
   it('lets the split be skipped without leaving onboarding unfinished', async () => {
@@ -94,7 +98,7 @@ describe('onboarding', () => {
     await waitFor(async () =>
       expect((await db.settings.get(DEVICE_ID))?.onboardingComplete).toBe(true),
     )
-    expect(await db.splits.count()).toBe(0)
+    expect(await db.plans.count()).toBe(0)
   })
 
   it('seeds the movement directory as soon as the device is a writer', async () => {

@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { convertSplits } from './migrate'
 
 export type FrequencyType = 'daily' | 'weekly'
 
@@ -123,6 +124,15 @@ export interface SplitDay {
   entries: SplitEntry[]
 }
 
+/**
+ * A programme as the screens see it: a name and its days in order.
+ *
+ * Until database version 10 this was also how it was stored, one row holding
+ * its days inline. It is now assembled from a plan and its routines
+ * (`db/splits.ts`), so the screens did not change when the storage did. The old
+ * `splits` table is kept, unread, so the migration can be run again if it turns
+ * out to be wrong.
+ */
 export interface Split {
   id: string
   name: string
@@ -131,6 +141,56 @@ export interface Split {
   seededFrom?: string
   isActive: boolean
   createdAt: number
+  updatedAt: number
+}
+
+/**
+ * One workout you can do: what used to be a day of a split, stored on its own
+ * so a plan can use it on more than one day and a week can hold more than one.
+ *
+ * A routine keeps the id of the split day it came from, so every logged set
+ * and finished-session mark still names it through `splitDayId` — nothing in
+ * the record had to be rewritten.
+ */
+export interface Routine {
+  id: string
+  name: string
+  kind: SplitDayKind
+  entries: SplitEntry[]
+  /**
+   * No plan uses it any more. It is kept rather than deleted because logged
+   * sets and marks still name it: a day taken out of a programme does not
+   * unmake the training done on it.
+   */
+  archived: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * A programme: the routines in order, rest days included. The order is the
+ * week — the first routine falls on the first day of the week, and a plan
+ * shorter than seven repeats within it.
+ */
+export interface Plan {
+  id: string
+  name: string
+  /** Template this was seeded from, so "your copy of PPL" stays traceable after edits. */
+  seededFrom?: string
+  routineIds: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * Which plan is being followed. One row, so there is one pointer: when a second
+ * device can write, two of them switching plans at once still leave exactly one
+ * active, where a flag on each plan could leave two.
+ */
+export interface Schedule {
+  /** Always `SCHEDULE_ID`: there is one row. */
+  id: 'schedule'
+  activePlanId?: string
   updatedAt: number
 }
 
@@ -234,7 +294,11 @@ export class KusuoDB extends Dexie {
   goals!: EntityTable<Goal, 'id'>
   reflections!: EntityTable<ReflectionEntry, 'id'>
   exercises!: EntityTable<Exercise, 'id'>
+  /** Kept, unread, since version 10. See `Split`. */
   splits!: EntityTable<Split, 'id'>
+  routines!: EntityTable<Routine, 'id'>
+  plans!: EntityTable<Plan, 'id'>
+  schedule!: EntityTable<Schedule, 'id'>
   sessionEvents!: EntityTable<SessionEvent, 'id'>
   sessionMarks!: EntityTable<SessionMark, 'id'>
   bodyweight!: EntityTable<BodyweightEntry, 'id'>
@@ -306,6 +370,26 @@ export class KusuoDB extends Dexie {
         }),
     )
     this.version(9).stores({ bodyweight: 'id, localDate, timestamp' })
+    // Splits become plans and routines. Every split day becomes a routine with
+    // the same id, so logged sets and marks keep pointing at it; every split
+    // becomes a plan; the active flag becomes one pointer. A day that was
+    // deleted but still has sets or marks against it becomes an archived
+    // routine, so nothing in the record names a day that doesn't exist.
+    //
+    // Nothing is rewritten or dropped: the splits table stays, unread, and the
+    // new rows carry the stamps of the rows they came from rather than new ones.
+    this.version(10)
+      .stores({ routines: 'id', plans: 'id', schedule: 'id' })
+      .upgrade(async (tx) => {
+        const converted = convertSplits(
+          await tx.table<Split, string>('splits').toArray(),
+          await tx.table<SessionEvent, string>('sessionEvents').toArray(),
+          await tx.table<SessionMark, string>('sessionMarks').toArray(),
+        )
+        await tx.table('routines').bulkAdd(converted.routines)
+        await tx.table('plans').bulkAdd(converted.plans)
+        await tx.table('schedule').bulkAdd(converted.schedule)
+      })
   }
 }
 

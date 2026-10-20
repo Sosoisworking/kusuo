@@ -8,7 +8,7 @@ import { resetDatabase } from '../test/setup'
 import { db, type Split } from '../db/schema'
 import { logSet } from '../db/sessions'
 import { createSettings } from '../db/settings'
-import { instantiateTemplate } from '../db/splits'
+import { getSplit, instantiateTemplate } from '../db/splits'
 
 const DEVICE_ID = 'test-device'
 
@@ -108,10 +108,10 @@ describe('the directory', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Add Back squat' }))
 
     await waitFor(async () => {
-      const stored = await db.splits.get(split.id)
+      const stored = await getSplit(split.id)
       expect(stored?.days[0].entries.map((e) => e.exerciseId)).toContain('ex-back-squat')
     })
-    const stored = await db.splits.get(split.id)
+    const stored = await getSplit(split.id)
     expect(stored?.days[0].entries).toHaveLength(6)
   })
 
@@ -125,7 +125,7 @@ describe('the directory', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Swap in Push-up' }))
 
     await waitFor(async () => {
-      const entries = (await db.splits.get(split.id))?.days[0].entries ?? []
+      const entries = (await getSplit(split.id))?.days[0].entries ?? []
       expect(entries[0].exerciseId).toBe('ex-push-up')
       expect(entries[0].sets).toBe(4)
       expect(entries).toHaveLength(5)
@@ -182,7 +182,7 @@ describe('the Mac read-only build', () => {
   it('never reaches the directory', async () => {
     await seedExercises()
     const split = await instantiateTemplate('split-ppl-3')
-    const before = JSON.stringify(await db.splits.get(split.id))
+    const before = JSON.stringify(await getSplit(split.id))
     const exerciseCount = await db.exercises.count()
     await onboard('reader')
 
@@ -190,7 +190,7 @@ describe('the Mac read-only build', () => {
 
     expect(await screen.findByRole('heading', { name: 'Splits', level: 1 })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New exercise' })).toBeNull()
-    expect(JSON.stringify(await db.splits.get(split.id))).toBe(before)
+    expect(JSON.stringify(await getSplit(split.id))).toBe(before)
     expect(await db.exercises.count()).toBe(exerciseCount)
   })
 })

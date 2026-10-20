@@ -7,7 +7,7 @@ import { seedExercises } from '../db/exercises'
 import { resetDatabase } from '../test/setup'
 import { db, type Split } from '../db/schema'
 import { createSettings } from '../db/settings'
-import { instantiateTemplate } from '../db/splits'
+import { getSplit, instantiateTemplate } from '../db/splits'
 import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
 
 const DEVICE_ID = 'test-device'
@@ -55,10 +55,10 @@ describe('the split editor', () => {
     await userEvent.keyboard('{ArrowDown}')
 
     await waitFor(async () => {
-      expect(entryIds(await db.splits.get(split.id))[0]).toBe('ex-incline-dumbbell-press')
+      expect(entryIds(await getSplit(split.id))[0]).toBe('ex-incline-dumbbell-press')
     })
 
-    const stored = await db.splits.get(split.id)
+    const stored = await getSplit(split.id)
     expect(stored?.seededFrom).toBe('split-ppl-3')
     // The template constant is shared by every future instantiation, so a
     // reorder leaking into it would silently rewrite everyone else's copy.
@@ -72,7 +72,7 @@ describe('the split editor', () => {
     await userEvent.keyboard('{ArrowUp}')
 
     await waitFor(async () => {
-      expect(entryIds(await db.splits.get(split.id))).toEqual([
+      expect(entryIds(await getSplit(split.id))).toEqual([
         'ex-barbell-bench-press',
         'ex-overhead-press',
         'ex-incline-dumbbell-press',
@@ -88,9 +88,9 @@ describe('the split editor', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Remove from Push' }))
 
     await waitFor(async () => {
-      expect(entryIds(await db.splits.get(split.id))).not.toContain('ex-barbell-bench-press')
+      expect(entryIds(await getSplit(split.id))).not.toContain('ex-barbell-bench-press')
     })
-    expect(entryIds(await db.splits.get(split.id))).toHaveLength(4)
+    expect(entryIds(await getSplit(split.id))).toHaveLength(4)
   })
 
   it('reveals Remove on a left swipe and takes the row out', async () => {
@@ -108,7 +108,7 @@ describe('the split editor', () => {
     await userEvent.click(remove)
 
     await waitFor(async () => {
-      expect(entryIds(await db.splits.get(split.id))).not.toContain('ex-barbell-bench-press')
+      expect(entryIds(await getSplit(split.id))).not.toContain('ex-barbell-bench-press')
     })
   })
 
@@ -147,7 +147,7 @@ describe('the split editor', () => {
     fireEvent.blur(sets)
 
     await waitFor(async () => {
-      expect((await db.splits.get(split.id))?.days[0].entries[0].sets).toBe(12)
+      expect((await getSplit(split.id))?.days[0].entries[0].sets).toBe(12)
     })
   })
 
@@ -165,7 +165,7 @@ describe('the split editor', () => {
     fireEvent.blur(to)
 
     await waitFor(async () => {
-      const entry = (await db.splits.get(split.id))?.days[0].entries[0]
+      const entry = (await getSplit(split.id))?.days[0].entries[0]
       expect(entry?.repsMin).toBe(5)
       expect(entry?.repsMax).toBe(9)
     })
@@ -223,15 +223,15 @@ describe('the split editor', () => {
     await userEvent.click(await screen.findByRole('button', { name: /^Barbell bench press/ }))
     await userEvent.click(await screen.findByRole('button', { name: 'Remove from Push' }))
     await waitFor(async () => {
-      expect(entryIds(await db.splits.get(split.id))).not.toContain('ex-barbell-bench-press')
+      expect(entryIds(await getSplit(split.id))).not.toContain('ex-barbell-bench-press')
     })
 
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
 
     await waitFor(async () => {
-      expect(entryIds(await db.splits.get(split.id))[0]).toBe('ex-barbell-bench-press')
+      expect(entryIds(await getSplit(split.id))[0]).toBe('ex-barbell-bench-press')
     })
-    expect(entryIds(await db.splits.get(split.id))).toHaveLength(5)
+    expect(entryIds(await getSplit(split.id))).toHaveLength(5)
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 
@@ -249,7 +249,7 @@ describe('the split editor', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
 
     await waitFor(async () => {
-      expect(entryIds(await db.splits.get(split.id))).toContain('ex-barbell-bench-press')
+      expect(entryIds(await getSplit(split.id))).toContain('ex-barbell-bench-press')
     })
   })
 
@@ -257,16 +257,16 @@ describe('the split editor', () => {
     const split = await openEditor()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Remove day' }))
-    expect((await db.splits.get(split.id))?.days).toHaveLength(3)
+    expect((await getSplit(split.id))?.days).toHaveLength(3)
     expect(screen.getByText('Remove Push from Push / Pull / Legs?')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Keep it' }))
-    expect((await db.splits.get(split.id))?.days).toHaveLength(3)
+    expect((await getSplit(split.id))?.days).toHaveLength(3)
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove day' }))
     await userEvent.click(screen.getByRole('button', { name: 'Remove Push' }))
 
-    await waitFor(async () => expect((await db.splits.get(split.id))?.days).toHaveLength(2))
+    await waitFor(async () => expect((await getSplit(split.id))?.days).toHaveLength(2))
   })
 })
 
@@ -274,7 +274,7 @@ describe('the Mac read-only build', () => {
   it('never reaches the split editor', async () => {
     await seedExercises()
     const split = await instantiateTemplate('split-ppl-3')
-    const before = JSON.stringify(await db.splits.get(split.id))
+    const before = JSON.stringify(await getSplit(split.id))
     await db.exercises.clear()
     await onboard('reader')
 
@@ -282,7 +282,7 @@ describe('the Mac read-only build', () => {
 
     expect(await screen.findByRole('heading', { name: 'Splits', level: 1 })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
-    expect(JSON.stringify(await db.splits.get(split.id))).toBe(before)
+    expect(JSON.stringify(await getSplit(split.id))).toBe(before)
   })
 
   it('offers no Edit on the active split', async () => {

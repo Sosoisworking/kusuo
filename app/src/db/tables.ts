@@ -23,10 +23,14 @@ import { forgetRestoredPreferences } from './settings'
  *
  * - `record`: the history. A backup carries it, an import replaces it, reset
  *   erases it.
+ * - `legacy`: no longer read, kept so a migration can be run again. A backup
+ *   does not carry it — it would be a stale second copy — but an import
+ *   replaces it like the record, so a re-run can never mix this phone's old
+ *   data with a restored file, and reset erases it.
  * - `device`: describes this phone — its role, units, id. Survives import and
  *   reset of the record.
  */
-export type TableClass = 'record' | 'device'
+export type TableClass = 'record' | 'legacy' | 'device'
 
 export const TABLE_CLASSES: Readonly<Record<string, TableClass>> = {
   habits: 'record',
@@ -34,7 +38,10 @@ export const TABLE_CLASSES: Readonly<Record<string, TableClass>> = {
   goals: 'record',
   reflections: 'record',
   exercises: 'record',
-  splits: 'record',
+  routines: 'record',
+  plans: 'record',
+  schedule: 'record',
+  splits: 'legacy',
   sessionEvents: 'record',
   sessionMarks: 'record',
   bodyweight: 'record',
@@ -66,9 +73,17 @@ export function recordTableNames(): string[] {
   return recordTables().map((t) => t.name)
 }
 
+/**
+ * What an import replaces and a reset of the record erases: the record, and
+ * the old tables kept beside it.
+ */
+export function replacedTables(): Table[] {
+  return db.tables.filter((t) => TABLE_CLASSES[t.name] === 'record' || TABLE_CLASSES[t.name] === 'legacy')
+}
+
 /** Empties the record and leaves this device's settings alone. */
 export async function clearRecord(): Promise<void> {
-  const tables = recordTables()
+  const tables = replacedTables()
   await db.transaction('rw', tables, async () => {
     await Promise.all(tables.map((t) => t.clear()))
   })

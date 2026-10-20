@@ -7,7 +7,7 @@ import { seedExercises } from '../db/exercises'
 import { resetDatabase } from '../test/setup'
 import { db } from '../db/schema'
 import { createSettings } from '../db/settings'
-import { instantiateTemplate } from '../db/splits'
+import { instantiateTemplate, listSplits } from '../db/splits'
 import { SPLIT_TEMPLATES } from '../lib/splitTemplates'
 
 const DEVICE_ID = 'test-device'
@@ -102,7 +102,7 @@ describe('the Splits screen', () => {
     await userEvent.click(edit)
 
     expect(await screen.findByRole('heading', { name: 'Edit Full body A' })).toBeInTheDocument()
-    const stored = await db.splits.toArray()
+    const stored = await listSplits()
     expect(stored).toHaveLength(1)
     expect(stored[0].seededFrom).toBe('split-full-body-3')
   })

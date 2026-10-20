@@ -22,7 +22,7 @@ Sixteen commits, slices 0 through 11 plus the training data model (`902eeff`), a
 
 **Goals** carry a title, an optional description and an optional target date. Reaching one (`completeGoal`) is distinct from putting it away (`archiveGoal`): only a goal actually reached appears in Records. Reflections are read back on the Calendar under the day they were written — a chosen day answers three questions in tabs, what you lifted, what you wrote and what you are working towards — and are listed in Records.
 
-**Data** — Dexie/IndexedDB, database `kusuo`, schema at **version 9**. `src/db/tables.ts` is the one place that knows which tables exist: reset, backup and every test's setup ask it rather than keeping their own lists, so a table added to the schema joins all three by construction.
+**Data** — Dexie/IndexedDB, database `kusuo`, schema at **version 10**. `src/db/tables.ts` is the one place that knows which tables exist: reset, backup and every test's setup ask it rather than keeping their own lists, so a table added to the schema joins all three by construction.
 
 | Table | Shape |
 |---|---|
@@ -31,15 +31,18 @@ Sixteen commits, slices 0 through 11 plus the training data model (`902eeff`), a
 | `goals` | mutable entity |
 | `reflections` | **append-only** — localDate, text, timestamp |
 | `exercises` | name, category `push`\|`pull`\|`legs`\|`abs`\|`cardio`, muscleGroup, equipment, isCustom, optional `circuit` |
-| `splits` | name, days `SplitDay[]`, seededFrom, isActive |
-| `sessionEvents` | **append-only** — localDate, splitDayId, exerciseId, setIndex, weightKg, reps, rpe, action `log`\|`void`, deviceId. `localDate` is indexed and load-bearing: the calendar, the week strip and the training-habit tick are calendar-day questions, and re-deriving a day from a UTC instant is wrong across DST and travel. Do not remove it — `REDESIGN-PROMPT.md` omits it, and that omission is the error |
+| `routines` | mutable — one workout: name, kind `training`\|`rest`, entries (exerciseId, sets, repsMin, repsMax), archived. A routine keeps the id of the split day it came from, so `splitDayId` on sets and marks still names it. A day taken out of a programme is archived, not deleted |
+| `plans` | mutable — name, seededFrom, `routineIds` in order, rest days included. The first falls on the first day of the week and a shorter plan repeats within it |
+| `schedule` | one row — `activePlanId`. One pointer, so there is never more than one active plan |
+| `splits` | **legacy, unread** since version 10 — kept so the conversion to plans can be run again. A backup does not carry it; an import or reset empties it. `db/splits.ts` still hands the screens splits and days, assembled from plans and routines |
+| `sessionEvents` | **append-only** — localDate, splitDayId, exerciseId, setIndex, setId, weightKg, reps, rpe, action `log`\|`void`, deviceId. `localDate` is indexed and load-bearing: the calendar, the week strip and the training-habit tick are calendar-day questions, and re-deriving a day from a UTC instant is wrong across DST and travel. Do not remove it — `REDESIGN-PROMPT.md` omits it, and that omission is the error |
 | `sessionMarks` | **append-only** — session complete/uncomplete per day |
 | `settings` | deviceId PK, deviceRole `writer`\|`reader`, units, weekStart, theme, defaultSets, trainingHabitId, lastBackupAt. This row describes the phone, not the record: a backup never carries it, an import never replaces it, and logging out deletes it alone |
 | `bodyweight` | **append-only** — localDate, weightKg, timestamp, deviceId |
 
 State is **derived by replaying events**, last-event-wins. Never stored as a flag. `src/db/clock.ts` guarantees strictly ordered timestamps so replay is deterministic.
 
-**Logic implemented:** `derive.ts` (completion by replay), `streaks.ts` (daily and weekly; `weeklyStreak` takes a `weekStart` and every call site now passes it, so the setting is live — `dailyStreak` takes none, because a daily run does not care where the week begins), `sessions.ts` (set replay, volume, training dates), `records.ts` (Epley 1RM, per-exercise records, best volume, best streak, best month), `reflection.ts`, `backup.ts` (JSON export/import at schema **version 5**, all-or-nothing in one transaction, refusing a file from a newer build, carrying the record's own preferences but never this device's identity, and asking every table — not only habit events — whether this device holds work newer than the file).
+**Logic implemented:** `derive.ts` (completion by replay), `streaks.ts` (daily and weekly; `weeklyStreak` takes a `weekStart` and every call site now passes it, so the setting is live — `dailyStreak` takes none, because a daily run does not care where the week begins), `sessions.ts` (set replay, volume, training dates), `records.ts` (Epley 1RM, per-exercise records, best volume, best streak, best month), `reflection.ts`, `backup.ts` (JSON export/import at schema **version 6**, converting an older file's splits to plans and routines with the same function the database upgrade uses, all-or-nothing in one transaction, refusing a file from a newer build, carrying the record's own preferences but never this device's identity, and asking every table — not only habit events — whether this device holds work newer than the file).
 
 **Training already exists at the data and logic layer** — exercises, splits, seeded templates, set-by-set session events, derived records. Finishing a session writes a real `HabitEvent` against `settings.trainingHabitId`, so training ticks its habit once rather than in two places.
 

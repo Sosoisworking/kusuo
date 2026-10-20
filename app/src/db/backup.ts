@@ -1,5 +1,6 @@
 import { nextTimestamp, observeTimestamp } from './clock'
 import { seedExercises } from './exercises'
+import { SCHEDULE_ID, convertSplits } from './migrate'
 import {
   db,
   type Exercise,
@@ -13,6 +14,9 @@ import {
   type SessionEvent,
   type SessionEventAction,
   type BodyweightEntry,
+  type Plan,
+  type Routine,
+  type Schedule,
   type SessionMark,
   type SessionMarkAction,
   type Split,
@@ -31,7 +35,7 @@ import {
   updateSettings,
   type RecordPreferences,
 } from './settings'
-import { recordTableNames, recordTables } from './tables'
+import { recordTableNames, recordTables, replacedTables } from './tables'
 
 export interface BackupPayload {
   schemaVersion: number
@@ -46,7 +50,11 @@ export interface BackupPayload {
   goals: Goal[]
   reflections: ReflectionEntry[]
   exercises: Exercise[]
-  splits: Split[]
+  /** Files written before version 6 only. A newer file carries plans and routines. */
+  splits?: Split[]
+  routines?: Routine[]
+  plans?: Plan[]
+  schedule?: Schedule[]
   sessionEvents: SessionEvent[]
   sessionMarks: SessionMark[]
   bodyweight: BodyweightEntry[]
@@ -69,12 +77,16 @@ export interface BackupPayload {
  * 5 — carries the preferences that belong to the record: your name, units,
  *     week start, default sets, and which habit a finished session ticks. A
  *     version 4 file still imports and leaves this device's own in place.
+ * 6 — splits become routines, plans and the schedule. An older file still
+ *     imports: its splits are converted on import by the same function the
+ *     database upgrade uses, so an old file and an old phone arrive at the same
+ *     plans.
  *
  * Older files import. Newer ones are refused: a file from a build this one has
  * never seen may carry tables and fields it cannot round-trip, and importing it
  * would quietly replace the record with less than the file held.
  */
-const CURRENT_SCHEMA_VERSION = 5
+const CURRENT_SCHEMA_VERSION = 6
 
 export async function buildBackup(): Promise<BackupPayload> {
   const tables = recordTables()
@@ -281,6 +293,56 @@ function isSplit(x: unknown): x is Split {
   )
 }
 
+function isRoutineEntry(x: unknown): boolean {
+  if (typeof x !== 'object' || x === null) return false
+  const e = x as Record<string, unknown>
+  return (
+    typeof e.exerciseId === 'string' &&
+    typeof e.sets === 'number' &&
+    typeof e.repsMin === 'number' &&
+    typeof e.repsMax === 'number'
+  )
+}
+
+function isRoutine(x: unknown): x is Routine {
+  if (typeof x !== 'object' || x === null) return false
+  const r = x as Record<string, unknown>
+  return (
+    typeof r.id === 'string' &&
+    typeof r.name === 'string' &&
+    (r.kind === 'training' || r.kind === 'rest') &&
+    Array.isArray(r.entries) &&
+    r.entries.every(isRoutineEntry) &&
+    typeof r.archived === 'boolean' &&
+    typeof r.createdAt === 'number' &&
+    typeof r.updatedAt === 'number'
+  )
+}
+
+function isPlan(x: unknown): x is Plan {
+  if (typeof x !== 'object' || x === null) return false
+  const p = x as Record<string, unknown>
+  return (
+    typeof p.id === 'string' &&
+    typeof p.name === 'string' &&
+    Array.isArray(p.routineIds) &&
+    p.routineIds.every((id) => typeof id === 'string') &&
+    typeof p.createdAt === 'number' &&
+    typeof p.updatedAt === 'number' &&
+    (p.seededFrom === undefined || typeof p.seededFrom === 'string')
+  )
+}
+
+function isSchedule(x: unknown): x is Schedule {
+  if (typeof x !== 'object' || x === null) return false
+  const s = x as Record<string, unknown>
+  return (
+    s.id === SCHEDULE_ID &&
+    (s.activePlanId === undefined || typeof s.activePlanId === 'string') &&
+    typeof s.updatedAt === 'number'
+  )
+}
+
 function isSessionEvent(x: unknown): x is SessionEvent {
   if (typeof x !== 'object' || x === null) return false
   const e = x as Record<string, unknown>
@@ -340,6 +402,9 @@ const ROW_VALIDATORS: Record<string, (row: unknown) => boolean> = {
   reflections: isReflectionEntry,
   exercises: isExercise,
   splits: isSplit,
+  routines: isRoutine,
+  plans: isPlan,
+  schedule: isSchedule,
   sessionEvents: isSessionEvent,
   sessionMarks: isSessionMark,
   bodyweight: isBodyweight,
@@ -390,6 +455,9 @@ export function parseBackup(json: string): BackupPayload {
   */
   const tables: Record<string, unknown[]> = {}
   for (const name of new Set([...recordTableNames(), ...Object.keys(ROW_VALIDATORS)])) {
+    // Splits stopped being exported in version 6. A newer file without them
+    // has none to bring, which is not the same as an older file with none.
+    if (name === 'splits' && raw.splits === undefined && schemaVersion >= 6) continue
     const value = raw[name] === undefined ? [] : raw[name]
     if (!Array.isArray(value)) {
       throw new InvalidBackupError("That file doesn't look like a Kusuo backup.")
@@ -407,7 +475,7 @@ export function parseBackup(json: string): BackupPayload {
     schemaVersion,
     exportedAt,
     preferences: preferences === undefined ? undefined : pickRecordPreferences(preferences as RecordPreferences),
-    splits: (tables.splits as unknown[]).map(normaliseSplit),
+    ...(tables.splits ? { splits: tables.splits.map(normaliseSplit) } : {}),
   } as BackupPayload
 }
 
@@ -427,16 +495,30 @@ export function parseBackup(json: string): BackupPayload {
 async function lastLocalWrite(): Promise<number> {
   const tables = recordTables()
   const rows = await Promise.all(tables.map((table) => table.toArray()))
+
+  // A plan that came in from a template and has not been edited since is the
+  // same kind of thing as the seeded movement library: something every device
+  // writes at setup, and nobody authored. Counting it — or the routines it was
+  // seeded with — would make a phone that has only been through onboarding
+  // look like it held work newer than any backup.
+  const plans = (await db.plans.toArray()).filter(
+    (plan) => plan.seededFrom && plan.updatedAt === plan.createdAt,
+  )
+  const seeded = new Set(plans.map((plan) => plan.id))
+  const seededRoutines = new Set(plans.flatMap((plan) => plan.routineIds))
+
   let latest = 0
   for (const [i, table] of tables.entries()) {
     for (const row of rows[i] as Record<string, unknown>[]) {
       if (table.name === 'exercises' && row.isCustom === false) continue
-      // A split that came in from a template and has not been edited since is
-      // the same kind of thing as the seeded movement library: something every
-      // device writes at setup, and nobody authored. Counting it would make a
-      // phone that has only been through onboarding look like it held work
-      // newer than any backup.
-      if (table.name === 'splits' && row.seededFrom && row.updatedAt === row.createdAt) continue
+      if (table.name === 'plans' && seeded.has(row.id as string)) continue
+      if (
+        table.name === 'routines' &&
+        seededRoutines.has(row.id as string) &&
+        row.updatedAt === row.createdAt
+      ) {
+        continue
+      }
       const at = typeof row.timestamp === 'number' ? row.timestamp : row.updatedAt
       if (typeof at === 'number' && at > latest) latest = at
     }
@@ -468,19 +550,36 @@ function observeRowStamps(row: unknown): void {
 }
 
 /**
+ * The rows an import writes, by table. A file from before version 6 has splits
+ * rather than plans; they are converted here — not when the file is parsed, so
+ * every caller of the parser sees the file as it is — by the same function the
+ * database upgrade uses. Its splits still go into the old table, as an upgraded
+ * phone's do, so the conversion can be run again.
+ */
+function rowsToImport(payload: BackupPayload): Record<string, unknown[]> {
+  const rows = payload as unknown as Record<string, unknown[]>
+  if (payload.schemaVersion >= 6) return rows
+  return {
+    ...rows,
+    ...convertSplits(payload.splits ?? [], payload.sessionEvents ?? [], payload.sessionMarks ?? []),
+  }
+}
+
+/**
  * Wholesale replace of every user table, in one transaction: it lands whole or
  * not at all. This device's identity — deviceId, deviceRole, theme — is never
  * touched, because it describes the phone rather than the record.
  */
 export async function importBackup(payload: BackupPayload): Promise<void> {
-  const tables = recordTables()
+  const tables = replacedTables()
+  const incoming = rowsToImport(payload)
   await db.transaction('rw', tables, async () => {
     for (const table of tables) {
       await table.clear()
       // Payload keys are the table names, so a table added to the schema is
       // carried here without this function being touched. A table the file
       // does not mention imports as empty, which is what an older export means.
-      const rows = (payload as unknown as Record<string, unknown[]>)[table.name] ?? []
+      const rows = incoming[table.name] ?? []
       if (rows.length > 0) await table.bulkAdd(rows)
       for (const row of rows) observeRowStamps(row)
     }

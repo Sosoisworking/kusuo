@@ -1,7 +1,8 @@
 # Decision — the week is stored by weekday
 
 **Date:** 20 October 2026
-**Status:** Adopted; takes effect in S1a (storage) and S3 (behaviour).
+**Status:** Adopted. S1a derives the week from each plan's order; S3 stores it and pins it to
+weekdays.
 
 ## Today
 
@@ -19,9 +20,16 @@ Saturday) maps to the routines for that day, as openGym does. Several routines c
 **What changes:** the schedule is pinned to real weekdays. Changing the week-start setting
 changes how a week is drawn and where weekly targets begin, not which day Push falls on.
 
-**How existing splits carry over:** the migration derives each plan's week from the same
-`dayForDate` rule, using the week start in effect at the time, so on the day of the migration
-every day maps to exactly what it did before. A property test compares the two across all
-seven weekdays, both week starts, and splits of 1 to 10 days with and without rest days.
+**How existing splits carry over:** each plan's week is derived from its day order by the same
+rule `dayForDate` always used. A property test compares the two across all seven weekdays, both
+week starts, and splits of 1 to 10 days with every placement of rest days.
+
+**Why S1a derives it rather than storing it.** S1a promises no change anyone can see, and today
+changing the week start moves the schedule. A week stored in S1a would either stop moving — a
+visible change, early — or have to be rewritten on every change of the setting, which is the
+behaviour this record exists to end. So `logic/schedule.ts` builds the week from the plan's order
+each time it is asked (`weekFromOrder`, read through `sessionFor`), and `dayForDate` already goes
+through it. S3 stores that week on each plan, from the week start in effect then, and the
+schedule stops moving with the setting from that day on.
 
 **The test that asserts the shift** is changed on purpose in S3, with this record as the reason.

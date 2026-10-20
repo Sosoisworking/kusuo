@@ -1,5 +1,5 @@
 import type { Exercise, ExerciseCategory, Split, SplitDay, SplitEntry, WeekStart } from '../db/schema'
-import { weekdayIndex } from '../lib/date'
+import { sessionFor, weekFromOrder } from './schedule'
 
 /**
  * Which day of the split belongs to a date.
@@ -18,8 +18,8 @@ export function dayForDate(
   localDate: string,
   weekStart: WeekStart = 'monday',
 ): SplitDay | undefined {
-  if (split.days.length === 0) return undefined
-  return split.days[weekdayIndex(localDate, weekStart) % split.days.length]
+  const [id] = sessionFor(weekFromOrder(split.days.map((day) => day.id), weekStart), localDate)
+  return split.days.find((day) => day.id === id)
 }
 
 /**
