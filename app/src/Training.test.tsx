@@ -307,6 +307,9 @@ describe('the session flow', () => {
 
     await typeSet('80', '6')
     await userEvent.click(await screen.findByRole('button', { name: 'Log set 1' }))
+    // A click resolves when it is dispatched, not when the save lands. Finishing
+    // before the set shows as logged raced the save, and lost under load.
+    await screen.findByRole('button', { name: /Set 1 logged/ })
     await userEvent.click(screen.getByRole('button', { name: 'Finish and log the session' }))
 
     expect(await screen.findByRole('heading', { name: 'Train', level: 1 })).toBeInTheDocument()
