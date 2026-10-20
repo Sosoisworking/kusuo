@@ -296,8 +296,8 @@ set, then adds a backend. Why, what it ends, and how licensing is handled:
 | # | Slice | Status |
 |---|---|---|
 | S0 | Groundwork: one replay ordering, a persisted clock, an id for every set, every table classified, backups can't change the device's role, a request for a fresh export | ✅ done |
-| S1a | Migration at parity: Dexie v10 (routines, plans, schedule), backup v6, no screen changes | next |
-| S1b | Combined days, rest-day marks, the archived training habit | |
+| S1a | Migration at parity: Dexie v10 (routines, plans, schedule), backup v6, no screen changes | ✅ done |
+| S1b | Combined days, rest-day marks, the archived training habit | next |
 | S3 | Planning, built new: week editor, overrides, rotation, starter plans, the full entry editor | |
 | S4 | Session, built new: every set type, effort with colours, plate math, PRs as facts — no rest timer | |
 | S2 | Exercise library: ~1,324 ExerciseDB movements, search and filters | |
@@ -312,4 +312,4 @@ set, then adds a backend. Why, what it ends, and how licensing is handled:
 | S12 | Claims brought into line with what shipped | |
 
 Set identity and ordering: `decisions/2026-10-20-set-identity-and-ordering.md`. Week storage:
-`decisions/2026-10-20-week-storage.md`.
+`decisions/2026-10-20-week-storage.md`. Plans and routines: `decisions/2026-10-20-plans-and-routines.md`.

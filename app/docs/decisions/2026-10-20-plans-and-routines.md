@@ -42,6 +42,12 @@ three tables:
   carry it, an import or reset empties it. If the conversion turns out to be wrong, a later
   version can run it again from there.
 
+## The notice that asked for a backup
+
+S0 put "Save a copy before the next update" on Today, because this is the update it meant. Once
+this version is running the sentence is no longer true, so this slice removes the notice and the
+setting that remembered its dismissal.
+
 ## Guesses the conversion makes
 
 - A deleted day is named "Removed day"; its label went with it. It is a training routine if any
