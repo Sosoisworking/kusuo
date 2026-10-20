@@ -1,3 +1,4 @@
+import { nextTimestamp } from './clock'
 import { db, type Goal } from './schema'
 
 export interface CreateGoalInput {
@@ -7,7 +8,7 @@ export interface CreateGoalInput {
 }
 
 export async function createGoal(input: CreateGoalInput): Promise<Goal> {
-  const now = Date.now()
+  const now = nextTimestamp()
   const goal: Goal = {
     id: crypto.randomUUID(),
     title: input.title,
@@ -22,12 +23,12 @@ export async function createGoal(input: CreateGoalInput): Promise<Goal> {
 }
 
 export async function updateGoal(id: string, changes: Partial<CreateGoalInput>): Promise<void> {
-  await db.goals.update(id, { ...changes, updatedAt: Date.now() })
+  await db.goals.update(id, { ...changes, updatedAt: nextTimestamp() })
 }
 
 /** Puts a goal away without claiming it was reached. */
 export async function archiveGoal(id: string): Promise<void> {
-  const now = Date.now()
+  const now = nextTimestamp()
   await db.goals.update(id, { isActive: false, archivedAt: now, updatedAt: now })
 }
 
@@ -37,13 +38,13 @@ export async function archiveGoal(id: string): Promise<void> {
  * achievement to be listed as though it were.
  */
 export async function completeGoal(id: string): Promise<void> {
-  const now = Date.now()
+  const now = nextTimestamp()
   await db.goals.update(id, { isActive: false, completedAt: now, updatedAt: now })
 }
 
 /** Reopens a goal marked done by mistake. */
 export async function reopenGoal(id: string): Promise<void> {
-  await db.goals.update(id, { isActive: true, completedAt: undefined, updatedAt: Date.now() })
+  await db.goals.update(id, { isActive: true, completedAt: undefined, updatedAt: nextTimestamp() })
 }
 
 /** Goals that were reached, most recently first. */

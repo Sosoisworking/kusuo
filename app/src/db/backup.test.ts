@@ -50,6 +50,28 @@ function makeEvent(overrides: Partial<HabitEvent> = {}): HabitEvent {
   }
 }
 
+describe('importing moves the device clock forward', () => {
+  it('stamps a write made after an import later than every row it brought', async () => {
+    // A backup from a device whose clock ran an hour ahead.
+    const ahead = Date.now() + 60 * 60 * 1000
+    const habit = makeHabit({ createdAt: ahead, updatedAt: ahead })
+    await importBackup(
+      parseBackup(
+        JSON.stringify({
+          schemaVersion: 5,
+          exportedAt: ahead,
+          habits: [habit],
+          habitEvents: [makeEvent({ habitId: habit.id, timestamp: ahead })],
+        }),
+      ),
+    )
+
+    // Un-ticking it now has to win on replay.
+    const event = await appendHabitEvent(habit.id, '2026-01-10', 'uncomplete', 'dev1')
+    expect(event.timestamp).toBeGreaterThan(ahead)
+  })
+})
+
 describe('buildBackup', () => {
   it('round-trips real Dexie data', async () => {
     const habit = await createHabit({ name: 'Read', frequencyType: 'daily', frequencyValue: 1 })
@@ -57,13 +79,16 @@ describe('buildBackup', () => {
 
     const before = Date.now()
     const payload = await buildBackup()
-    const after = Date.now()
 
     expect(payload.habits).toEqual([habit])
     expect(payload.habitEvents).toEqual([event])
     expect(typeof payload.schemaVersion).toBe('number')
+    // The export is stamped on the device clock, not the wall clock: never
+    // earlier than the wall clock, and always after every row it carries, so
+    // the reverse-import check never mistakes its own rows for newer work.
     expect(payload.exportedAt).toBeGreaterThanOrEqual(before)
-    expect(payload.exportedAt).toBeLessThanOrEqual(after)
+    expect(payload.exportedAt).toBeGreaterThan(event.timestamp)
+    expect(payload.exportedAt).toBeGreaterThan(habit.updatedAt)
   })
 })
 

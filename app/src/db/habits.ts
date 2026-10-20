@@ -33,12 +33,12 @@ export type UpdateHabitInput = Partial<CreateHabitInput>
 
 /** Frequency/name edits apply going forward only — past dates are not rewritten. */
 export async function updateHabit(id: string, changes: UpdateHabitInput): Promise<void> {
-  await db.habits.update(id, { ...changes, updatedAt: Date.now() })
+  await db.habits.update(id, { ...changes, updatedAt: nextTimestamp() })
 }
 
 /** Sets archivedAt; the habit stays in history/detail views but disappears from Today/template pickers via listActiveHabits. */
 export async function archiveHabit(id: string): Promise<void> {
-  const now = Date.now()
+  const now = nextTimestamp()
   await db.habits.update(id, { isActive: false, archivedAt: now, updatedAt: now })
 }
 

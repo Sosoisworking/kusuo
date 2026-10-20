@@ -1,3 +1,4 @@
+import { nextTimestamp, observeTimestamp } from './clock'
 import { seedExercises } from './exercises'
 import {
   db,
@@ -81,7 +82,9 @@ export async function buildBackup(): Promise<BackupPayload> {
   const settings = await getSettings(getOrCreateDeviceId())
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    exportedAt: Date.now(),
+    // On this device's clock, so it compares honestly with the row stamps
+    // the reverse-import check reads — which are on the same clock.
+    exportedAt: nextTimestamp(),
     // Never deviceId, deviceRole or theme: those describe the phone, and a
     // file that carried them could let the Mac import itself into being the
     // writer.
@@ -448,6 +451,20 @@ export async function isReverseImport(payload: BackupPayload): Promise<boolean> 
 }
 
 /**
+ * Moves this device's clock past every stamp an import brings, so a write made
+ * after the import sorts after the rows it replaced. Without it, editing a
+ * habit imported from a device whose clock ran ahead would lose to the very
+ * row being edited.
+ */
+function observeRowStamps(row: unknown): void {
+  if (typeof row !== 'object' || row === null) return
+  const r = row as Record<string, unknown>
+  for (const key of ['timestamp', 'updatedAt', 'createdAt'] as const) {
+    if (typeof r[key] === 'number') observeTimestamp(r[key] as number)
+  }
+}
+
+/**
  * Wholesale replace of every user table, in one transaction: it lands whole or
  * not at all. This device's identity — deviceId, deviceRole, theme — is never
  * touched, because it describes the phone rather than the record.
@@ -462,6 +479,7 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
       // does not mention imports as empty, which is what an older export means.
       const rows = (payload as unknown as Record<string, unknown[]>)[table.name] ?? []
       if (rows.length > 0) await table.bulkAdd(rows)
+      for (const row of rows) observeRowStamps(row)
     }
   })
 

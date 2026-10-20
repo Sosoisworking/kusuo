@@ -1,3 +1,4 @@
+import { nextTimestamp } from './clock'
 import { EXERCISE_SEED } from '../lib/exerciseSeed'
 import { db, type Exercise, type ExerciseCategory, type SessionEvent } from './schema'
 
@@ -15,7 +16,7 @@ import { db, type Exercise, type ExerciseCategory, type SessionEvent } from './s
  */
 export async function seedExercises(): Promise<number> {
   const existing = new Map((await db.exercises.toArray()).map((row) => [row.id, row]))
-  const now = Date.now()
+  const now = nextTimestamp()
   const missing: Exercise[] = EXERCISE_SEED.filter((s) => !existing.has(s.id)).map((s) => ({
     ...s,
     isCustom: false,
@@ -42,7 +43,7 @@ export interface CreateExerciseInput {
 }
 
 export async function createCustomExercise(input: CreateExerciseInput): Promise<Exercise> {
-  const now = Date.now()
+  const now = nextTimestamp()
   const exercise: Exercise = {
     id: crypto.randomUUID(),
     ...input,

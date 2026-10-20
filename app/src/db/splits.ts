@@ -1,3 +1,4 @@
+import { nextTimestamp } from './clock'
 import { SPLIT_TEMPLATES, type SplitTemplate } from '../lib/splitTemplates'
 import { createCustomExercise } from './exercises'
 import type { SharedWorkout } from '../lib/share'
@@ -15,7 +16,7 @@ export function getSplitTemplate(templateId: string): SplitTemplate | undefined 
 export async function instantiateTemplate(templateId: string, makeActive = true): Promise<Split> {
   const template = getSplitTemplate(templateId)
   if (!template) throw new Error(`Unknown split template: ${templateId}`)
-  const now = Date.now()
+  const now = nextTimestamp()
   const days: SplitDay[] = template.days.map((d) => ({
     id: crypto.randomUUID(),
     label: d.label,
@@ -39,7 +40,7 @@ export async function instantiateTemplate(templateId: string, makeActive = true)
 /** Exactly one split is active at a time; activating one deactivates the rest. */
 export async function setActiveSplit(splitId: string): Promise<void> {
   await db.transaction('rw', db.splits, async () => {
-    const now = Date.now()
+    const now = nextTimestamp()
     await db.splits
       .filter((s) => s.isActive && s.id !== splitId)
       .modify({ isActive: false, updatedAt: now })
@@ -64,7 +65,7 @@ export async function updateSplit(
   id: string,
   changes: { name?: string; days?: SplitDay[] },
 ): Promise<void> {
-  await db.splits.update(id, { ...changes, updatedAt: Date.now() })
+  await db.splits.update(id, { ...changes, updatedAt: nextTimestamp() })
 }
 
 /** Finds the day a session was logged against, across every split. */
@@ -132,7 +133,7 @@ export async function importWorkoutAsDay(
 
 /** A programme with no days in it yet, ready to be built up. */
 export async function createSplit(name: string): Promise<Split> {
-  const now = Date.now()
+  const now = nextTimestamp()
   const split: Split = {
     id: crypto.randomUUID(),
     name: name.trim() || 'My split',
