@@ -95,7 +95,10 @@ export default function Onboarding() {
   const [standalone] = useState(isStandalone)
   const [step, setStep] = useState<Step>('loading')
   const [name, setName] = useState('')
-  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set())
+  // Every starter habit is offered already chosen; taking one away is the decision.
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(
+    () => new Set(STARTER_TEMPLATES.map((t) => t.id)),
+  )
   const [customHabits, setCustomHabits] = useState<{ name: string; frequencyType: FrequencyType; frequencyValue: number }[]>([])
   const [customName, setCustomName] = useState('')
   const [customFrequency, setCustomFrequency] = useState<'daily' | 'weekly'>('daily')
@@ -199,12 +202,6 @@ export default function Onboarding() {
     }
     setStep('templates')
   }
-
-  useEffect(() => {
-    if (step === 'templates') {
-      setSelectedTemplateIds((prev) => (prev.size === 0 ? new Set(STARTER_TEMPLATES.map((t) => t.id)) : prev))
-    }
-  }, [step])
 
   function toggleTemplate(id: string) {
     setSelectedTemplateIds((prev) => {

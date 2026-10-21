@@ -183,6 +183,22 @@ function FoldedCard({ to, title, summary }: { to: string; title: string; summary
   )
 }
 
+/**
+ * Everything Today shows. The session log is read here for the same reason
+ * Train reads it: a half-logged session is a fact about today, and Today is the
+ * screen that is supposed to say what today is.
+ */
+function readToday() {
+  return Promise.all([
+    getSettings(getOrCreateDeviceId()),
+    listActiveHabits(),
+    allHabitEvents(),
+    getActiveSplit(),
+    allSessionEvents(),
+    allSessionMarks(),
+  ])
+}
+
 export default function Today() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -194,16 +210,6 @@ export default function Today() {
   const [marks, setMarks] = useState<SessionMark[]>([])
   const [today, setToday] = useState(todayLocalDate)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    load().then(() => {
-      if (!cancelled) setLoading(false)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     function refreshToday() {
@@ -218,19 +224,7 @@ export default function Today() {
     }
   }, [])
 
-  async function load() {
-    const deviceId = getOrCreateDeviceId()
-    // The session log is read here for the same reason Train reads it: a
-    // half-logged session is a fact about today, and Today is the screen that
-    // is supposed to say what today is.
-    const [s, h, e, sp, se, m] = await Promise.all([
-      getSettings(deviceId),
-      listActiveHabits(),
-      allHabitEvents(),
-      getActiveSplit(),
-      allSessionEvents(),
-      allSessionMarks(),
-    ])
+  function show([s, h, e, sp, se, m]: Awaited<ReturnType<typeof readToday>>) {
     setSettings(s)
     setHabits(h)
     setEvents(e)
@@ -238,6 +232,18 @@ export default function Today() {
     setSessionEvents(se)
     setMarks(m)
   }
+
+  useEffect(() => {
+    let cancelled = false
+    readToday().then((data) => {
+      if (cancelled) return
+      show(data)
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function toggle(habit: Habit, isDone: boolean) {
     if (!settings || settings.deviceRole !== 'writer') return

@@ -853,7 +853,10 @@ export default function Session() {
       {index < day.entries.length - 1 ? (
         <button
           onClick={handleNext}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          // A tap while a set is still saving is ignored, so it says so rather
+          // than looking like a button that did nothing.
+          disabled={busy}
+          className="flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-accent)] px-5 text-[15px] font-medium text-[var(--color-accent)] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
         >
           Next movement
           <CaretRight size={15} aria-hidden="true" />
