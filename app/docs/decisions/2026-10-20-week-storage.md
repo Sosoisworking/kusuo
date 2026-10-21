@@ -1,8 +1,9 @@
 # Decision — the week is stored by weekday
 
 **Date:** 20 October 2026
-**Status:** Adopted. S1a derives the week from each plan's order; S3 stores it and pins it to
-weekdays.
+**Status:** Half built. S1a derives the week from each plan's order. S3, which was to store it and
+pin it to weekdays, was not built — development stopped after S1b — so the week is still derived,
+and changing the week start still moves the schedule.
 
 ## Today
 

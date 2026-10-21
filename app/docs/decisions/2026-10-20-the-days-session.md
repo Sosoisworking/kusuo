@@ -51,7 +51,6 @@
 
 ## Not in this slice
 
-- The session screen still runs one routine at a time; S4 replaces it with one that runs the
-  whole session.
-- "Trained today" for nudges (S10) will also count a logged work set, not only a finished
-  session; nothing reads that yet.
+- The session screen still runs one routine at a time. S4 was to replace it with one that runs
+  the whole session; it was not built — development stopped after S1b.
+- There are no nudges, so nothing needed a "trained today" beyond what the calendar shows.

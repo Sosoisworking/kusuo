@@ -1,7 +1,9 @@
 # Decision — the training module is rebuilt on openGym's feature set
 
 **Date:** 20 October 2026
-**Status:** Adopted. Building, slice by slice.
+**Status:** Stopped after S1b on 20 October 2026. Development is finished — see
+`2026-10-20-development-finished.md`. S0, S1a and S1b shipped; nothing after them was built, and
+none of the rules in the table below was ended.
 
 ## What was decided
 

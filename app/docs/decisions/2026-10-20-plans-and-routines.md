@@ -62,7 +62,7 @@ setting that remembered its dismissal.
 The plan put the exercise library's new fields and the conversion of circuits into
 `instructions[]` into the same database version. They moved to the slices that show them (S2
 and S4): converting circuits now would change the session screen, and S1a changes no screen.
-Each is its own later version upgrade.
+Neither slice was built — development stopped after S1b — so exercises keep their original shape.
 
 ## Verified
 

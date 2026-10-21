@@ -37,7 +37,7 @@ Not a general habit-tracking product. It is calm, local-first, and personally ow
 ## Capabilities and Constraints
 
 - Shipped: habits (add/edit/archive, daily check-off, streaks, history), a full training module (exercises, splits, set-by-set session logging, derived records, kettlebell circuits), goals with completion, structured reflections, a calendar, a records screen, and JSON export/import.
-- **A split is a weekly schedule, not a cycle.** Its first day falls on the first day of the week and today's date decides today's session; a missed session is missed, not carried forward. Rest days are days in the schedule.
+- **A split is a weekly schedule, not a cycle.** Its first day falls on the first day of the week and today's date decides today's session until you start one — work already logged outranks the calendar, so a missed day done today becomes today's session, and one done alongside the scheduled day joins it. A missed session is missed, not carried forward. Rest days are days in the schedule; marking one done is not training.
 - Rep targets are ranges (`3 × 6-8`). Weight is always stored in kilograms and converted for display. Cardio and circuits are logged by time, not load.
 - No backend, no authentication, no AI features, no telemetry/analytics, no gamification (no XP, levels, achievements, badges).
 - No reminders or notifications. Confirmed four times, most recently 1 September 2026 after being told the technical position: an iOS PWA has no scheduled local notifications, and a real 11pm push would need a server, which the product refuses.

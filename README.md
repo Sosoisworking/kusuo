@@ -2,7 +2,7 @@
 
 Kusuo is a local-first personal growth app — a few daily habits and a set-by-set training log — installed to an iPhone home screen as a Progressive Web App.
 
-**Status:** shipped. Live at https://sosoisworking.github.io/kusuo/
+**Status:** finished — live at https://sosoisworking.github.io/kusuo/. Development stopped on 20 October 2026; [`app/docs/decisions/2026-10-20-development-finished.md`](app/docs/decisions/2026-10-20-development-finished.md) records the state it was left in.
 
 ## Stack
 
@@ -18,7 +18,7 @@ Every push to `main` runs [`.github/workflows/deploy.yml`](.github/workflows/dep
 
 ## Tests
 
-- **30 unit and component test files** under `app/src`, run by Vitest in jsdom.
+- **39 unit and component test files** under `app/src`, run by Vitest in jsdom.
 - **4 Playwright end-to-end suites** under `app/e2e`, run in WebKit at iPhone 13 size — the closest an automated run gets to the phone the app is used on.
 
 ## What it leaves out

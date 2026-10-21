@@ -22,8 +22,9 @@ correction to one carries that slot key as its id — history replays exactly as
 **The trade-off, chosen deliberately:** if two devices log the same physical set, it appears
 twice and can be voided. A visible duplicate is recoverable; a silent loss is not.
 
-**Not yet done:** the session screen still addresses sets by position, which is sound while one
-device writes. When the Mac becomes a writer (S9), sets are addressed by id instead.
+**Not done:** the session screen still addresses sets by position, which is sound while one
+device writes. Addressing them by id was to come with the Mac becoming a writer (S9), which was
+not built — development stopped after S1b — so the iPhone remains the only writer.
 
 ## Ordering
 

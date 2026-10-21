@@ -16,7 +16,7 @@ It is a PWA installed to the iPhone home screen. All data is local. There are no
 
 ## Current state — built and working
 
-Sixteen commits, slices 0 through 11 plus the training data model (`902eeff`), all on `main` and deployed.
+**Finished.** Development stopped on 20 October 2026, after slice S1b of the training rebuild; everything below is on `main` and deployed. See `decisions/2026-10-20-development-finished.md`.
 
 **Screens** (15): Onboarding, Today, Train, Session, Exercise detail, Splits, Split editor, Directory, Calendar, Records, Habit detail, Habit form, Goals, Reflection, Settings. Progress was retired once Calendar and Records absorbed what it showed; `/progress` redirects to Today.
 
@@ -46,7 +46,7 @@ State is **derived by replaying events**, last-event-wins. Never stored as a fla
 
 **Training already exists at the data and logic layer** — exercises, splits, seeded templates, set-by-set session events, derived records. Finishing a session writes a real `HabitEvent` against `settings.trainingHabitId`, so training ticks its habit once rather than in two places — once a day, even when the session covers several routines, and only while that habit is active; archiving it lets go of the pointer.
 
-**Tests:** 453 across 30 files — CRUD, migrations, backup round-trip and hardening, streaks, records, session replay, and component and route tests for every screen. Thirteen Playwright paths run on WebKit at iPhone 13 size, covering what the component suite cannot: a real IndexedDB, a real service worker, real reloads, offline, and a real pointer drag.
+**Tests:** 554 across 39 files, plus two that run only against a real exported backup — CRUD, migrations, backup round-trip and hardening, streaks, records, session replay, and component and route tests for every screen. Thirteen Playwright paths run on WebKit at iPhone 13 size (a fourteenth is skipped by decision), covering what the component suite cannot: a real IndexedDB, a real service worker, real reloads, offline, and a real pointer drag.
 
 **Palette in the code today:** **Nocturne**, shipped in slice I. `--color-bg #161826`, `--color-surface #232532`, `--color-text #e9e9ed`, `--color-accent #9184d9`, plus the neutral and accent ramps, in `src/styles/tokens.css`. The warm terracotta set is gone.
 
@@ -54,11 +54,11 @@ There is **no completion colour**. Nocturne carries no green and no red; a ticke
 
 Light theme is derived from the same OKLCH ramps rather than invented: ground `--color-neutral-100`, ink `--color-neutral-900`, accent `--color-accent-700` (the first step clearing 4.5:1 on a light ground). Its muted step is the **70%** mix, not 55% — the same percentage does not survive both grounds.
 
-## What is in flight
+## The redesign (shipped)
 
-A redesign, specified in `docs/REDESIGN-PROMPT.md`: six-tab navigation (Today, Train, Splits, Calendar, Records, Settings), the training module surfaced properly in the UI, and a move to the **Nocturne** palette — a deep indigo `#161826` ground with a blurple accent ramp (`--color-accent #9184d9`).
+A redesign, specified in `docs/REDESIGN-PROMPT.md` and shipped: six-tab navigation (Today, Train, Splits, Calendar, Records, Settings), the training module surfaced properly in the UI, and the **Nocturne** palette — a deep indigo `#161826` ground with a blurple accent ramp (`--color-accent #9184d9`).
 
-This is a **UI and navigation change**. The data model and logic underneath it are already built and do not change.
+It was a **UI and navigation change**. What follows is kept because its decisions still bind the code.
 
 > **Note on the reference design.** `Kusuo Redesign.dc.html` is at the repository root — 274 KB, 30 phone frames. Its twenty custom properties were **not** inlined; they lived in `_ds/nocturne-3b49528c-ab2a-4dc7-aaad-a66924b76555/styles.css`, which was missing.
 >
@@ -117,6 +117,8 @@ Wednesday and Sunday.
 
 ## Known gaps
 
-- **No component or route tests.** All 15 test files are db/logic. The UI is unverified by anything but eye.
-- The Nocturne tokens are now on disk (`docs/nocturne-tokens.css`); slice I ports them into `src/styles/tokens.css`.
+- **Text does not follow the root font size.** Fixed pixel sizes, decided rather than missed: iOS applies Dynamic Type to native apps, not to web content. The skipped test in `e2e/landscape-and-scaling.spec.ts` explains it.
+- **The session screen runs one routine at a time.** Finishing from it finishes the whole day's session.
+- **A tap on Next movement or Finish while a set is saving is not taken.** Both buttons grey out until the save lands.
+- **The Mac only reads.** There is no sync; a JSON export and import is the only way between devices.
 - `app/PRODUCT.md` is Impeccable's own schema file, owned by that tool. It is consistent with this spec. Do not hand-edit it.

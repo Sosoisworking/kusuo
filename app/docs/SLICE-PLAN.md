@@ -293,23 +293,26 @@ Kusuo keeps its habits and replaces its training module with a rebuild of openGy
 set, then adds a backend. Why, what it ends, and how licensing is handled:
 `decisions/2026-10-20-training-rebuild.md`. Each slice ships to the phone working.
 
+**Stopped on 20 October 2026, after S1b.** Development is finished; nothing below S1b was built.
+See `decisions/2026-10-20-development-finished.md`.
+
 | # | Slice | Status |
 |---|---|---|
 | S0 | Groundwork: one replay ordering, a persisted clock, an id for every set, every table classified, backups can't change the device's role, a request for a fresh export | ✅ done |
 | S1a | Migration at parity: Dexie v10 (routines, plans, schedule), backup v6, no screen changes | ✅ done |
 | S1b | Combined days, rest-day marks, the archived training habit | ✅ done |
-| S3 | Planning, built new: week editor, overrides, rotation, starter plans, the full entry editor | next |
-| S4 | Session, built new: every set type, effort with colours, plate math, PRs as facts — no rest timer | |
-| S2 | Exercise library: ~1,324 ExerciseDB movements, search and filters | |
-| S5 | Progression rules, stalls and deloads | |
-| S6 | Stats: 1RM curves, heatmap, muscle map, structural balance, measurements, day notes | |
-| S7 | Editing history, and importing from Strong, Hevy, FitNotes, Apple Health | |
-| — | Gate: move to Kusuo's own domain | |
-| S8 | Server and passkey accounts | |
-| S9 | Encrypted sync; the Mac becomes a writer | |
-| S10 | Reminders and nudges | |
-| S11 | AI coach | |
-| S12 | Claims brought into line with what shipped | |
+| S3 | Planning, built new: week editor, overrides, rotation, starter plans, the full entry editor | not built |
+| S4 | Session, built new: every set type, effort with colours, plate math, PRs as facts — no rest timer | not built |
+| S2 | Exercise library: ~1,324 ExerciseDB movements, search and filters | not built |
+| S5 | Progression rules, stalls and deloads | not built |
+| S6 | Stats: 1RM curves, heatmap, muscle map, structural balance, measurements, day notes | not built |
+| S7 | Editing history, and importing from Strong, Hevy, FitNotes, Apple Health | not built |
+| — | Gate: move to Kusuo's own domain | not built |
+| S8 | Server and passkey accounts | not built |
+| S9 | Encrypted sync; the Mac becomes a writer | not built |
+| S10 | Reminders and nudges | not built |
+| S11 | AI coach | not built |
+| S12 | Claims brought into line with what shipped | done instead by `decisions/2026-10-20-development-finished.md` |
 
 Set identity and ordering: `decisions/2026-10-20-set-identity-and-ordering.md`. Week storage:
 `decisions/2026-10-20-week-storage.md`. Plans and routines: `decisions/2026-10-20-plans-and-routines.md`. The day's session: `decisions/2026-10-20-the-days-session.md`.

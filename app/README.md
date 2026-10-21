@@ -6,7 +6,7 @@ Kusuo is local-first. All data lives on the device in IndexedDB. There is no ser
 
 ## Status
 
-Shipped. Live at https://sosoisworking.github.io/kusuo/
+Finished. Live at https://sosoisworking.github.io/kusuo/ — development stopped on 20 October 2026; see `docs/decisions/2026-10-20-development-finished.md`.
 
 Every push to `main` is deployed to GitHub Pages by `../.github/workflows/deploy.yml`, but only after the typecheck, lint, unit tests and end-to-end tests pass.
 
