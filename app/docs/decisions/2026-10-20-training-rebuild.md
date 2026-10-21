@@ -9,7 +9,7 @@ none of the rules in the table below was ended.
 
 Kusuo keeps its habit features exactly as they are — habits, goals, reflections, streaks — and
 replaces its training module with a rebuild of the feature set of openGym
-(`github.com/DuarteSantos8/openGym`, forked as `Sosoisworking/openGym`): weekday or rotation
+(`github.com/DuarteSantos8/openGym`): weekday or rotation
 plans; supersets, warm-ups, drop sets, rest-pause, pyramids, back-off, timed holds, cardio and
 per-side reps; progression rules with deloads; plate math; 1RM curves, a heatmap, a muscle map
 and structural balance; history editing; importers. After that, a backend for passkey accounts,
